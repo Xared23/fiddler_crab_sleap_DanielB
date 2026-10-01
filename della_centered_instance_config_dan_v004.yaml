@@ -1,6 +1,6 @@
 data_config:
   train_labels_path:
-  - /scratch/gpfs/SHAEVITZ/kr3541/crab/danlabels.v004.slp
+  - /scratch/gpfs/SHAEVITZ/kr3541/crab/danlabels.v007.slp
   val_labels_path: null
   validation_fraction: 0.1
   use_same_data_for_val: true
@@ -142,7 +142,7 @@ trainer_config:
   train_steps_per_epoch: 200
   visualize_preds_during_training: false
   keep_viz: false
-  max_epochs: 50
+  max_epochs: 100
   seed: null
   use_wandb: false
   save_ckpt: true
@@ -183,7 +183,7 @@ trainer_config:
     linear_warmup_linear_decay: null
   early_stopping:
     min_delta: 1.0e-08
-    patience: 10
+    patience: 12
     stop_training_on_plateau: true
   online_hard_keypoint_mining:
     online_mining: false
