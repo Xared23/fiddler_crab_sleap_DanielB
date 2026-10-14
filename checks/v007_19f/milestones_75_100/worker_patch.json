@@ -1,0 +1,26 @@
+[
+  {
+    "old": "    files = [\"scripts/train_versioned.py\", \"scripts/pipeline_common.py\",\n             \"scripts/gputest_train.py\", \"scripts/train_versioned_chain.sh\"]\n    return {name: sha256(ROOT / name) for name in files}",
+    "new": "    files = [\"scripts/train_versioned.py\", \"scripts/pipeline_common.py\",\n             \"scripts/gputest_train.py\", \"scripts/train_versioned_chain.sh\",\n             \"scripts/milestone_checkpoints.py\"]\n    return {name: sha256(Path(__file__).resolve() if name == \"scripts/train_versioned.py\" else ROOT / name) for name in files}"
+  },
+  {
+    "old": "def patch_lightning(directory: Path, every_steps: int, smoke: bool, stop_after_steps):",
+    "new": "def patch_lightning(directory: Path, every_steps: int, smoke: bool, stop_after_steps, milestone_callback=None):"
+  },
+  {
+    "old": "        callbacks.append(SafeHop())\n        kwargs[\"callbacks\"] = callbacks",
+    "new": "        callbacks.append(SafeHop())\n        if milestone_callback is not None:\n            callbacks.append(milestone_callback)\n        kwargs[\"callbacks\"] = callbacks"
+  },
+  {
+    "old": "    code_hashes = implementation_hashes()\n    if not args.smoke:\n        preflight = read_json(ROOT / \"checks\" / run_cfg[\"run_id\"] / \"PREFLIGHT_COMPLETE.json\")\n        if (preflight[\"implementation\"] != code_hashes\n                or preflight[\"run_config_sha256\"] != sha256(project_path(args.config))\n                or preflight[\"dataset_sha256\"] != fingerprint(dataset)):\n            raise RuntimeError(\"Preflight does not match this implementation/configuration/dataset\")",
+    "new": "    actual_code_hashes = implementation_hashes()\n    code_hashes = actual_code_hashes\n    checkpoint_extension = None\n    if not args.smoke:\n        preflight = read_json(ROOT / \"checks\" / run_cfg[\"run_id\"] / \"PREFLIGHT_COMPLETE.json\")\n        if (preflight[\"run_config_sha256\"] != sha256(project_path(args.config))\n                or preflight[\"dataset_sha256\"] != fingerprint(dataset)):\n            raise RuntimeError(\"Preflight does not match this configuration/dataset\")\n        if preflight[\"implementation\"] != actual_code_hashes:\n            from milestone_checkpoints import load_extension\n            checkpoint_extension = load_extension(preflight, actual_code_hashes, run_cfg[\"run_id\"])\n            # manifest.json remains the immutable ORIGINAL training baseline.\n            # Actual runtime hashes and the tested extension are recorded below;\n            # no unapproved code difference is accepted by load_extension.\n            code_hashes = preflight[\"implementation\"]"
+  },
+  {
+    "old": "        manifest_hash = pin_manifest(directory, manifest)\n        complete = directory / \"TRAINING_COMPLETE.json\"",
+    "new": "        manifest_hash = pin_manifest(directory, manifest)\n        if checkpoint_extension is not None and args.role == \"centroid\":\n            atomic_json(directory / \"checkpoint_extension_active.json\", {\n                \"baseline_manifest_sha256\": manifest_hash,\n                \"actual_implementation\": actual_code_hashes,\n                \"extension\": checkpoint_extension,\n                \"activation_job_id\": os.environ.get(\"SLURM_JOB_ID\"),\n            })\n        complete = directory / \"TRAINING_COMPLETE.json\""
+  },
+  {
+    "old": "        patch_lightning(directory, training[\"checkpoint_every_steps\"], args.smoke, args.stop_after_steps)",
+    "new": "        milestone_callback = None\n        if checkpoint_extension is not None and args.role == \"centroid\":\n            from milestone_checkpoints import make_milestone_callback\n            job_id = os.environ.get(\"SLURM_JOB_ID\")\n            log_path = None if job_id is None else ROOT / \"logs\" / run_cfg[\"run_id\"] / f\"centroid_{job_id}.out\"\n            milestone_callback = make_milestone_callback(directory, log_path)\n        patch_lightning(directory, training[\"checkpoint_every_steps\"], args.smoke, args.stop_after_steps, milestone_callback)"
+  }
+]

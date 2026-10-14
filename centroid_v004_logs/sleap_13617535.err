@@ -1,0 +1,117 @@
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/utils/data/dataloader.py:431: UserWarning: This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 1, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  self.check_worker_number_rationality()
+/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/utils/data/dataloader.py:437: UserWarning: This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 1, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  self.check_worker_number_rationality()
+You are using a CUDA device ('NVIDIA A100-SXM4-80GB') that has Tensor Cores. To properly utilize them, you should set `torch.set_float32_matmul_precision('medium' | 'high')` which will trade-off precision for performance. For more details, read https://pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision
+/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/callbacks/model_checkpoint.py:881: Checkpoint directory /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/dan_centroid_v004-2 exists and is not empty.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+SLURM auto-requeueing enabled. Setting signal handlers.
+/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/utilities/_pytree.py:21: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+[W908 11:41:28.525969214 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 23888658432 bytes (free: 15207432192, total: 85118156800).
+[W908 11:41:28.526899007 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 23888658432 bytes (free: 15207432192, total: 85118156800).
+Traceback (most recent call last):
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/bin/sleap-nn", line 10, in <module>
+    sys.exit(cli())
+             ~~~^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/rich_click/rich_command.py", line 402, in __call__
+    return super().__call__(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/click/core.py", line 1631, in __call__
+    return self.main(*args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/rich_click/rich_command.py", line 216, in main
+    rv = self.invoke(ctx)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/click/core.py", line 2032, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+                           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/click/core.py", line 1415, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/click/core.py", line 910, in invoke
+    return callback(*args, **kwargs)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_nn/cli.py", line 575, in train
+    run_training(config=cfg, train_labels=train_labels, val_labels=val_labels)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_nn/train.py", line 338, in run_training
+    trainer.train()
+    ~~~~~~~~~~~~~^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_nn/training/model_trainer.py", line 1936, in train
+    self.trainer.fit(
+    ~~~~~~~~~~~~~~~~^
+        self.lightning_model,
+        ^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        ckpt_path=self.config.trainer_config.resume_ckpt_path,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/trainer/trainer.py", line 584, in fit
+    call._call_and_handle_interrupt(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self,
+        ^^^^^
+    ...<6 lines>...
+        weights_only,
+        ^^^^^^^^^^^^^
+    )
+    ^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/trainer/call.py", line 49, in _call_and_handle_interrupt
+    return trainer_fn(*args, **kwargs)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/trainer/trainer.py", line 630, in _fit_impl
+    self._run(model, ckpt_path=ckpt_path, weights_only=weights_only)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/trainer/trainer.py", line 1079, in _run
+    results = self._run_stage()
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/trainer/trainer.py", line 1121, in _run_stage
+    self._run_sanity_check()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/trainer/trainer.py", line 1150, in _run_sanity_check
+    val_loop.run()
+    ~~~~~~~~~~~~^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/loops/utilities.py", line 179, in _decorator
+    return loop_run(self, *args, **kwargs)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/loops/evaluation_loop.py", line 146, in run
+    self._evaluation_step(batch, batch_idx, dataloader_idx, dataloader_iter)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/loops/evaluation_loop.py", line 441, in _evaluation_step
+    output = call._call_strategy_hook(trainer, hook_name, *step_args)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/trainer/call.py", line 329, in _call_strategy_hook
+    output = fn(*args, **kwargs)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/strategies/strategy.py", line 412, in validation_step
+    return self.lightning_module.validation_step(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_nn/training/lightning_modules.py", line 1600, in validation_step
+    y_preds = self.model(X)["CentroidConfmapsHead"]
+              ~~~~~~~~~~^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_nn/architectures/model.py", line 247, in forward
+    backbone_outputs = self.backbone(x)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_nn/architectures/unet.py", line 295, in forward
+    output = decoder(middle_output, features)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_nn/architectures/encoder_decoder.py", line 724, in forward
+    x = self.decoder_stack[i](x, features[i])
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_nn/architectures/encoder_decoder.py", line 556, in forward
+    x = torch.concat((feature, x), dim=1)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 22.25 GiB. GPU 0 has a total capacity of 79.27 GiB of which 14.16 GiB is free. Including non-PyTorch memory, this process has 65.10 GiB memory in use. Of the allocated memory 50.54 GiB is allocated by PyTorch, and 14.07 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)

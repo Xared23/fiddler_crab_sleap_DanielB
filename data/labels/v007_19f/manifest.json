@@ -1,0 +1,90 @@
+{
+  "baseline_configs": {
+    "centered": {
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/della_centered_instance_config_dan_v004.yaml",
+      "sha256": "18dbdad3e8abc085ebb05e8c297ba62ed3a762ff4ae6606b1b8d3bad65b9ae1b"
+    },
+    "centroid": {
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/della_centroid_config_dan_v004.yaml",
+      "sha256": "26be5fc88ead2fa26290c9c7fe4a837ffcfec3f3f7e1e15661bd06ade220bcdb"
+    }
+  },
+  "dataset_config": {
+    "collaborator_sha256": "4fb48565c24024f5c4745aaa8b682841a32209280575c8c6cf95d7035ae2e684",
+    "expected_user_frames": 19,
+    "regional_handling": "none",
+    "source": "danlabels.v007.slp",
+    "source_policy": "v007_only_cumulative_per_user",
+    "split_seed": 42,
+    "validation_fraction": 0.10526315789473684,
+    "validation_frames": 2,
+    "video": "clip_cam2_8k.mp4"
+  },
+  "original_backup": {
+    "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/data/labels/v007_19f/source/danlabels.v007.collaborator.slp",
+    "sha256": "4fb48565c24024f5c4745aaa8b682841a32209280575c8c6cf95d7035ae2e684"
+  },
+  "regional_handling": "none",
+  "resolved_configs": {
+    "centered": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/configs/v007_19f/centered.yaml",
+    "centroid": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/configs/v007_19f/centroid.yaml"
+  },
+  "run_id": "v007_19f",
+  "sources": [
+    {
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/danlabels.v007.slp",
+      "sha256": "306faee64cee56161f116d78667dc2d4346ebff1a355946c213cdbbba8edff1b"
+    }
+  ],
+  "splits": {
+    "train": {
+      "frames": [
+        0,
+        151,
+        205,
+        302,
+        453,
+        604,
+        682,
+        755,
+        774,
+        906,
+        984,
+        1057,
+        1208,
+        1510,
+        1593,
+        1661,
+        1762
+      ],
+      "n_frames": 17,
+      "n_instances": 2291
+    },
+    "val": {
+      "frames": [
+        84,
+        1359
+      ],
+      "n_frames": 2,
+      "n_instances": 282
+    }
+  },
+  "versions": {
+    "lightning": "2.6.5",
+    "numpy": "2.5.2",
+    "sleap-io": "0.9.2",
+    "sleap-nn": "0.3.3",
+    "torch": "2.13.0"
+  },
+  "video": {
+    "bytes": 726825865,
+    "mtime_ns": 1787926604281473318,
+    "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/clip_cam2_8k.mp4",
+    "shape": [
+      1820,
+      4320,
+      7680,
+      3
+    ]
+  }
+}

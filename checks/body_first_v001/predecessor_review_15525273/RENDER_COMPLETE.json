@@ -1,0 +1,10 @@
+{
+  "exact_replay_passed": true,
+  "examples": 18,
+  "job_id": "15525273",
+  "pilot_report_sha256": "ee2eb1796e8301ea8f0ccace0678048407846d0dc4e86c748bf232432687c65c",
+  "production_approved": false,
+  "reason": "Original montage started at the newly accepted link, omitting its predecessor. Corrected views include that predecessor. No method, parameters, clips, or predictions changed.",
+  "review_examples_sha256": "37ef82ecf05181f380d9af4d1d4aa391a4d8cd32563f0e3aa4ab756c035a7fca",
+  "visual_review_required": true
+}

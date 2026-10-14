@@ -1,0 +1,18 @@
+2026-09-14 11:26:57.900 | INFO     | __main__:main:137 - Merge-only Crab_Cam_2_3.mp4: 28800 frames
+2026-09-14 11:27:03.642 | INFO     | __main__:_merge_chunks:93 - Merged 50/720 chunks
+2026-09-14 11:27:10.230 | INFO     | __main__:_merge_chunks:93 - Merged 100/720 chunks
+2026-09-14 11:27:16.505 | INFO     | __main__:_merge_chunks:93 - Merged 150/720 chunks
+2026-09-14 11:27:22.634 | INFO     | __main__:_merge_chunks:93 - Merged 200/720 chunks
+2026-09-14 11:27:28.952 | INFO     | __main__:_merge_chunks:93 - Merged 250/720 chunks
+2026-09-14 11:27:35.841 | INFO     | __main__:_merge_chunks:93 - Merged 300/720 chunks
+2026-09-14 11:27:42.050 | INFO     | __main__:_merge_chunks:93 - Merged 350/720 chunks
+2026-09-14 11:27:49.269 | INFO     | __main__:_merge_chunks:93 - Merged 400/720 chunks
+2026-09-14 11:27:56.861 | INFO     | __main__:_merge_chunks:93 - Merged 450/720 chunks
+2026-09-14 11:28:03.586 | INFO     | __main__:_merge_chunks:93 - Merged 500/720 chunks
+2026-09-14 11:28:11.983 | INFO     | __main__:_merge_chunks:93 - Merged 550/720 chunks
+2026-09-14 11:28:18.883 | INFO     | __main__:_merge_chunks:93 - Merged 600/720 chunks
+2026-09-14 11:28:25.018 | INFO     | __main__:_merge_chunks:93 - Merged 650/720 chunks
+2026-09-14 11:28:33.008 | INFO     | __main__:_merge_chunks:93 - Merged 700/720 chunks
+2026-09-14 11:28:35.395 | INFO     | __main__:_merge_chunks:93 - Merged 720/720 chunks
+2026-09-14 11:30:07.466 | INFO     | __main__:_merge_chunks:96 - Wrote /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/predictions/Crab_Cam_2_3/Crab_Cam_2_3.predictions.slp
+2026-09-14 11:30:10.560 | INFO     | __main__:_finish:105 - Wrote /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/predictions/Crab_Cam_2_3/PREDICT_COMPLETE

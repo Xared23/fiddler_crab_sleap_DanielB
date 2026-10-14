@@ -1,0 +1,3 @@
+2026-09-11 13:53:50.830 | INFO     | __main__:main:112 - Video Crab_Cam_2_2.mp4: 28800 frames; next=0
+2026-09-11 13:53:50.831 | INFO     | __main__:main:119 - Predicting frames 0-39 -> /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_000000_000039.slp
+[2026-09-11T13:54:27.909] error: *** JOB 13746453 ON della-l07g7 CANCELLED AT 2026-09-11T13:54:27 DUE TO JOB REQUEUE ***

@@ -1,0 +1,16 @@
+{
+  "activation": "next natural Slurm requeue after the reviewed edit",
+  "observed_hop_state": {
+    "hops": 75,
+    "no_progress_hops": 1,
+    "progress": 12790
+  },
+  "observed_progress": {
+    "epoch": 62,
+    "global_step": 12820
+  },
+  "receipt_sha256": "13656febb97815d0f6ade74c15ce8131b15d1ad1bcd3cbcd096522825bf4335d",
+  "slurm_job_id": "15389104",
+  "training_settings_unchanged": true,
+  "worker_sha256": "0f447b1d0be3a296969dbff0eaae55bb89dd6fd5760406bf713ce78337e8fd60"
+}

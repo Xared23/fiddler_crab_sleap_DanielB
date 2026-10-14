@@ -1,0 +1,5 @@
+gputest hop 773/2000  run_dir=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/predictions/Crab_Cam_2_3
+Worker exit code: 138
+Hop was preempted (exit 138); requeuing.
+Submitting next hop: /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/predict_dan_native.sh --video crab_vids/Crab_Cam_2_3.mp4
+Submitted batch job 13777058

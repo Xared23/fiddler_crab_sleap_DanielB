@@ -1,0 +1,17 @@
+2026-09-08 21:50:13.306 | INFO     | __main__:main:202 - No checkpoint found; starting a new run
+[rank: 0] Seed set to 42
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+You are using a CUDA device ('NVIDIA A100-SXM4-80GB') that has Tensor Cores. To properly utilize them, you should set `torch.set_float32_matmul_precision('medium' | 'high')` which will trade-off precision for performance. For more details, read https://pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision
+/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/callbacks/model_checkpoint.py:881: Checkpoint directory /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/dan_centered_native exists and is not empty.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/utilities/_pytree.py:21: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:434: The 'val_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=3` in the `DataLoader` to improve performance.
+/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:434: The 'train_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=3` in the `DataLoader` to improve performance.
+USR1 forwarded to trainer pid 668561 and children
+`weights_only` was not set, defaulting to `False`.
+[2026-09-08T22:53:24.008] error: *** JOB 13635051 ON della-l09g1 CANCELLED AT 2026-09-08T22:53:24 DUE TO TIME LIMIT ***
+TERM forwarded to trainer pid 668561 and children
+[rank: 0] Received SIGTERM: 15
+`weights_only` was not set, defaulting to `False`.

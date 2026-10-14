@@ -1,0 +1,12 @@
+gputest hop 160/2000  run_dir=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/predictions/Crab_Cam_2_3
+2026-09-11 17:14:28 | sleap-nn 0.3.3 | Python 3.13.13 | PyTorch 2.13.0+cu130 | CUDA 13.0 | 1 GPU(s)
+2026-09-11 17:14:29 | Loaded inference model | type=centroid+centered_instance | backbone=unet | nodes=5 | device=cuda | batch_size=1 | peak_threshold=0.2 | max_instances=None | integral_refinement=integral | paf_workers=0
+2026-09-11 17:14:30 | Starting inference | source=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/crab_vids/Crab_Cam_2_3.mp4 | frames=40 | videos=1 | shape=4320x7680x3 | fps=29.97002997002997 | tracking=False
+2026-09-11 17:14:53 | Inference complete | frames=40 | instances=6605 (165.12/frame) | elapsed=21.9s | throughput=1.8 fps | tracking=False
+2026-09-11 17:14:54 | Predictions output path: /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_006320_006359.slp
+2026-09-11 17:14:54 | Saved file at: 2026-09-11 17:14:54.568324
+2026-09-11 17:14:54 | Chunk done; next_frame=6360/28800
+2026-09-11 17:14:54 | More frames remain; requeue
+Worker exit code: 75
+Submitting next hop: /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/predict_dan_native.sh --video crab_vids/Crab_Cam_2_3.mp4
+Submitted batch job 13756519

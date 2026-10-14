@@ -1,0 +1,1351 @@
+{
+  "baseline": {
+    "dataset_sha256": "4f376b929103407795b8d5f32e0bc1bb5964e264471521e7898243c5a4ac4322",
+    "extension": {
+      "approved_scope": "User-requested additional epoch-end checkpoint retention only; no training hyperparameter or scheduler changes.",
+      "baseline_implementation": {
+        "scripts/gputest_train.py": "9c6ff986179475b2292f99bebfcf3d8f7fdcd4976ca1cf8a4f82e9f8d0133d56",
+        "scripts/pipeline_common.py": "a427da68a340550cc475c6cac9c37338a1713eb07258f056f701491daf7a3baf",
+        "scripts/train_versioned.py": "a64c125505f65cb2ce2c958d4b87271572265915f265926fe7fc8719d99be674",
+        "scripts/train_versioned_chain.sh": "60c8dc0292dbdcd97b01bb68ecc02b324d088afb169daa7f09b1e96b1f7a9ffb"
+      },
+      "completed_epochs": [
+        75,
+        100
+      ],
+      "dataset_sha256": "4f376b929103407795b8d5f32e0bc1bb5964e264471521e7898243c5a4ac4322",
+      "implementation": {
+        "scripts/gputest_train.py": "9c6ff986179475b2292f99bebfcf3d8f7fdcd4976ca1cf8a4f82e9f8d0133d56",
+        "scripts/milestone_checkpoints.py": "735ffae91de2ae502238d88c833b2c0a42cb1c49853628c81353b7f926113170",
+        "scripts/pipeline_common.py": "a427da68a340550cc475c6cac9c37338a1713eb07258f056f701491daf7a3baf",
+        "scripts/train_versioned.py": "0f447b1d0be3a296969dbff0eaae55bb89dd6fd5760406bf713ce78337e8fd60",
+        "scripts/train_versioned_chain.sh": "60c8dc0292dbdcd97b01bb68ecc02b324d088afb169daa7f09b1e96b1f7a9ffb"
+      },
+      "roles": [
+        "centroid"
+      ],
+      "run_config_sha256": "cc88bf6d9cead370c4809bfe187dfbfe8a06dd245aabdc300cc732eb679ae8ef",
+      "run_id": "v007_19f",
+      "schema_version": 1,
+      "test_report_sha256": "40b57d06aca6d742b254df14019ba25d4460684f707f991769577f9295ad2adc",
+      "tests_passed": true
+    },
+    "implementation": {
+      "scripts/gputest_train.py": "9c6ff986179475b2292f99bebfcf3d8f7fdcd4976ca1cf8a4f82e9f8d0133d56",
+      "scripts/milestone_checkpoints.py": "735ffae91de2ae502238d88c833b2c0a42cb1c49853628c81353b7f926113170",
+      "scripts/pipeline_common.py": "a427da68a340550cc475c6cac9c37338a1713eb07258f056f701491daf7a3baf",
+      "scripts/train_versioned.py": "0f447b1d0be3a296969dbff0eaae55bb89dd6fd5760406bf713ce78337e8fd60",
+      "scripts/train_versioned_chain.sh": "60c8dc0292dbdcd97b01bb68ecc02b324d088afb169daa7f09b1e96b1f7a9ffb"
+    },
+    "run_config_sha256": "cc88bf6d9cead370c4809bfe187dfbfe8a06dd245aabdc300cc732eb679ae8ef",
+    "versions": {
+      "lightning": "2.6.5",
+      "numpy": "2.5.2",
+      "sleap-io": "0.9.2",
+      "sleap-nn": "0.3.3",
+      "torch": "2.13.0"
+    }
+  },
+  "frozen_files": [
+    {
+      "relative_path": "centered_best/TRAINING_COMPLETE.json",
+      "sha256": "3a6b9ff5971e7fcaa210329058b61ef47fa1a1f74d946f2dfe50a5997e4ebaeb"
+    },
+    {
+      "relative_path": "centered_best/best.ckpt",
+      "sha256": "3ae4e3fd048f2d01b76949fe63ec283c616394f6755e031380a08dec91eed1e2"
+    },
+    {
+      "relative_path": "centered_best/initial_config.yaml",
+      "sha256": "42b6192779d396ede9e5d39cbdbbe2254d707653e4aef97d727035c23fda6928"
+    },
+    {
+      "relative_path": "centered_best/manifest.json",
+      "sha256": "18a4d5ea920c47f10d5deafbde0eeffce204008e7f07c2d84a63156b09d45e54"
+    },
+    {
+      "relative_path": "centered_best/snapshot.json",
+      "sha256": "b943965a3bb4b13a4641a96f21d9b82e8e3cc6cc8ad5d341e55b599134ed3b33"
+    },
+    {
+      "relative_path": "centered_best/training_config.yaml",
+      "sha256": "57d98fb511f109012dab8c9cfa35f4232c666aaa10efafcc435a5494850b3dc8"
+    },
+    {
+      "relative_path": "centered_best/training_log.csv",
+      "sha256": "50cefc62e525e79477fefff9f1374e7be952ba7926717f5f587ea9980f07e9d7"
+    },
+    {
+      "relative_path": "centroid_best/best.ckpt",
+      "sha256": "99ddf439f8d8b656b5e625ccca636fd7bb9e1dd5a51ada3941b2e4568c587e0f"
+    },
+    {
+      "relative_path": "centroid_best/checkpoint_extension_active.json",
+      "sha256": "3c2981d670d5d7b913005279593ddf754cc272123c423922019846476ec16390"
+    },
+    {
+      "relative_path": "centroid_best/initial_config.yaml",
+      "sha256": "a373dc39d8eba3120e22da01ffa4a22c137c62d8571521e9c7a5ee9fa1f98668"
+    },
+    {
+      "relative_path": "centroid_best/manifest.json",
+      "sha256": "dc6204b71a913df3042000aae63d9339969557ce630f604a242e53465b198f1b"
+    },
+    {
+      "relative_path": "centroid_best/snapshot.json",
+      "sha256": "2d60c361a3d4e64cc2b25f122298b83eeb52078fb233fe9b8e2cc00d5a50afdc"
+    },
+    {
+      "relative_path": "centroid_best/training_config.yaml",
+      "sha256": "54f785015e4c914fd7e34eaebf7fe45fbffeb7411d55e991057ef70ebd5a9a10"
+    },
+    {
+      "relative_path": "centroid_best/training_log.csv",
+      "sha256": "5ae3e6e1d5fa1714d398896605dc5dcd4c45e8789f0e7e6f3696b1655b9ebed0"
+    },
+    {
+      "relative_path": "centroid_latest/best.ckpt",
+      "sha256": "999575f8a9715e77f874d3bacb35b78d51927c7d99bc0c3d9175e021a99c8554"
+    },
+    {
+      "relative_path": "centroid_latest/checkpoint_extension_active.json",
+      "sha256": "3c2981d670d5d7b913005279593ddf754cc272123c423922019846476ec16390"
+    },
+    {
+      "relative_path": "centroid_latest/initial_config.yaml",
+      "sha256": "a373dc39d8eba3120e22da01ffa4a22c137c62d8571521e9c7a5ee9fa1f98668"
+    },
+    {
+      "relative_path": "centroid_latest/manifest.json",
+      "sha256": "dc6204b71a913df3042000aae63d9339969557ce630f604a242e53465b198f1b"
+    },
+    {
+      "relative_path": "centroid_latest/snapshot.json",
+      "sha256": "284d95a6fd09104dc9354a7aef86bbf9ceec70efb08983d60b2961016ee020d4"
+    },
+    {
+      "relative_path": "centroid_latest/training_config.yaml",
+      "sha256": "54f785015e4c914fd7e34eaebf7fe45fbffeb7411d55e991057ef70ebd5a9a10"
+    },
+    {
+      "relative_path": "centroid_latest/training_log.csv",
+      "sha256": "5ae3e6e1d5fa1714d398896605dc5dcd4c45e8789f0e7e6f3696b1655b9ebed0"
+    }
+  ],
+  "hop_state": {
+    "hops": 122,
+    "no_progress_hops": 0,
+    "progress": 21212
+  },
+  "milestones": {
+    "100": {
+      "checkpoint": {
+        "callbacks": {
+          "EarlyStopping{'monitor': 'val/loss', 'mode': 'min'}": {
+            "best_score": 5.3800526075065136e-05,
+            "patience": 40,
+            "stopped_epoch": 0,
+            "stopping_reason": 0,
+            "stopping_reason_message": null,
+            "wait_count": 26
+          },
+          "ModelCheckpoint{'monitor': 'val/loss', 'mode': 'min', 'every_n_train_steps': 0, 'every_n_epochs': 1, 'train_time_interval': None}": {
+            "best_k_models": {
+              "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/best.ckpt": 5.3800526075065136e-05
+            },
+            "best_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/best.ckpt",
+            "best_model_score": 5.3800526075065136e-05,
+            "current_score": null,
+            "dirpath": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid",
+            "kth_best_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/best.ckpt",
+            "kth_value": 5.3800526075065136e-05,
+            "last_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/last.ckpt",
+            "monitor": "val/loss"
+          }
+        },
+        "epoch_zero_based": 99,
+        "global_step": 20275,
+        "loop_state": {
+          "fit_loop": {
+            "epoch_loop.automatic_optimization.optim_progress": {
+              "optimizer": {
+                "step": {
+                  "current": {
+                    "completed": 201,
+                    "ready": 201
+                  },
+                  "total": {
+                    "completed": 20275,
+                    "ready": 20275
+                  }
+                },
+                "zero_grad": {
+                  "current": {
+                    "completed": 201,
+                    "ready": 201,
+                    "started": 201
+                  },
+                  "total": {
+                    "completed": 20275,
+                    "ready": 20275,
+                    "started": 20275
+                  }
+                }
+              }
+            },
+            "epoch_loop.automatic_optimization.state_dict": {},
+            "epoch_loop.batch_progress": {
+              "current": {
+                "completed": 200,
+                "processed": 200,
+                "ready": 200,
+                "started": 200
+              },
+              "is_last_batch": true,
+              "total": {
+                "completed": 20195,
+                "processed": 20275,
+                "ready": 20275,
+                "started": 20275
+              }
+            },
+            "epoch_loop.manual_optimization.optim_step_progress": {
+              "current": {
+                "completed": 0,
+                "ready": 0
+              },
+              "total": {
+                "completed": 0,
+                "ready": 0
+              }
+            },
+            "epoch_loop.manual_optimization.state_dict": {},
+            "epoch_loop.scheduler_progress": {
+              "current": {
+                "completed": 0,
+                "ready": 0
+              },
+              "total": {
+                "completed": 0,
+                "ready": 0
+              }
+            },
+            "epoch_loop.state_dict": {
+              "_batches_that_stepped": 20274
+            },
+            "epoch_loop.val_loop.batch_progress": {
+              "current": {
+                "completed": 2,
+                "processed": 2,
+                "ready": 2,
+                "started": 2
+              },
+              "is_last_batch": true,
+              "total": {
+                "completed": 2,
+                "processed": 2,
+                "ready": 2,
+                "started": 2
+              }
+            },
+            "epoch_loop.val_loop.state_dict": {},
+            "epoch_progress": {
+              "current": {
+                "completed": 99,
+                "processed": 100,
+                "ready": 100,
+                "started": 100
+              },
+              "total": {
+                "completed": 99,
+                "processed": 100,
+                "ready": 100,
+                "started": 100
+              }
+            },
+            "state_dict": {}
+          },
+          "predict_loop": {
+            "batch_progress": {
+              "current": {
+                "completed": 0,
+                "processed": 0,
+                "ready": 0,
+                "started": 0
+              },
+              "total": {
+                "completed": 0,
+                "processed": 0,
+                "ready": 0,
+                "started": 0
+              }
+            },
+            "state_dict": {}
+          },
+          "test_loop": {
+            "batch_progress": {
+              "current": {
+                "completed": 0,
+                "processed": 0,
+                "ready": 0,
+                "started": 0
+              },
+              "is_last_batch": false,
+              "total": {
+                "completed": 0,
+                "processed": 0,
+                "ready": 0,
+                "started": 0
+              }
+            },
+            "state_dict": {}
+          },
+          "validate_loop": {
+            "batch_progress": {
+              "current": {
+                "completed": 0,
+                "processed": 0,
+                "ready": 0,
+                "started": 0
+              },
+              "is_last_batch": false,
+              "total": {
+                "completed": 0,
+                "processed": 0,
+                "ready": 0,
+                "started": 0
+              }
+            },
+            "state_dict": {}
+          }
+        },
+        "lr_schedulers": [
+          {
+            "_last_lr": [
+              0.0001
+            ],
+            "best": Infinity,
+            "cooldown": 3,
+            "cooldown_counter": 0,
+            "default_min_lr": 1e-08,
+            "eps": 1e-08,
+            "factor": 0.3,
+            "last_epoch": 0,
+            "min_lrs": [
+              1e-08
+            ],
+            "mode": "min",
+            "mode_worse": Infinity,
+            "num_bad_epochs": 0,
+            "patience": 20,
+            "threshold": 1e-06,
+            "threshold_mode": "abs"
+          }
+        ],
+        "optimizer_groups": [
+          {
+            "amsgrad": false,
+            "betas": [
+              0.9,
+              0.999
+            ],
+            "capturable": false,
+            "decoupled_weight_decay": false,
+            "differentiable": false,
+            "eps": 1e-08,
+            "foreach": null,
+            "fused": null,
+            "lr": 0.0001,
+            "maximize": false,
+            "weight_decay": 0
+          }
+        ],
+        "optimizer_parameter_states": 34,
+        "optimizer_step_range": [
+          20275.0,
+          20275.0
+        ],
+        "path": "models/v007_19f/centroid/milestones/epoch_0100/best.ckpt",
+        "sha256": "60595d0ef50e867457c88d43731a36b5fb21f04ec0245ba02493266e12405dbe"
+      },
+      "snapshot": {
+        "checkpoint_epoch_zero_based": 99,
+        "checkpoint_sha256": "60595d0ef50e867457c88d43731a36b5fb21f04ec0245ba02493266e12405dbe",
+        "completed_epochs": 100,
+        "global_step": 20275,
+        "kind": "epoch_end_weights_NOT_best_so_far",
+        "learning_rates": [
+          0.0001
+        ],
+        "note": "best.ckpt is the SLEAP inference filename, but contains this epoch's weights, not the validation-best weights from an earlier epoch. CSV copied inside the callback may not yet include this epoch; validation_loss above is captured directly.",
+        "schema_version": 1,
+        "slurm_job_id": "15256499",
+        "timing": {
+          "cumulative_fit_seconds_approx": 365659.12188995804,
+          "current_hop_fit_seconds": 631.1218899580126,
+          "definition": "Fit time includes validation/checkpoint overhead, excludes most startup and queue waits. Prior hop durations are rounded in the original logs. Wall time includes intervening queue waits; neither field is GPU kernel time.",
+          "previous_completed_hop_loop_seconds_approx": 365028.0,
+          "snapshot_utc": "2026-10-13T20:44:17.569408+00:00",
+          "wall_seconds_since_first_logged_setup": 406237.5768060684
+        },
+        "training_config_sha256": "54f785015e4c914fd7e34eaebf7fe45fbffeb7411d55e991057ef70ebd5a9a10",
+        "validation_loss": 5.5272761528613046e-05
+      }
+    },
+    "75": {
+      "checkpoint": {
+        "callbacks": {
+          "EarlyStopping{'monitor': 'val/loss', 'mode': 'min'}": {
+            "best_score": 5.3800526075065136e-05,
+            "patience": 40,
+            "stopped_epoch": 0,
+            "stopping_reason": 0,
+            "stopping_reason_message": null,
+            "wait_count": 2
+          },
+          "ModelCheckpoint{'monitor': 'val/loss', 'mode': 'min', 'every_n_train_steps': 0, 'every_n_epochs': 1, 'train_time_interval': None}": {
+            "best_k_models": {
+              "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/best.ckpt": 5.3800526075065136e-05
+            },
+            "best_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/best.ckpt",
+            "best_model_score": 5.3800526075065136e-05,
+            "current_score": null,
+            "dirpath": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid",
+            "kth_best_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/best.ckpt",
+            "kth_value": 5.3800526075065136e-05,
+            "last_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/last.ckpt",
+            "monitor": "val/loss"
+          }
+        },
+        "epoch_zero_based": 74,
+        "global_step": 15245,
+        "loop_state": {
+          "fit_loop": {
+            "epoch_loop.automatic_optimization.optim_progress": {
+              "optimizer": {
+                "step": {
+                  "current": {
+                    "completed": 201,
+                    "ready": 201
+                  },
+                  "total": {
+                    "completed": 15245,
+                    "ready": 15245
+                  }
+                },
+                "zero_grad": {
+                  "current": {
+                    "completed": 201,
+                    "ready": 201,
+                    "started": 201
+                  },
+                  "total": {
+                    "completed": 15245,
+                    "ready": 15245,
+                    "started": 15245
+                  }
+                }
+              }
+            },
+            "epoch_loop.automatic_optimization.state_dict": {},
+            "epoch_loop.batch_progress": {
+              "current": {
+                "completed": 200,
+                "processed": 200,
+                "ready": 200,
+                "started": 200
+              },
+              "is_last_batch": true,
+              "total": {
+                "completed": 15194,
+                "processed": 15245,
+                "ready": 15245,
+                "started": 15245
+              }
+            },
+            "epoch_loop.manual_optimization.optim_step_progress": {
+              "current": {
+                "completed": 0,
+                "ready": 0
+              },
+              "total": {
+                "completed": 0,
+                "ready": 0
+              }
+            },
+            "epoch_loop.manual_optimization.state_dict": {},
+            "epoch_loop.scheduler_progress": {
+              "current": {
+                "completed": 0,
+                "ready": 0
+              },
+              "total": {
+                "completed": 0,
+                "ready": 0
+              }
+            },
+            "epoch_loop.state_dict": {
+              "_batches_that_stepped": 15244
+            },
+            "epoch_loop.val_loop.batch_progress": {
+              "current": {
+                "completed": 2,
+                "processed": 2,
+                "ready": 2,
+                "started": 2
+              },
+              "is_last_batch": true,
+              "total": {
+                "completed": 2,
+                "processed": 2,
+                "ready": 2,
+                "started": 2
+              }
+            },
+            "epoch_loop.val_loop.state_dict": {},
+            "epoch_progress": {
+              "current": {
+                "completed": 74,
+                "processed": 75,
+                "ready": 75,
+                "started": 75
+              },
+              "total": {
+                "completed": 74,
+                "processed": 75,
+                "ready": 75,
+                "started": 75
+              }
+            },
+            "state_dict": {}
+          },
+          "predict_loop": {
+            "batch_progress": {
+              "current": {
+                "completed": 0,
+                "processed": 0,
+                "ready": 0,
+                "started": 0
+              },
+              "total": {
+                "completed": 0,
+                "processed": 0,
+                "ready": 0,
+                "started": 0
+              }
+            },
+            "state_dict": {}
+          },
+          "test_loop": {
+            "batch_progress": {
+              "current": {
+                "completed": 0,
+                "processed": 0,
+                "ready": 0,
+                "started": 0
+              },
+              "is_last_batch": false,
+              "total": {
+                "completed": 0,
+                "processed": 0,
+                "ready": 0,
+                "started": 0
+              }
+            },
+            "state_dict": {}
+          },
+          "validate_loop": {
+            "batch_progress": {
+              "current": {
+                "completed": 0,
+                "processed": 0,
+                "ready": 0,
+                "started": 0
+              },
+              "is_last_batch": false,
+              "total": {
+                "completed": 0,
+                "processed": 0,
+                "ready": 0,
+                "started": 0
+              }
+            },
+            "state_dict": {}
+          }
+        },
+        "lr_schedulers": [
+          {
+            "_last_lr": [
+              0.0001
+            ],
+            "best": Infinity,
+            "cooldown": 3,
+            "cooldown_counter": 0,
+            "default_min_lr": 1e-08,
+            "eps": 1e-08,
+            "factor": 0.3,
+            "last_epoch": 0,
+            "min_lrs": [
+              1e-08
+            ],
+            "mode": "min",
+            "mode_worse": Infinity,
+            "num_bad_epochs": 0,
+            "patience": 20,
+            "threshold": 1e-06,
+            "threshold_mode": "abs"
+          }
+        ],
+        "optimizer_groups": [
+          {
+            "amsgrad": false,
+            "betas": [
+              0.9,
+              0.999
+            ],
+            "capturable": false,
+            "decoupled_weight_decay": false,
+            "differentiable": false,
+            "eps": 1e-08,
+            "foreach": null,
+            "fused": null,
+            "lr": 0.0001,
+            "maximize": false,
+            "weight_decay": 0
+          }
+        ],
+        "optimizer_parameter_states": 34,
+        "optimizer_step_range": [
+          15245.0,
+          15245.0
+        ],
+        "path": "models/v007_19f/centroid/milestones/epoch_0075/best.ckpt",
+        "sha256": "e8708a7a5fbd5cc169f4959a72e0718fa37a81a7803fa6377350c8ee55045ba5"
+      },
+      "snapshot": {
+        "checkpoint_epoch_zero_based": 74,
+        "checkpoint_sha256": "e8708a7a5fbd5cc169f4959a72e0718fa37a81a7803fa6377350c8ee55045ba5",
+        "completed_epochs": 75,
+        "global_step": 15245,
+        "kind": "epoch_end_weights_NOT_best_so_far",
+        "learning_rates": [
+          0.0001
+        ],
+        "note": "best.ckpt is the SLEAP inference filename, but contains this epoch's weights, not the validation-best weights from an earlier epoch. CSV copied inside the callback may not yet include this epoch; validation_loss above is captured directly.",
+        "schema_version": 1,
+        "slurm_job_id": "15256499",
+        "timing": {
+          "cumulative_fit_seconds_approx": 274945.415188298,
+          "current_hop_fit_seconds": 3073.4151882979786,
+          "definition": "Fit time includes validation/checkpoint overhead, excludes most startup and queue waits. Prior hop durations are rounded in the original logs. Wall time includes intervening queue waits; neither field is GPU kernel time.",
+          "previous_completed_hop_loop_seconds_approx": 271872.0,
+          "snapshot_utc": "2026-10-12T16:19:34.171549+00:00",
+          "wall_seconds_since_first_logged_setup": 303954.1764290333
+        },
+        "training_config_sha256": "54f785015e4c914fd7e34eaebf7fe45fbffeb7411d55e991057ef70ebd5a9a10",
+        "validation_loss": 6.326213042484596e-05
+      }
+    }
+  },
+  "models": {
+    "centered_best": {
+      "callbacks": {
+        "EarlyStopping{'monitor': 'val/loss', 'mode': 'min'}": {
+          "best_score": 0.000517778389621526,
+          "patience": 40,
+          "stopped_epoch": 0,
+          "stopping_reason": 0,
+          "stopping_reason_message": null,
+          "wait_count": 0
+        },
+        "ModelCheckpoint{'monitor': 'val/loss', 'mode': 'min', 'every_n_train_steps': 0, 'every_n_epochs': 1, 'train_time_interval': None}": {
+          "best_k_models": {
+            "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centered/best.ckpt": 0.000517778389621526
+          },
+          "best_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centered/best.ckpt",
+          "best_model_score": 0.000517778389621526,
+          "current_score": 0.000517778389621526,
+          "dirpath": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centered",
+          "kth_best_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centered/best.ckpt",
+          "kth_value": 0.000517778389621526,
+          "last_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centered/last.ckpt",
+          "monitor": "val/loss"
+        }
+      },
+      "epoch_zero_based": 191,
+      "global_step": 38400,
+      "loop_state": {
+        "fit_loop": {
+          "epoch_loop.automatic_optimization.optim_progress": {
+            "optimizer": {
+              "step": {
+                "current": {
+                  "completed": 200,
+                  "ready": 200
+                },
+                "total": {
+                  "completed": 38400,
+                  "ready": 38400
+                }
+              },
+              "zero_grad": {
+                "current": {
+                  "completed": 200,
+                  "ready": 200,
+                  "started": 200
+                },
+                "total": {
+                  "completed": 38400,
+                  "ready": 38400,
+                  "started": 38400
+                }
+              }
+            }
+          },
+          "epoch_loop.automatic_optimization.state_dict": {},
+          "epoch_loop.batch_progress": {
+            "current": {
+              "completed": 200,
+              "processed": 200,
+              "ready": 200,
+              "started": 200
+            },
+            "is_last_batch": true,
+            "total": {
+              "completed": 38400,
+              "processed": 38400,
+              "ready": 38400,
+              "started": 38400
+            }
+          },
+          "epoch_loop.manual_optimization.optim_step_progress": {
+            "current": {
+              "completed": 0,
+              "ready": 0
+            },
+            "total": {
+              "completed": 0,
+              "ready": 0
+            }
+          },
+          "epoch_loop.manual_optimization.state_dict": {},
+          "epoch_loop.scheduler_progress": {
+            "current": {
+              "completed": 0,
+              "ready": 0
+            },
+            "total": {
+              "completed": 182,
+              "ready": 182
+            }
+          },
+          "epoch_loop.state_dict": {
+            "_batches_that_stepped": 38400
+          },
+          "epoch_loop.val_loop.batch_progress": {
+            "current": {
+              "completed": 282,
+              "processed": 282,
+              "ready": 282,
+              "started": 282
+            },
+            "is_last_batch": true,
+            "total": {
+              "completed": 282,
+              "processed": 282,
+              "ready": 282,
+              "started": 282
+            }
+          },
+          "epoch_loop.val_loop.state_dict": {},
+          "epoch_progress": {
+            "current": {
+              "completed": 191,
+              "processed": 192,
+              "ready": 192,
+              "started": 192
+            },
+            "total": {
+              "completed": 191,
+              "processed": 192,
+              "ready": 192,
+              "started": 192
+            }
+          },
+          "state_dict": {}
+        },
+        "predict_loop": {
+          "batch_progress": {
+            "current": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            },
+            "total": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            }
+          },
+          "state_dict": {}
+        },
+        "test_loop": {
+          "batch_progress": {
+            "current": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            },
+            "is_last_batch": false,
+            "total": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            }
+          },
+          "state_dict": {}
+        },
+        "validate_loop": {
+          "batch_progress": {
+            "current": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            },
+            "is_last_batch": false,
+            "total": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            }
+          },
+          "state_dict": {}
+        }
+      },
+      "lr_schedulers": [
+        {
+          "_last_lr": [
+            0.0001
+          ],
+          "best": 0.000527135212905705,
+          "cooldown": 3,
+          "cooldown_counter": 0,
+          "default_min_lr": 1e-08,
+          "eps": 1e-08,
+          "factor": 0.3,
+          "last_epoch": 182,
+          "min_lrs": [
+            1e-08
+          ],
+          "mode": "min",
+          "mode_worse": Infinity,
+          "num_bad_epochs": 5,
+          "patience": 20,
+          "threshold": 1e-06,
+          "threshold_mode": "abs"
+        }
+      ],
+      "optimizer_groups": [
+        {
+          "amsgrad": false,
+          "betas": [
+            0.9,
+            0.999
+          ],
+          "capturable": false,
+          "decoupled_weight_decay": false,
+          "differentiable": false,
+          "eps": 1e-08,
+          "foreach": null,
+          "fused": null,
+          "lr": 0.0001,
+          "maximize": false,
+          "weight_decay": 0
+        }
+      ],
+      "optimizer_parameter_states": 38,
+      "optimizer_step_range": [
+        38400.0,
+        38400.0
+      ],
+      "path": "models/v007_19f/centered/best.ckpt",
+      "sha256": "3ae4e3fd048f2d01b76949fe63ec283c616394f6755e031380a08dec91eed1e2"
+    },
+    "centroid_best": {
+      "callbacks": {
+        "EarlyStopping{'monitor': 'val/loss', 'mode': 'min'}": {
+          "best_score": 5.3800526075065136e-05,
+          "patience": 40,
+          "stopped_epoch": 0,
+          "stopping_reason": 0,
+          "stopping_reason_message": null,
+          "wait_count": 0
+        },
+        "ModelCheckpoint{'monitor': 'val/loss', 'mode': 'min', 'every_n_train_steps': 0, 'every_n_epochs': 1, 'train_time_interval': None}": {
+          "best_k_models": {
+            "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/best.ckpt": 5.3800526075065136e-05
+          },
+          "best_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/best.ckpt",
+          "best_model_score": 5.3800526075065136e-05,
+          "current_score": 5.3800526075065136e-05,
+          "dirpath": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid",
+          "kth_best_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/best.ckpt",
+          "kth_value": 5.3800526075065136e-05,
+          "last_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/last.ckpt",
+          "monitor": "val/loss"
+        }
+      },
+      "epoch_zero_based": 72,
+      "global_step": 14843,
+      "loop_state": {
+        "fit_loop": {
+          "epoch_loop.automatic_optimization.optim_progress": {
+            "optimizer": {
+              "step": {
+                "current": {
+                  "completed": 201,
+                  "ready": 201
+                },
+                "total": {
+                  "completed": 14843,
+                  "ready": 14843
+                }
+              },
+              "zero_grad": {
+                "current": {
+                  "completed": 201,
+                  "ready": 201,
+                  "started": 201
+                },
+                "total": {
+                  "completed": 14843,
+                  "ready": 14843,
+                  "started": 14843
+                }
+              }
+            }
+          },
+          "epoch_loop.automatic_optimization.state_dict": {},
+          "epoch_loop.batch_progress": {
+            "current": {
+              "completed": 200,
+              "processed": 200,
+              "ready": 200,
+              "started": 200
+            },
+            "is_last_batch": true,
+            "total": {
+              "completed": 14794,
+              "processed": 14843,
+              "ready": 14843,
+              "started": 14843
+            }
+          },
+          "epoch_loop.manual_optimization.optim_step_progress": {
+            "current": {
+              "completed": 0,
+              "ready": 0
+            },
+            "total": {
+              "completed": 0,
+              "ready": 0
+            }
+          },
+          "epoch_loop.manual_optimization.state_dict": {},
+          "epoch_loop.scheduler_progress": {
+            "current": {
+              "completed": 0,
+              "ready": 0
+            },
+            "total": {
+              "completed": 0,
+              "ready": 0
+            }
+          },
+          "epoch_loop.state_dict": {
+            "_batches_that_stepped": 14842
+          },
+          "epoch_loop.val_loop.batch_progress": {
+            "current": {
+              "completed": 2,
+              "processed": 2,
+              "ready": 2,
+              "started": 2
+            },
+            "is_last_batch": true,
+            "total": {
+              "completed": 2,
+              "processed": 2,
+              "ready": 2,
+              "started": 2
+            }
+          },
+          "epoch_loop.val_loop.state_dict": {},
+          "epoch_progress": {
+            "current": {
+              "completed": 72,
+              "processed": 73,
+              "ready": 73,
+              "started": 73
+            },
+            "total": {
+              "completed": 72,
+              "processed": 73,
+              "ready": 73,
+              "started": 73
+            }
+          },
+          "state_dict": {}
+        },
+        "predict_loop": {
+          "batch_progress": {
+            "current": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            },
+            "total": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            }
+          },
+          "state_dict": {}
+        },
+        "test_loop": {
+          "batch_progress": {
+            "current": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            },
+            "is_last_batch": false,
+            "total": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            }
+          },
+          "state_dict": {}
+        },
+        "validate_loop": {
+          "batch_progress": {
+            "current": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            },
+            "is_last_batch": false,
+            "total": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            }
+          },
+          "state_dict": {}
+        }
+      },
+      "lr_schedulers": [
+        {
+          "_last_lr": [
+            0.0001
+          ],
+          "best": Infinity,
+          "cooldown": 3,
+          "cooldown_counter": 0,
+          "default_min_lr": 1e-08,
+          "eps": 1e-08,
+          "factor": 0.3,
+          "last_epoch": 0,
+          "min_lrs": [
+            1e-08
+          ],
+          "mode": "min",
+          "mode_worse": Infinity,
+          "num_bad_epochs": 0,
+          "patience": 20,
+          "threshold": 1e-06,
+          "threshold_mode": "abs"
+        }
+      ],
+      "optimizer_groups": [
+        {
+          "amsgrad": false,
+          "betas": [
+            0.9,
+            0.999
+          ],
+          "capturable": false,
+          "decoupled_weight_decay": false,
+          "differentiable": false,
+          "eps": 1e-08,
+          "foreach": null,
+          "fused": null,
+          "lr": 0.0001,
+          "maximize": false,
+          "weight_decay": 0
+        }
+      ],
+      "optimizer_parameter_states": 34,
+      "optimizer_step_range": [
+        14843.0,
+        14843.0
+      ],
+      "path": "models/v007_19f/centroid/best.ckpt",
+      "sha256": "99ddf439f8d8b656b5e625ccca636fd7bb9e1dd5a51ada3941b2e4568c587e0f"
+    },
+    "centroid_latest": {
+      "callbacks": {
+        "EarlyStopping{'monitor': 'val/loss', 'mode': 'min'}": {
+          "best_score": 5.3800526075065136e-05,
+          "patience": 40,
+          "stopped_epoch": 0,
+          "stopping_reason": 0,
+          "stopping_reason_message": null,
+          "wait_count": 30
+        },
+        "ModelCheckpoint{'monitor': 'val/loss', 'mode': 'min', 'every_n_train_steps': 0, 'every_n_epochs': 1, 'train_time_interval': None}": {
+          "best_k_models": {
+            "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/best.ckpt": 5.3800526075065136e-05
+          },
+          "best_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/best.ckpt",
+          "best_model_score": 5.3800526075065136e-05,
+          "current_score": null,
+          "dirpath": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid",
+          "kth_best_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/best.ckpt",
+          "kth_value": 5.3800526075065136e-05,
+          "last_model_path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f/centroid/last.ckpt",
+          "monitor": "val/loss"
+        }
+      },
+      "epoch_zero_based": 104,
+      "global_step": 21212,
+      "loop_state": {
+        "fit_loop": {
+          "epoch_loop.automatic_optimization.optim_progress": {
+            "optimizer": {
+              "step": {
+                "current": {
+                  "completed": 133,
+                  "ready": 133
+                },
+                "total": {
+                  "completed": 21212,
+                  "ready": 21212
+                }
+              },
+              "zero_grad": {
+                "current": {
+                  "completed": 133,
+                  "ready": 133,
+                  "started": 133
+                },
+                "total": {
+                  "completed": 21212,
+                  "ready": 21212,
+                  "started": 21212
+                }
+              }
+            }
+          },
+          "epoch_loop.automatic_optimization.state_dict": {},
+          "epoch_loop.batch_progress": {
+            "current": {
+              "completed": 132,
+              "processed": 133,
+              "ready": 133,
+              "started": 133
+            },
+            "is_last_batch": false,
+            "total": {
+              "completed": 21127,
+              "processed": 21212,
+              "ready": 21212,
+              "started": 21212
+            }
+          },
+          "epoch_loop.manual_optimization.optim_step_progress": {
+            "current": {
+              "completed": 0,
+              "ready": 0
+            },
+            "total": {
+              "completed": 0,
+              "ready": 0
+            }
+          },
+          "epoch_loop.manual_optimization.state_dict": {},
+          "epoch_loop.scheduler_progress": {
+            "current": {
+              "completed": 0,
+              "ready": 0
+            },
+            "total": {
+              "completed": 0,
+              "ready": 0
+            }
+          },
+          "epoch_loop.state_dict": {
+            "_batches_that_stepped": 21210
+          },
+          "epoch_loop.val_loop.batch_progress": {
+            "current": {
+              "completed": 2,
+              "processed": 2,
+              "ready": 2,
+              "started": 2
+            },
+            "is_last_batch": true,
+            "total": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            }
+          },
+          "epoch_loop.val_loop.state_dict": {},
+          "epoch_progress": {
+            "current": {
+              "completed": 104,
+              "processed": 104,
+              "ready": 105,
+              "started": 105
+            },
+            "total": {
+              "completed": 104,
+              "processed": 104,
+              "ready": 105,
+              "started": 105
+            }
+          },
+          "state_dict": {}
+        },
+        "predict_loop": {
+          "batch_progress": {
+            "current": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            },
+            "total": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            }
+          },
+          "state_dict": {}
+        },
+        "test_loop": {
+          "batch_progress": {
+            "current": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            },
+            "is_last_batch": false,
+            "total": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            }
+          },
+          "state_dict": {}
+        },
+        "validate_loop": {
+          "batch_progress": {
+            "current": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            },
+            "is_last_batch": false,
+            "total": {
+              "completed": 0,
+              "processed": 0,
+              "ready": 0,
+              "started": 0
+            }
+          },
+          "state_dict": {}
+        }
+      },
+      "lr_schedulers": [
+        {
+          "_last_lr": [
+            0.0001
+          ],
+          "best": Infinity,
+          "cooldown": 3,
+          "cooldown_counter": 0,
+          "default_min_lr": 1e-08,
+          "eps": 1e-08,
+          "factor": 0.3,
+          "last_epoch": 0,
+          "min_lrs": [
+            1e-08
+          ],
+          "mode": "min",
+          "mode_worse": Infinity,
+          "num_bad_epochs": 0,
+          "patience": 20,
+          "threshold": 1e-06,
+          "threshold_mode": "abs"
+        }
+      ],
+      "optimizer_groups": [
+        {
+          "amsgrad": false,
+          "betas": [
+            0.9,
+            0.999
+          ],
+          "capturable": false,
+          "decoupled_weight_decay": false,
+          "differentiable": false,
+          "eps": 1e-08,
+          "foreach": null,
+          "fused": null,
+          "lr": 0.0001,
+          "maximize": false,
+          "weight_decay": 0
+        }
+      ],
+      "optimizer_parameter_states": 34,
+      "optimizer_step_range": [
+        21212.0,
+        21212.0
+      ],
+      "path": "models/v007_19f/centroid/interrupt.ckpt",
+      "sha256": "999575f8a9715e77f874d3bacb35b78d51927c7d99bc0c3d9175e021a99c8554"
+    }
+  },
+  "not_training_complete": true,
+  "resume": "Submit jobs/resume_v007_centroid.sh only when the user wants training to continue.",
+  "resume_checkpoint": "models/v007_19f/centroid/interrupt.ckpt",
+  "resume_progress": {
+    "epoch": 104,
+    "global_step": 21212
+  },
+  "saved_utc": "2026-10-14T01:32:11.667710+00:00",
+  "schema_version": 1,
+  "stop_context": "User requested pause; Slurm cancellation was confirmed while pending between allocations.",
+  "stopped_training_job_id": "15256499",
+  "verification_job_id": "15521654"
+}

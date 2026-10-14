@@ -1,0 +1,2 @@
+2026-09-12 00:08:02.003 | INFO     | __main__:main:129 - Video Crab_Cam_2_3.mp4: 28800 frames; next=21560
+2026-09-12 00:08:02.003 | INFO     | __main__:main:136 - Predicting frames 21560-21599 -> /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_021560_021599.slp

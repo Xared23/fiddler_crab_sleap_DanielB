@@ -1,0 +1,14 @@
+{
+  "tests_run": 14,
+  "success": false,
+  "failures": [
+    [
+      "test_empty_output_schema (__main__.DataframeTests.test_empty_output_schema)",
+      "Traceback (most recent call last):\n  File \"/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/tests/test_v007_dataframe.py\", line 163, in test_empty_output_schema\n    table = export.normalize(empty, self.cfg, self.run, 'video', ['chunk0.slp'], [0], [])\n  File \"/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/scripts/v007_dataframe.py\", line 112, in normalize\n    assert normalized.schema == OBS_SCHEMA\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n"
+    ]
+  ],
+  "errors": [],
+  "code_sha256": "f17c9856ea118bfa47f78af022ea374f0cedd240cc2e203c2aeb97323adec245",
+  "test_sha256": "8671a3546ab9441a6fc1ba21f2927cdf4e8bfff2233edcf1db262cbadb28787d",
+  "job_id": "15572965"
+}

@@ -1,0 +1,3 @@
+gputest hop 765/2000  run_dir=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/predictions/Crab_Cam_2_2
+Worker exit code: 0
+Complete (/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/predictions/Crab_Cam_2_2/PREDICT_COMPLETE). Not requeuing.

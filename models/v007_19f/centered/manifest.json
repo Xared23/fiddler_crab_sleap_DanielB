@@ -1,0 +1,294 @@
+{
+  "config": {
+    "data_config": {
+      "augmentation_config": {
+        "geometric": {
+          "affine_p": 0.0,
+          "erase_p": 0.0,
+          "erase_ratio_max": 1.0,
+          "erase_ratio_min": 1.0,
+          "erase_scale_max": 0.01,
+          "erase_scale_min": 0.0001,
+          "mixup_lambda_max": 0.05,
+          "mixup_lambda_min": 0.01,
+          "mixup_p": 0.0,
+          "rotation_max": 180.0,
+          "rotation_min": -180.0,
+          "rotation_p": 1.0,
+          "scale_max": 1.1,
+          "scale_min": 0.9,
+          "scale_p": 1.0,
+          "translate_height": 0.0,
+          "translate_p": null,
+          "translate_width": 0.0
+        },
+        "intensity": {
+          "brightness_max": 2.0,
+          "brightness_min": 0.0,
+          "brightness_p": 0.5,
+          "contrast_max": 2.0,
+          "contrast_min": 0.5,
+          "contrast_p": 0.5,
+          "gaussian_noise_mean": 5.0,
+          "gaussian_noise_p": 0.0,
+          "gaussian_noise_std": 1.0,
+          "uniform_noise_max": 1.0,
+          "uniform_noise_min": 0.0,
+          "uniform_noise_p": 0.0
+        }
+      },
+      "cache_img_path": null,
+      "cache_workers": 0,
+      "data_pipeline_fw": "torch_dataset_cache_img_memory",
+      "delete_cache_imgs_after_training": true,
+      "parallel_caching": true,
+      "preprocessing": {
+        "crop_padding": null,
+        "crop_size": 192,
+        "ensure_grayscale": true,
+        "ensure_rgb": false,
+        "max_height": 4320,
+        "max_width": 7680,
+        "min_crop_size": 100,
+        "scale": 1.0
+      },
+      "provider": "LabelsReader",
+      "skeletons": [
+        {
+          "edges": [
+            {
+              "destination": {
+                "name": "Shoulder"
+              },
+              "source": {
+                "name": "Shell"
+              }
+            },
+            {
+              "destination": {
+                "name": "Arm"
+              },
+              "source": {
+                "name": "Shell"
+              }
+            },
+            {
+              "destination": {
+                "name": "Elbow"
+              },
+              "source": {
+                "name": "Shoulder"
+              }
+            },
+            {
+              "destination": {
+                "name": "Claw"
+              },
+              "source": {
+                "name": "Elbow"
+              }
+            }
+          ],
+          "name": null,
+          "nodes": [
+            {
+              "name": "Shell"
+            },
+            {
+              "name": "Shoulder"
+            },
+            {
+              "name": "Elbow"
+            },
+            {
+              "name": "Claw"
+            },
+            {
+              "name": "Arm"
+            }
+          ],
+          "symmetries": []
+        }
+      ],
+      "test_file_path": null,
+      "train_labels_path": [
+        "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/data/labels/v007_19f/train.slp"
+      ],
+      "use_augmentations_train": true,
+      "use_existing_imgs": false,
+      "use_same_data_for_val": false,
+      "user_instances_only": true,
+      "val_labels_path": [
+        "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/data/labels/v007_19f/val.slp"
+      ],
+      "validation_fraction": 0.10526315789473684
+    },
+    "description": "v007 only: 17 train / 2 validation frames; no regional treatment",
+    "filename": "",
+    "model_config": {
+      "backbone_config": {
+        "convnext": null,
+        "swint": null,
+        "unet": {
+          "convs_per_block": 2,
+          "filters": 24,
+          "filters_rate": 1.5,
+          "in_channels": 1,
+          "kernel_size": 3,
+          "max_stride": 32,
+          "middle_block": true,
+          "output_stride": 4,
+          "stacks": 1,
+          "stem_stride": null,
+          "up_interpolate": true
+        }
+      },
+      "head_configs": {
+        "bottomup": null,
+        "centered_instance": {
+          "confmaps": {
+            "anchor_part": "Shell",
+            "loss_weight": 1.0,
+            "output_stride": 4,
+            "part_names": null,
+            "sigma": 1.5
+          }
+        },
+        "centroid": null,
+        "multi_class_bottomup": null,
+        "multi_class_topdown": null,
+        "single_instance": null
+      },
+      "init_weights": "default",
+      "pretrained_backbone_weights": null,
+      "pretrained_head_weights": null,
+      "total_params": 1644912
+    },
+    "name": "",
+    "sleap_nn_version": "0.3.0",
+    "trainer_config": {
+      "ckpt_dir": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models/v007_19f",
+      "early_stopping": {
+        "min_delta": 1e-08,
+        "patience": 40,
+        "stop_training_on_plateau": true
+      },
+      "enable_progress_bar": false,
+      "eval": {
+        "enabled": false,
+        "frequency": 1,
+        "match_threshold": 50.0,
+        "oks_scale": null,
+        "oks_stddev": 0.025
+      },
+      "keep_viz": false,
+      "lr_scheduler": {
+        "cosine_annealing_warmup": null,
+        "linear_warmup_linear_decay": null,
+        "reduce_lr_on_plateau": {
+          "cooldown": 3,
+          "factor": 0.3,
+          "min_lr": 1e-08,
+          "patience": 20,
+          "threshold": 1e-06,
+          "threshold_mode": "abs"
+        },
+        "step_lr": null
+      },
+      "max_epochs": 200,
+      "min_train_steps_per_epoch": 200,
+      "model_ckpt": {
+        "save_last": true,
+        "save_top_k": 1
+      },
+      "online_hard_keypoint_mining": {
+        "hard_to_easy_ratio": 2.0,
+        "loss_scale": 5.0,
+        "max_hard_keypoints": null,
+        "min_hard_keypoints": 2,
+        "online_mining": false
+      },
+      "optimizer": {
+        "amsgrad": false,
+        "lr": 0.0001
+      },
+      "optimizer_name": "Adam",
+      "profiler": null,
+      "resume_ckpt_path": null,
+      "run_name": "centered",
+      "save_ckpt": true,
+      "seed": 42,
+      "train_data_loader": {
+        "batch_size": 1,
+        "num_workers": 0,
+        "shuffle": true
+      },
+      "train_steps_per_epoch": 200,
+      "trainer_accelerator": "gpu",
+      "trainer_device_indices": null,
+      "trainer_devices": 1,
+      "trainer_strategy": "auto",
+      "use_wandb": false,
+      "val_data_loader": {
+        "batch_size": 1,
+        "num_workers": 0,
+        "shuffle": false
+      },
+      "visualize_preds_during_training": false,
+      "wandb": {
+        "api_key": null,
+        "current_run_id": null,
+        "delete_local_logs": null,
+        "entity": null,
+        "group": null,
+        "log_viz_table": false,
+        "name": "v007_19f_centered",
+        "project": null,
+        "prv_runid": null,
+        "save_viz_imgs_wandb": false,
+        "viz_box_size": 5.0,
+        "viz_boxes": false,
+        "viz_confmap_threshold": 0.1,
+        "viz_enabled": false,
+        "viz_masks": false,
+        "wandb_mode": null
+      },
+      "zmq": {
+        "controller_polling_timeout": 10,
+        "controller_port": null,
+        "publish_port": null
+      }
+    }
+  },
+  "config_sha256": "d946bc5d9f99d959eb9719c3be60c0ff5a4c9ce79bfb54a3088c049d894974a3",
+  "dataset_sha256": "4f376b929103407795b8d5f32e0bc1bb5964e264471521e7898243c5a4ac4322",
+  "implementation": {
+    "scripts/gputest_train.py": "9c6ff986179475b2292f99bebfcf3d8f7fdcd4976ca1cf8a4f82e9f8d0133d56",
+    "scripts/pipeline_common.py": "a427da68a340550cc475c6cac9c37338a1713eb07258f056f701491daf7a3baf",
+    "scripts/train_versioned.py": "a64c125505f65cb2ce2c958d4b87271572265915f265926fe7fc8719d99be674",
+    "scripts/train_versioned_chain.sh": "60c8dc0292dbdcd97b01bb68ecc02b324d088afb169daa7f09b1e96b1f7a9ffb"
+  },
+  "role": "centered",
+  "run_id": "v007_19f",
+  "smoke": false,
+  "training_policy": {
+    "base_configs": {
+      "centered": "della_centered_instance_config_dan_v004.yaml",
+      "centroid": "della_centroid_config_dan_v004.yaml"
+    },
+    "checkpoint_every_steps": 10,
+    "early_stopping_patience": 40,
+    "max_epochs": 200,
+    "max_hops": 400,
+    "max_no_progress_hops": 3,
+    "regional_handling": "none",
+    "seed": 42
+  },
+  "versions": {
+    "lightning": "2.6.5",
+    "numpy": "2.5.2",
+    "sleap-io": "0.9.2",
+    "sleap-nn": "0.3.3",
+    "torch": "2.13.0"
+  }
+}

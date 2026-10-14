@@ -1,0 +1,23 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+remap_v004_logs/
+*.mp4
+.DS_Store
+
+# Generated artifacts; keep source code, configs and docs reviewable.
+logs/
+checks/**/training_smoke/
+checks/**/unit_tmp/
+models/**/*.ckpt
+
+# SLEAP labels/predictions and dataframe payloads, wherever generated.
+*.slp
+*.parquet
+
+# Local dataset artifacts (not the documentation under docs/datasets/).
+/datasets/

@@ -1,0 +1,7 @@
+gputest predict hop 1/2000  video=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/crab_vids/Crab_Cam_2_3.mp4  run_dir=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/predictions/Crab_Cam_2_3
+2026-09-11 13:55:23 | sleap-nn 0.3.3 | Python 3.13.13 | PyTorch 2.13.0+cu130 | CUDA 13.0 | 1 GPU(s)
+2026-09-11 13:55:23 | Loaded inference model | type=centroid+centered_instance | backbone=unet | nodes=5 | device=cuda | batch_size=1 | peak_threshold=0.2 | max_instances=None | integral_refinement=integral | paf_workers=0
+2026-09-11 13:55:24 | Starting inference | source=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/crab_vids/Crab_Cam_2_3.mp4 | frames=40 | videos=1 | shape=4320x7680x3 | fps=29.97002997002997 | tracking=False
+Predictor exit code: 143
+Hop was preempted (exit 143); requeuing same chunk.
+scontrol requeue 13746457 succeeded

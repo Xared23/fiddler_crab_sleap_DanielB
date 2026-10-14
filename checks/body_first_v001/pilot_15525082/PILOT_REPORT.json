@@ -1,0 +1,749 @@
+{
+  "aggregate": {
+    "Crab_Cam_2_2": {
+      "baseline": {
+        "coverage_at_least_150_frames": 0.20722821006633554,
+        "coverage_at_least_30_frames": 0.4363617934250093,
+        "length_quantiles_50_95_99_max": [
+          1.0,
+          5.0,
+          39.15999999999622,
+          180.0
+        ],
+        "observations": 88791,
+        "singleton_observation_fraction": 0.3415436249169398,
+        "singletons": 30326,
+        "termination_reasons": {
+          "ambiguous_competitors": 6309,
+          "body_displacement_gate": 19,
+          "no_candidate": 1956,
+          "shoulder_displacement_or_vector_gate": 1285,
+          "shoulder_unreliable": 22558,
+          "successor_rejected": 1,
+          "successor_shoulder_unreliable": 1149,
+          "video_end": 508
+        },
+        "tracklets": 33785
+      },
+      "new": {
+        "coverage_at_least_150_frames": 0.5922447094863218,
+        "coverage_at_least_30_frames": 0.8218400513565564,
+        "length_quantiles_50_95_99_max": [
+          3.0,
+          180.0,
+          180.0,
+          180.0
+        ],
+        "observations": 88791,
+        "singleton_observation_fraction": 0.01603766147469901,
+        "singletons": 1424,
+        "termination_reasons": {
+          "ambiguous_cost_margin": 9,
+          "no_candidate": 3719,
+          "video_end": 508
+        },
+        "tracklets": 4236
+      }
+    },
+    "Crab_Cam_2_3": {
+      "baseline": {
+        "coverage_at_least_150_frames": 0.1941031692173684,
+        "coverage_at_least_30_frames": 0.4557433835370856,
+        "length_quantiles_50_95_99_max": [
+          1.0,
+          5.0,
+          44.0,
+          180.0
+        ],
+        "observations": 98731,
+        "singleton_observation_fraction": 0.340855455733255,
+        "singletons": 33653,
+        "termination_reasons": {
+          "ambiguous_competitors": 6742,
+          "body_displacement_gate": 20,
+          "no_candidate": 2224,
+          "shoulder_displacement_or_vector_gate": 1295,
+          "shoulder_unreliable": 25232,
+          "successor_shoulder_unreliable": 1244,
+          "video_end": 560
+        },
+        "tracklets": 37317
+      },
+      "new": {
+        "coverage_at_least_150_frames": 0.5799698169774438,
+        "coverage_at_least_30_frames": 0.8200463886722509,
+        "length_quantiles_50_95_99_max": [
+          3.0,
+          180.0,
+          180.0,
+          180.0
+        ],
+        "observations": 98731,
+        "singleton_observation_fraction": 0.01641834884686674,
+        "singletons": 1621,
+        "termination_reasons": {
+          "ambiguous_cost_margin": 19,
+          "no_candidate": 4191,
+          "video_end": 560
+        },
+        "tracklets": 4770
+      }
+    }
+  },
+  "checked_sources": {
+    "crab_vids/Crab_Cam_2_2.mp4": {
+      "bytes": 11451768931,
+      "checked_now": "size_and_mtime; SHA256 inherited from published audit",
+      "mtime_ns": 1785036716000000000,
+      "path": "crab_vids/Crab_Cam_2_2.mp4",
+      "sha256": "e8a3388f8957c0f22cd97ade47472137d19f81df5f4b2b141d18938b9bb6fd31"
+    },
+    "crab_vids/Crab_Cam_2_3.mp4": {
+      "bytes": 11420404147,
+      "checked_now": "size_and_mtime; SHA256 inherited from published audit",
+      "mtime_ns": 1785036732000000000,
+      "path": "crab_vids/Crab_Cam_2_3.mp4",
+      "sha256": "d1694401e5788e9f17c8eb38c2337e440f9de334669f4d287f2db84787aa9836"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_000000_000039.slp": {
+      "bytes": 1182870,
+      "mtime_ns": 1789149266186889545,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_000000_000039.slp",
+      "sha256": "dc5cfe79e92227349f4fce3f87f6da57cda77c98af08aeca4c5ae1601df6b3ec"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_000040_000079.slp": {
+      "bytes": 1143974,
+      "mtime_ns": 1789149991404603311,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_000040_000079.slp",
+      "sha256": "15c4fa7582f22623ad7129815792c319d6782a8cb807b8811da0ed9cb16c6ce9"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_000080_000119.slp": {
+      "bytes": 1155568,
+      "mtime_ns": 1789150206837277622,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_000080_000119.slp",
+      "sha256": "5e042eeb0cb6acb669856b7f6f752350802172400ae1dcb2b323e39f908c32d3"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_000120_000159.slp": {
+      "bytes": 1218213,
+      "mtime_ns": 1789150274181602963,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_000120_000159.slp",
+      "sha256": "a4d4a75c4bb3bcdc99a747061fae5d50a310afa16833785dffc0fe0058038124"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_000160_000199.slp": {
+      "bytes": 1219335,
+      "mtime_ns": 1789150334471669718,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_000160_000199.slp",
+      "sha256": "853f5b981227d60cbbdca31fe466729e8aedea3c04a8e9021dca44ddcbb8c3be"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_004960_004999.slp": {
+      "bytes": 1414937,
+      "mtime_ns": 1789158819425694118,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_004960_004999.slp",
+      "sha256": "813b8b61c009902679fec696318ad70c7dc1fe2e3d029bb737bf740097068cbe"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_005000_005039.slp": {
+      "bytes": 1459443,
+      "mtime_ns": 1789158941023845725,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_005000_005039.slp",
+      "sha256": "3e88c5bb113a8b062404535320ae815c4b5743fee422e15631255e8a574ae1da"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_005040_005079.slp": {
+      "bytes": 1429149,
+      "mtime_ns": 1789159067061083334,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_005040_005079.slp",
+      "sha256": "edf102f5bea61d89ebebfe867135974bd6687720a00cef6307a9d1ec83d25e29"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_005080_005119.slp": {
+      "bytes": 1440369,
+      "mtime_ns": 1789159131868741514,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_005080_005119.slp",
+      "sha256": "456e29dc17f5a517e757c955115a30dbc0f4a6379a20261405e44130bf1e38c4"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_005120_005159.slp": {
+      "bytes": 1416994,
+      "mtime_ns": 1789159193323355357,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_005120_005159.slp",
+      "sha256": "def8594a8d68050fb0e19f588e0af397209a09f939262417d961a4ba37786471"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_027760_027799.slp": {
+      "bytes": 1080020,
+      "mtime_ns": 1789195545598624433,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_027760_027799.slp",
+      "sha256": "fe08aebfd470419cb6484e0316a8135857b7dd3f1da645b396be804ad0484835"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_027800_027839.slp": {
+      "bytes": 1099842,
+      "mtime_ns": 1789195605997244828,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_027800_027839.slp",
+      "sha256": "970d0b51b3e43679efc78122f28869d6544dcfb962ef8d8763fc8a3cf88a8aa3"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_027840_027879.slp": {
+      "bytes": 1122469,
+      "mtime_ns": 1789195668355155395,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_027840_027879.slp",
+      "sha256": "83f39d4a3bbf5db35e4c92bf0d1019f4d48b5832b2ad37107ed5999022cc6174"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_027880_027919.slp": {
+      "bytes": 1177447,
+      "mtime_ns": 1789195729427490899,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_027880_027919.slp",
+      "sha256": "b2f87a4cef8a41ba346e53f287244aea7ef913d9dd4ee4d9f2c774a2ef63b592"
+    },
+    "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_027920_027959.slp": {
+      "bytes": 1156503,
+      "mtime_ns": 1789195790625762994,
+      "path": "predictions/Crab_Cam_2_2/Crab_Cam_2_2.frames_027920_027959.slp",
+      "sha256": "9881bbf395bed4f699c5fdc5631001d8f2cebdd51c0afc764e0cbb2cf53c788f"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_000000_000039.slp": {
+      "bytes": 1099281,
+      "mtime_ns": 1789150151674579069,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_000000_000039.slp",
+      "sha256": "796323703cfb56043574716c08cbb03e1965f12d9f2dc52dbc6dbd3670d1f50b"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_000040_000079.slp": {
+      "bytes": 1135372,
+      "mtime_ns": 1789150240275226997,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_000040_000079.slp",
+      "sha256": "4700a2c2655e08b526fea96b4530edd9655ab81902b0ec347c4f087acb39df11"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_000080_000119.slp": {
+      "bytes": 1125274,
+      "mtime_ns": 1789150308929747306,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_000080_000119.slp",
+      "sha256": "6cd9a995c30a03b9a6c8da627eeb0f5935904134b03521aea9af7ea0f34f9913"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_000120_000159.slp": {
+      "bytes": 1124526,
+      "mtime_ns": 1789150364120003124,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_000120_000159.slp",
+      "sha256": "fa790164d0c07bf9e34fa43daafaf184ace8d4f40e179ecc9266aeee0bd8c459"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_000160_000199.slp": {
+      "bytes": 1177634,
+      "mtime_ns": 1789150426604138132,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_000160_000199.slp",
+      "sha256": "f61d3ee40bb367b5ac3b2c6867c3a9b3dcfc503d617eb9156bf6a60c655e3805"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_022280_022319.slp": {
+      "bytes": 1630735,
+      "mtime_ns": 1789187226241290101,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_022280_022319.slp",
+      "sha256": "1702244b8920a161fd5e4e7a3fecd9214c5d1bd74935c097be7f8f23b1b5f3af"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_022320_022359.slp": {
+      "bytes": 1652801,
+      "mtime_ns": 1789187288792223947,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_022320_022359.slp",
+      "sha256": "fde15b37052ec4032063fdfe07148fb52cf35e2077979da63cc6ae18c2553537"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_022360_022399.slp": {
+      "bytes": 1610726,
+      "mtime_ns": 1789187352278161504,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_022360_022399.slp",
+      "sha256": "2339f4c78bf55f4d9c80b3737e7e9a9d22d30b485d3f61257a530cc40c4b1c89"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_022400_022439.slp": {
+      "bytes": 1590156,
+      "mtime_ns": 1789187413163134358,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_022400_022439.slp",
+      "sha256": "f83cddf1127435d76d65f4ba183e93dd0a113264c9e57ff1fa03c96c769643b0"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_022440_022479.slp": {
+      "bytes": 1660655,
+      "mtime_ns": 1789187475769307912,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_022440_022479.slp",
+      "sha256": "dcaab30915122579614fcc1219ad1682a00059573a71b4f80dac1cd900d52ff4"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_025840_025879.slp": {
+      "bytes": 1374171,
+      "mtime_ns": 1789192965976119306,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_025840_025879.slp",
+      "sha256": "8aadd54594ed7ad0aab1ad9de1d0496ce53d446562a3979f2e927ae51c6f6600"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_025880_025919.slp": {
+      "bytes": 1412693,
+      "mtime_ns": 1789193027033724995,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_025880_025919.slp",
+      "sha256": "d5ca272d6a15e43936aa7761969c3e8c766c75534783ea26250695d1a1365a0c"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_025920_025959.slp": {
+      "bytes": 1409701,
+      "mtime_ns": 1789193108376828022,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_025920_025959.slp",
+      "sha256": "e20085ed4a8894a3b2db6d244ee702ae9774f3e8a2083a801e2c5810bc1fa1e5"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_025960_025999.slp": {
+      "bytes": 1398481,
+      "mtime_ns": 1789193171007974390,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_025960_025999.slp",
+      "sha256": "e7ea18bb6e315ae6e715b75a26e43459320310a66cae8bcc0dae492862254555"
+    },
+    "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_026000_026039.slp": {
+      "bytes": 1425222,
+      "mtime_ns": 1789193231946413828,
+      "path": "predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_026000_026039.slp",
+      "sha256": "4121f856b082d8574cdecb5426ddf013b8a6f659ef26b7c65785c25bde1287bd"
+    }
+  },
+  "clips": {
+    "Crab_Cam_2_2_000000_000179": {
+      "metrics": {
+        "baseline": {
+          "coverage_at_least_150_frames": 0.22231738215037647,
+          "coverage_at_least_30_frames": 0.44677586268422365,
+          "length_quantiles_50_95_99_max": [
+            1.0,
+            5.0,
+            39.0,
+            180.0
+          ],
+          "observations": 28023,
+          "singleton_observation_fraction": 0.33658066588159724,
+          "singletons": 9432,
+          "termination_reasons": {
+            "ambiguous_competitors": 2437,
+            "body_displacement_gate": 1,
+            "no_candidate": 575,
+            "shoulder_displacement_or_vector_gate": 365,
+            "shoulder_unreliable": 6621,
+            "successor_shoulder_unreliable": 316,
+            "video_end": 167
+          },
+          "tracklets": 10482
+        },
+        "new": {
+          "coverage_at_least_150_frames": 0.6000071369946116,
+          "coverage_at_least_30_frames": 0.8095136138172215,
+          "length_quantiles_50_95_99_max": [
+            3.0,
+            180.0,
+            180.0,
+            180.0
+          ],
+          "observations": 28023,
+          "singleton_observation_fraction": 0.015986867929914713,
+          "singletons": 448,
+          "termination_reasons": {
+            "ambiguous_cost_margin": 2,
+            "no_candidate": 1180,
+            "video_end": 167
+          },
+          "tracklets": 1349
+        }
+      },
+      "observations_sha256": "61ed6009ff173f90bf0c4df5ef76e3c57d1fbd5791bb27327765337ea33ba2e5",
+      "review_files": [
+        "Crab_Cam_2_2_000000_000179.review_00.png",
+        "Crab_Cam_2_2_000000_000179.review_01.png",
+        "Crab_Cam_2_2_000000_000179.review_02.png"
+      ],
+      "selection": {
+        "purpose": "early_and_chunk_boundaries",
+        "start": 0,
+        "stop": 180,
+        "video": "Crab_Cam_2_2"
+      }
+    },
+    "Crab_Cam_2_2_004960_005139": {
+      "metrics": {
+        "baseline": {
+          "coverage_at_least_150_frames": 0.2268959254811213,
+          "coverage_at_least_30_frames": 0.45405547907085736,
+          "length_quantiles_50_95_99_max": [
+            1.0,
+            5.0,
+            42.0,
+            180.0
+          ],
+          "observations": 34139,
+          "singleton_observation_fraction": 0.34128123260786786,
+          "singletons": 11651,
+          "termination_reasons": {
+            "ambiguous_competitors": 2435,
+            "body_displacement_gate": 7,
+            "no_candidate": 719,
+            "shoulder_displacement_or_vector_gate": 415,
+            "shoulder_unreliable": 8732,
+            "successor_shoulder_unreliable": 381,
+            "video_end": 188
+          },
+          "tracklets": 12877
+        },
+        "new": {
+          "coverage_at_least_150_frames": 0.6177978265327045,
+          "coverage_at_least_30_frames": 0.8264448284952693,
+          "length_quantiles_50_95_99_max": [
+            3.0,
+            180.0,
+            180.0,
+            180.0
+          ],
+          "observations": 34139,
+          "singleton_observation_fraction": 0.014880342130700958,
+          "singletons": 508,
+          "termination_reasons": {
+            "ambiguous_cost_margin": 5,
+            "no_candidate": 1376,
+            "video_end": 188
+          },
+          "tracklets": 1569
+        }
+      },
+      "observations_sha256": "d8ad9d23d9bbfb8560851fb542dd39f8d937bd9c0072545771cda6ea4cb9ce26",
+      "review_files": [
+        "Crab_Cam_2_2_004960_005139.review_00.png",
+        "Crab_Cam_2_2_004960_005139.review_01.png",
+        "Crab_Cam_2_2_004960_005139.review_02.png"
+      ],
+      "selection": {
+        "purpose": "dense_neighborhood",
+        "start": 4960,
+        "stop": 5140,
+        "video": "Crab_Cam_2_2"
+      }
+    },
+    "Crab_Cam_2_2_027760_027939": {
+      "metrics": {
+        "baseline": {
+          "coverage_at_least_150_frames": 0.16613466521461565,
+          "coverage_at_least_30_frames": 0.40271884036201133,
+          "length_quantiles_50_95_99_max": [
+            1.0,
+            5.0,
+            34.75,
+            180.0
+          ],
+          "observations": 26629,
+          "singleton_observation_fraction": 0.34710278268053624,
+          "singletons": 9243,
+          "termination_reasons": {
+            "ambiguous_competitors": 1437,
+            "body_displacement_gate": 11,
+            "no_candidate": 662,
+            "shoulder_displacement_or_vector_gate": 505,
+            "shoulder_unreliable": 7205,
+            "successor_rejected": 1,
+            "successor_shoulder_unreliable": 452,
+            "video_end": 153
+          },
+          "tracklets": 10426
+        },
+        "new": {
+          "coverage_at_least_150_frames": 0.5513162341807804,
+          "coverage_at_least_30_frames": 0.8289083330203914,
+          "length_quantiles_50_95_99_max": [
+            2.0,
+            180.0,
+            180.0,
+            180.0
+          ],
+          "observations": 26629,
+          "singleton_observation_fraction": 0.017574824439520822,
+          "singletons": 468,
+          "termination_reasons": {
+            "ambiguous_cost_margin": 2,
+            "no_candidate": 1163,
+            "video_end": 153
+          },
+          "tracklets": 1318
+        }
+      },
+      "observations_sha256": "e87688f265108a497e0a62b6a4ca9df4e59e2b22312fc2076d33dd679a312e42",
+      "review_files": [
+        "Crab_Cam_2_2_027760_027939.review_00.png",
+        "Crab_Cam_2_2_027760_027939.review_01.png",
+        "Crab_Cam_2_2_027760_027939.review_02.png"
+      ],
+      "selection": {
+        "purpose": "closest_pair_neighborhood",
+        "start": 27760,
+        "stop": 27940,
+        "video": "Crab_Cam_2_2"
+      }
+    },
+    "Crab_Cam_2_3_000000_000179": {
+      "metrics": {
+        "baseline": {
+          "coverage_at_least_150_frames": 0.13867494204740896,
+          "coverage_at_least_30_frames": 0.3800942196964032,
+          "length_quantiles_50_95_99_max": [
+            1.0,
+            5.0,
+            33.0,
+            180.0
+          ],
+          "observations": 26746,
+          "singleton_observation_fraction": 0.3688402004037987,
+          "singletons": 9865,
+          "termination_reasons": {
+            "ambiguous_competitors": 2074,
+            "body_displacement_gate": 11,
+            "no_candidate": 796,
+            "shoulder_displacement_or_vector_gate": 455,
+            "shoulder_unreliable": 7205,
+            "successor_shoulder_unreliable": 377,
+            "video_end": 151
+          },
+          "tracklets": 11069
+        },
+        "new": {
+          "coverage_at_least_150_frames": 0.4655649442907351,
+          "coverage_at_least_30_frames": 0.7774994391684737,
+          "length_quantiles_50_95_99_max": [
+            2.0,
+            125.89999999999986,
+            180.0,
+            180.0
+          ],
+          "observations": 26746,
+          "singleton_observation_fraction": 0.02082554400658042,
+          "singletons": 557,
+          "termination_reasons": {
+            "ambiguous_cost_margin": 6,
+            "no_candidate": 1426,
+            "video_end": 151
+          },
+          "tracklets": 1583
+        }
+      },
+      "observations_sha256": "fdcd4b00120f7c73fcd23bf98ca35e9af876cf96c4675faeba8eda8bee967e2a",
+      "review_files": [
+        "Crab_Cam_2_3_000000_000179.review_00.png",
+        "Crab_Cam_2_3_000000_000179.review_01.png",
+        "Crab_Cam_2_3_000000_000179.review_02.png"
+      ],
+      "selection": {
+        "purpose": "early_and_chunk_boundaries",
+        "start": 0,
+        "stop": 180,
+        "video": "Crab_Cam_2_3"
+      }
+    },
+    "Crab_Cam_2_3_022280_022459": {
+      "metrics": {
+        "baseline": {
+          "coverage_at_least_150_frames": 0.2483075810035657,
+          "coverage_at_least_30_frames": 0.49178337036845643,
+          "length_quantiles_50_95_99_max": [
+            1.0,
+            4.0,
+            51.0,
+            180.0
+          ],
+          "observations": 38702,
+          "singleton_observation_fraction": 0.32455687044597176,
+          "singletons": 12561,
+          "termination_reasons": {
+            "ambiguous_competitors": 2811,
+            "body_displacement_gate": 7,
+            "no_candidate": 774,
+            "shoulder_displacement_or_vector_gate": 463,
+            "shoulder_unreliable": 9129,
+            "successor_shoulder_unreliable": 505,
+            "video_end": 216
+          },
+          "tracklets": 13905
+        },
+        "new": {
+          "coverage_at_least_150_frames": 0.6501731176683375,
+          "coverage_at_least_30_frames": 0.8437806831688285,
+          "length_quantiles_50_95_99_max": [
+            3.0,
+            180.0,
+            180.0,
+            180.0
+          ],
+          "observations": 38702,
+          "singleton_observation_fraction": 0.014805436411554958,
+          "singletons": 573,
+          "termination_reasons": {
+            "ambiguous_cost_margin": 3,
+            "no_candidate": 1452,
+            "video_end": 216
+          },
+          "tracklets": 1671
+        }
+      },
+      "observations_sha256": "c572270483611c0cf84567e53f5e981edf5621262778aaf57e296e8c04b3f618",
+      "review_files": [
+        "Crab_Cam_2_3_022280_022459.review_00.png",
+        "Crab_Cam_2_3_022280_022459.review_01.png",
+        "Crab_Cam_2_3_022280_022459.review_02.png"
+      ],
+      "selection": {
+        "purpose": "dense_neighborhood",
+        "start": 22280,
+        "stop": 22460,
+        "video": "Crab_Cam_2_3"
+      }
+    },
+    "Crab_Cam_2_3_025840_026019": {
+      "metrics": {
+        "baseline": {
+          "coverage_at_least_150_frames": 0.17561517892016945,
+          "coverage_at_least_30_frames": 0.47462668629630744,
+          "length_quantiles_50_95_99_max": [
+            1.0,
+            4.0,
+            46.57999999999993,
+            180.0
+          ],
+          "observations": 33283,
+          "singleton_observation_fraction": 0.337319352221855,
+          "singletons": 11227,
+          "termination_reasons": {
+            "ambiguous_competitors": 1857,
+            "body_displacement_gate": 2,
+            "no_candidate": 654,
+            "shoulder_displacement_or_vector_gate": 377,
+            "shoulder_unreliable": 8898,
+            "successor_shoulder_unreliable": 362,
+            "video_end": 193
+          },
+          "tracklets": 12343
+        },
+        "new": {
+          "coverage_at_least_150_frames": 0.5902713096776132,
+          "coverage_at_least_30_frames": 0.8266382237178139,
+          "length_quantiles_50_95_99_max": [
+            3.0,
+            180.0,
+            180.0,
+            180.0
+          ],
+          "observations": 33283,
+          "singleton_observation_fraction": 0.014752275936664363,
+          "singletons": 491,
+          "termination_reasons": {
+            "ambiguous_cost_margin": 10,
+            "no_candidate": 1313,
+            "video_end": 193
+          },
+          "tracklets": 1516
+        }
+      },
+      "observations_sha256": "0c4809ae981f2771c4ba4b6194568bb81e5170d238ad6cd7705bbb2b842fc50b",
+      "review_files": [
+        "Crab_Cam_2_3_025840_026019.review_00.png",
+        "Crab_Cam_2_3_025840_026019.review_01.png",
+        "Crab_Cam_2_3_025840_026019.review_02.png"
+      ],
+      "selection": {
+        "purpose": "closest_pair_neighborhood",
+        "start": 25840,
+        "stop": 26020,
+        "video": "Crab_Cam_2_3"
+      }
+    }
+  },
+  "config": {
+    "algorithm_version": "body_first_v001",
+    "body_node": "Shell",
+    "body_score_min": 0.5,
+    "body_shoulder_length_max_px": 65.0,
+    "body_shoulder_length_min_px": 10.0,
+    "competitors_include_rejected_bodies": true,
+    "dataset_id": "body_first_v001",
+    "duplicate_shell_radius_px": 5.0,
+    "limb_nodes_used_for_association": false,
+    "max_assignment_cost": 12.0,
+    "max_body_displacement_px": 12.0,
+    "max_prediction_error_px": 18.0,
+    "max_velocity_px_per_frame": 6.0,
+    "minimum_alternative_margin": 2.0,
+    "motion_weight": 0.3,
+    "no_gap_bridging": true,
+    "no_reidentification": true,
+    "pilot": {
+      "clips": [
+        {
+          "purpose": "early_and_chunk_boundaries",
+          "start": 0,
+          "stop": 180,
+          "video": "Crab_Cam_2_2"
+        },
+        {
+          "purpose": "dense_neighborhood",
+          "start": 4960,
+          "stop": 5140,
+          "video": "Crab_Cam_2_2"
+        },
+        {
+          "purpose": "closest_pair_neighborhood",
+          "start": 27760,
+          "stop": 27940,
+          "video": "Crab_Cam_2_2"
+        },
+        {
+          "purpose": "early_and_chunk_boundaries",
+          "start": 0,
+          "stop": 180,
+          "video": "Crab_Cam_2_3"
+        },
+        {
+          "purpose": "dense_neighborhood",
+          "start": 22280,
+          "stop": 22460,
+          "video": "Crab_Cam_2_3"
+        },
+        {
+          "purpose": "closest_pair_neighborhood",
+          "start": 25840,
+          "stop": 26020,
+          "video": "Crab_Cam_2_3"
+        }
+      ],
+      "consecutive_review_frames": 18,
+      "max_review_examples_per_clip": 3,
+      "minimum_30_frame_observation_coverage_gain": 0.1,
+      "minimum_singleton_observation_reduction_fraction": 0.5
+    },
+    "require_shoulder_for_links": false,
+    "shoulder_node": "Shoulder",
+    "shoulder_score_min": 0.2,
+    "shoulder_vector_cost_cap_px": 12.0,
+    "shoulder_vector_weight": 0.15,
+    "unmatched_cost": 7.0,
+    "velocity_update_weight": 0.5,
+    "water_used_for_association": false
+  },
+  "implementation": {
+    "configs/tracking/body_first_v001.yaml": "ceac2f7f59d387cca49178b466f7200d8def8cd3827863460c180127cbb342d0",
+    "datasets/legacy_native_tracklets_v001/config/tracklets.yaml": "0dc9d7a1bbd4945832960b04162e4825e2587d2e52894f0d8ed22b470ce74444",
+    "datasets/legacy_native_tracklets_v001/config/water_regions_effective_v002.json": "0bd75bb46fc4abdcbb066743e9e37c857fd28b7d763be8083d30cf1b5b2e3f87",
+    "scripts/body_first_tracklets.py": "35d859cb43975dc589e3fd6cc9f1507bcbb99a31e8ec16546bde04bbbe743371",
+    "scripts/legacy_dataset/tracklets.py": "41a4a4b5bb565b712fb93a57ad5be216d726ab92543a7f7ce0447b100df290b0",
+    "scripts/validate_body_first_tracklets.py": "5c849fa6c843acebdd32ca2ca822445477150feeb44a3d0422396da3825f1e3e",
+    "tests/test_body_first_tracklets.py": "f1a9db386569fb7826bd306c780249155a584fa0750afe589c27a67d3f297ea8"
+  },
+  "job_id": "15525082",
+  "limitations": [
+    "Selected short clips; no exhaustive identity ground truth.",
+    "Clips truncate tracks equally for both methods.",
+    "No inference or changes to existing data. Numerical gains alone do not approve production."
+  ],
+  "numerical_checks": {
+    "Crab_Cam_2_2": {
+      "30_frame_coverage_gain_pass": true,
+      "same_accepted_observations": true,
+      "singleton_reduction_pass": true
+    },
+    "Crab_Cam_2_3": {
+      "30_frame_coverage_gain_pass": true,
+      "same_accepted_observations": true,
+      "singleton_reduction_pass": true
+    }
+  },
+  "numerical_gate_passed": true,
+  "production_approved": false,
+  "synthetic_tests_passed": true,
+  "versions": {
+    "h5py": "3.16.0",
+    "numpy": "2.5.2",
+    "pandas": "3.0.5",
+    "pyarrow": "25.0.1",
+    "scipy": "1.17.1"
+  },
+  "visual_review_required": true
+}

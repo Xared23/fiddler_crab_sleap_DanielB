@@ -1,0 +1,198 @@
+{
+  "overlap_policy": "Sources assumed non-overlapping per collaborator/user; no overlap audit performed.",
+  "sources": [
+    {
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/danlabels.v004.slp",
+      "bytes": 252050,
+      "sha256": "957c3ca45177bd58bfc1091368a9102bd0bf7b6cc560b8eb10235ac236c30411",
+      "stored_frames": 13,
+      "user_labeled_frames": 12,
+      "user_instances": 1619,
+      "predicted_instances": 0,
+      "skeletons": [
+        {
+          "nodes": [
+            "Shell",
+            "Shoulder",
+            "Elbow",
+            "Claw",
+            "Arm"
+          ],
+          "edges": [
+            [
+              "Shell",
+              "Shoulder"
+            ],
+            [
+              "Shell",
+              "Arm"
+            ],
+            [
+              "Shoulder",
+              "Elbow"
+            ],
+            [
+              "Elbow",
+              "Claw"
+            ]
+          ]
+        }
+      ],
+      "videos": [
+        {
+          "index": 0,
+          "filename": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/clip_cam2_8k.mp4",
+          "backend_metadata": {
+            "type": "MediaVideo",
+            "shape": [
+              1820,
+              4320,
+              7680,
+              3
+            ],
+            "filename": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/clip_cam2_8k.mp4",
+            "grayscale": false,
+            "bgr": true,
+            "dataset": "",
+            "input_format": "",
+            "fps": 29.97002997002997
+          },
+          "source_video": null,
+          "user_frame_indices": [
+            0,
+            151,
+            302,
+            453,
+            604,
+            755,
+            906,
+            1057,
+            1208,
+            1359,
+            1510,
+            1661
+          ],
+          "user_frames": 12,
+          "user_instances": 1619,
+          "pose_width_quantiles_px": [
+            0.0,
+            30.60288804504262,
+            52.44515949339483,
+            107.37062563506447
+          ],
+          "pose_height_quantiles_px": [
+            0.0,
+            28.236897492292,
+            49.24906052915519,
+            106.42629768109146
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/danlabels.v007.slp",
+      "bytes": 392363,
+      "sha256": "4fb48565c24024f5c4745aaa8b682841a32209280575c8c6cf95d7035ae2e684",
+      "stored_frames": 20,
+      "user_labeled_frames": 19,
+      "user_instances": 2573,
+      "predicted_instances": 0,
+      "skeletons": [
+        {
+          "nodes": [
+            "Shell",
+            "Shoulder",
+            "Elbow",
+            "Claw",
+            "Arm"
+          ],
+          "edges": [
+            [
+              "Shell",
+              "Shoulder"
+            ],
+            [
+              "Shell",
+              "Arm"
+            ],
+            [
+              "Shoulder",
+              "Elbow"
+            ],
+            [
+              "Elbow",
+              "Claw"
+            ]
+          ]
+        }
+      ],
+      "videos": [
+        {
+          "index": 0,
+          "filename": "/Users/krystianrzeczycki/LLP Proj/Daniel_videos/clip_cam2_8k.mp4",
+          "backend_metadata": {
+            "type": "MediaVideo",
+            "shape": [
+              1820,
+              4320,
+              7680,
+              3
+            ],
+            "filename": "/Users/krystianrzeczycki/LLP Proj/Daniel_videos/clip_cam2_8k.mp4",
+            "grayscale": false,
+            "bgr": true,
+            "dataset": "",
+            "input_format": "",
+            "fps": 29.97002997002997
+          },
+          "source_video": null,
+          "user_frame_indices": [
+            0,
+            151,
+            302,
+            453,
+            604,
+            755,
+            906,
+            1057,
+            1208,
+            1359,
+            1510,
+            1661,
+            1762,
+            774,
+            84,
+            984,
+            1593,
+            205,
+            682
+          ],
+          "user_frames": 19,
+          "user_instances": 2573,
+          "pose_width_quantiles_px": [
+            0.0,
+            30.930072463053875,
+            52.73875719406644,
+            108.00666305979712
+          ],
+          "pose_height_quantiles_px": [
+            0.0,
+            28.50787663766232,
+            49.23941725879922,
+            106.42629768109146
+          ]
+        }
+      ]
+    }
+  ],
+  "total_user_labeled_frames": 31,
+  "proposed_validation_frames": 4,
+  "proposed_training_frames": 27,
+  "same_skeletons": true,
+  "versions": {
+    "sleap-io": "0.9.2",
+    "sleap-nn": "0.3.3",
+    "torch": "2.13.0",
+    "lightning": "2.6.5"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "checks": [
+    "regressions",
+    "GPU forward/backward both models",
+    "signal/save/resume both models",
+    "held-out validation",
+    "best checkpoint read-back"
+  ],
+  "dataset_sha256": "4f376b929103407795b8d5f32e0bc1bb5964e264471521e7898243c5a4ac4322",
+  "implementation": {
+    "scripts/gputest_train.py": "9c6ff986179475b2292f99bebfcf3d8f7fdcd4976ca1cf8a4f82e9f8d0133d56",
+    "scripts/pipeline_common.py": "a427da68a340550cc475c6cac9c37338a1713eb07258f056f701491daf7a3baf",
+    "scripts/train_versioned.py": "a64c125505f65cb2ce2c958d4b87271572265915f265926fe7fc8719d99be674",
+    "scripts/train_versioned_chain.sh": "60c8dc0292dbdcd97b01bb68ecc02b324d088afb169daa7f09b1e96b1f7a9ffb"
+  },
+  "run_config_sha256": "cc88bf6d9cead370c4809bfe187dfbfe8a06dd245aabdc300cc732eb679ae8ef",
+  "versions": {
+    "lightning": "2.6.5",
+    "numpy": "2.5.2",
+    "sleap-io": "0.9.2",
+    "sleap-nn": "0.3.3",
+    "torch": "2.13.0"
+  }
+}

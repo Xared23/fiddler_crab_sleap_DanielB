@@ -1,0 +1,4 @@
+2026-09-11 13:55:19.115 | INFO     | __main__:main:112 - Video Crab_Cam_2_3.mp4: 28800 frames; next=0
+2026-09-11 13:55:19.115 | INFO     | __main__:main:119 - Predicting frames 0-39 -> /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/predictions/Crab_Cam_2_3/Crab_Cam_2_3.frames_000000_000039.slp
+[2026-09-11T13:55:35.028] error: *** JOB 13746457 ON della-l07g7 CANCELLED AT 2026-09-11T13:55:35 DUE to SIGNAL Terminated ***
+TERM forwarded to predictor pid 1756301

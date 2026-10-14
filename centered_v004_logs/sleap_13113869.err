@@ -1,0 +1,36 @@
+Traceback (most recent call last):
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/bin/sleap-nn", line 10, in <module>
+    sys.exit(cli())
+             ~~~^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/rich_click/rich_command.py", line 402, in __call__
+    return super().__call__(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/click/core.py", line 1631, in __call__
+    return self.main(*args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/rich_click/rich_command.py", line 216, in main
+    rv = self.invoke(ctx)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/click/core.py", line 2032, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+                           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/click/core.py", line 1415, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/click/core.py", line 910, in invoke
+    return callback(*args, **kwargs)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_nn/cli.py", line 575, in train
+    run_training(config=cfg, train_labels=train_labels, val_labels=val_labels)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_nn/train.py", line 335, in run_training
+    trainer = ModelTrainer.get_model_trainer_from_config(
+        config, train_labels=train_labels, val_labels=val_labels
+    )
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_nn/training/model_trainer.py", line 165, in get_model_trainer_from_config
+    model_trainer.setup_config()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_nn/training/model_trainer.py", line 1064, in setup_config
+    self._setup_head_config()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_nn/training/model_trainer.py", line 764, in _setup_head_config
+    raise ValueError(message)
+ValueError: model_config.head_configs.centered_instance.confmaps.part_names must exactly match the skeleton's node names (in order) -- partial/reordered subsets are not supported. Got ['Arm', 'Shell', 'Shoulder', 'Elbow', 'Claw'], skeleton has ['Shell', 'Shoulder', 'Elbow', 'Claw', 'Arm']. Set part_names to null to use the full skeleton automatically.

@@ -1,0 +1,16 @@
+{
+  "dataset_id": "v007_best_body_first_dataframe_v001",
+  "prediction_run_id": "v007_best_body_first_v001",
+  "prediction_root": "predictions/v007_best_body_first_v001",
+  "destination": "datasets/v007_best_body_first_dataframe_v001",
+  "videos": ["Crab_Cam_2_2", "Crab_Cam_2_3"],
+  "schema_version": "all_observations_with_optional_ids_v001",
+  "tracking_policy": "Preserve the already-computed body_first_v001 IDs exactly. Do not rerun or modify tracking.",
+  "row_policy": "Retain every raw prediction, including null-ID/unassigned detections. accepted_for_tracking selects the assigned-only view.",
+  "centroid_source": "shell_proxy",
+  "water_policy": "Preserve and independently verify existing Shell-point membership in the accepted fixed polygon; boundary included, no uncertainty band.",
+  "missing_float_policy": "Normalize serialized NaN measurements to Arrow null; preserve other numeric values and every source observation.",
+  "batch_rows": 100000,
+  "preview_frames": [39, 40, 14400, 14401, 28798, 28799],
+  "inference_or_tracking_rerun": false
+}

@@ -1,0 +1,27 @@
+{
+  "actual_implementation": {
+    "scripts/gputest_train.py": "9c6ff986179475b2292f99bebfcf3d8f7fdcd4976ca1cf8a4f82e9f8d0133d56",
+    "scripts/milestone_checkpoints.py": "735ffae91de2ae502238d88c833b2c0a42cb1c49853628c81353b7f926113170",
+    "scripts/pipeline_common.py": "a427da68a340550cc475c6cac9c37338a1713eb07258f056f701491daf7a3baf",
+    "scripts/train_versioned.py": "0f447b1d0be3a296969dbff0eaae55bb89dd6fd5760406bf713ce78337e8fd60",
+    "scripts/train_versioned_chain.sh": "60c8dc0292dbdcd97b01bb68ecc02b324d088afb169daa7f09b1e96b1f7a9ffb"
+  },
+  "checked_utc": "2026-10-14T01:32:12.306938+00:00",
+  "hop_state": {
+    "hops": 122,
+    "no_progress_hops": 0,
+    "progress": 21212
+  },
+  "note": "Verification only; no optimizer step, training restart, or GPU test performed.",
+  "optimizer_step_range": [
+    21212.0,
+    21212.0
+  ],
+  "passed": true,
+  "progress": {
+    "epoch": 104,
+    "global_step": 21212
+  },
+  "selected_checkpoint": "models/v007_19f/centroid/interrupt.ckpt",
+  "slurm_job_id": "15521654"
+}

@@ -1,0 +1,11 @@
+test_actual_slp_merge_and_all_detection_preservation (__main__.PredictionTests.test_actual_slp_merge_and_all_detection_preservation) ... ok
+test_chunk_bad_frame_range_refused (__main__.PredictionTests.test_chunk_bad_frame_range_refused) ... ok
+test_empty_first_chunk_and_all_unassigned_retained (__main__.PredictionTests.test_empty_first_chunk_and_all_unassigned_retained) ... ok
+test_existing_outputs_not_overwritten (__main__.PredictionTests.test_existing_outputs_not_overwritten) ... ok
+test_missing_or_repeated_coverage_refused (__main__.PredictionTests.test_missing_or_repeated_coverage_refused) ... ok
+test_tracking_chunk_boundary_gap_and_raw_bytes (__main__.PredictionTests.test_tracking_chunk_boundary_gap_and_raw_bytes) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 7.528s
+
+OK

@@ -1,6 +1,6 @@
 data_config:
   train_labels_path:
-  - /scratch/gpfs/SHAEVITZ/kr3541/crab/danlabels.v004.slp
+  - /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/danlabels.v004.slp
   val_labels_path: null
   validation_fraction: 0.1
   use_same_data_for_val: true
@@ -16,9 +16,9 @@ data_config:
   preprocessing:
     ensure_rgb: false
     ensure_grayscale: true
-    max_height: 240
-    max_width: 352
-    scale: 1.5
+    max_height: 4320
+    max_width: 7680
+    scale: 1.0
     crop_size: null
     min_crop_size: 100
     crop_padding: null
@@ -58,20 +58,20 @@ data_config:
       mixup_p: 0.0
   skeletons:
   - nodes:
-    - name: Arm
     - name: Shell
     - name: Shoulder
     - name: Elbow
     - name: Claw
+    - name: Arm
     edges:
-    - source:
-        name: Arm
-      destination:
-        name: Shell
     - source:
         name: Shell
       destination:
         name: Shoulder
+    - source:
+        name: Shell
+      destination:
+        name: Arm
     - source:
         name: Shoulder
       destination:
@@ -115,16 +115,16 @@ model_config:
   total_params: 1953105
 trainer_config:
   train_data_loader:
-    batch_size: 5
-    num_workers: 4
+    batch_size: 1
+    num_workers: 0
     shuffle: true
   val_data_loader:
-    batch_size: 5
-    num_workers: 4
+    batch_size: 1
+    num_workers: 0
     shuffle: false
   model_ckpt:
     save_top_k: 1
-    save_last: false
+    save_last: true
   trainer_devices: 1
   trainer_device_indices: null
   trainer_accelerator: auto
@@ -136,10 +136,10 @@ trainer_config:
   visualize_preds_during_training: false
   keep_viz: false
   max_epochs: 50
-  seed: null
+  seed: 42
   use_wandb: false
   save_ckpt: true
-  ckpt_dir: /scratch/gpfs/SHAEVITZ/kr3541/crab/models
+  ckpt_dir: /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models
   run_name: dan_centroid_v004
   resume_ckpt_path: null
   wandb:

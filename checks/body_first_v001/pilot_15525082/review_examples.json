@@ -1,0 +1,3646 @@
+[
+  {
+    "category": "new_link_body_only_or_previously_vetoed",
+    "clip_id": "Crab_Cam_2_2_000000_000179",
+    "crop_xyxy": [
+      3804,
+      955,
+      4060,
+      1211
+    ],
+    "file": "Crab_Cam_2_2_000000_000179.review_00.png",
+    "frames": [
+      {
+        "body_xy": [
+          3932.109619140625,
+          1082.5863037109375
+        ],
+        "frame": 51,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 11.364684219273865,
+          "cost": 11.434459668181084,
+          "margin": null,
+          "prediction_error": 11.597269048964595,
+          "shoulder_used": false
+        },
+        "new_id": 433,
+        "old_id": 3155,
+        "source_instance_index": 68
+      },
+      {
+        "focal_absent": true,
+        "frame": 52,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 53,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 54,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 55,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 56,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 57,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 58,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 59,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 60,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 61,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 62,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 63,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 64,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 65,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 66,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 67,
+        "new_id": 433
+      },
+      {
+        "focal_absent": true,
+        "frame": 68,
+        "new_id": 433
+      }
+    ],
+    "raw_file": "Crab_Cam_2_2_000000_000179.review_00.raw.png",
+    "raw_sha256": "b18ef5f8b40e6d7f17540c6123a9e5d7205894496805082899d6126c7b84c112",
+    "sha256": "9f100eb51900bff5db01287862d4b4b9e3c93ba8dc91d0d0944b98a9126ab6aa",
+    "source_index": 68,
+    "start": 51,
+    "tracklet_local_id": 433,
+    "video": "Crab_Cam_2_2"
+  },
+  {
+    "category": "water",
+    "clip_id": "Crab_Cam_2_2_000000_000179",
+    "crop_xyxy": [
+      2743,
+      1857,
+      2999,
+      2113
+    ],
+    "file": "Crab_Cam_2_2_000000_000179.review_01.png",
+    "frames": [
+      {
+        "body_xy": [
+          2870.70849609375,
+          1984.568115234375
+        ],
+        "frame": 16,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 7.878243372601742,
+          "cost": 9.889634712247013,
+          "margin": null,
+          "prediction_error": 8.582881171419315,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1190,
+        "source_instance_index": 117
+      },
+      {
+        "body_xy": [
+          2870.84228515625,
+          1984.5811767578125
+        ],
+        "frame": 17,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.13442513395618122,
+          "cost": 1.1412137050459172,
+          "margin": null,
+          "prediction_error": 3.4612112114101263,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1190,
+        "source_instance_index": 114
+      },
+      {
+        "body_xy": [
+          2869.029541015625,
+          1984.593505859375
+        ],
+        "frame": 18,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.812786067387878,
+          "cost": 2.8003843589777957,
+          "margin": null,
+          "prediction_error": 3.6429797820862624,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1190,
+        "source_instance_index": 119
+      },
+      {
+        "body_xy": [
+          2868.503662109375,
+          1984.875244140625
+        ],
+        "frame": 19,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.596594571849594,
+          "cost": 0.6686824371262933,
+          "margin": null,
+          "prediction_error": 0.7227385774275348,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1190,
+        "source_instance_index": 115
+      },
+      {
+        "body_xy": [
+          2866.5576171875,
+          1984.930908203125
+        ],
+        "frame": 20,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.9468408578539436,
+          "cost": 2.3116546650324614,
+          "margin": null,
+          "prediction_error": 1.680191664192997,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1190,
+        "source_instance_index": 116
+      },
+      {
+        "body_xy": [
+          2864.775634765625,
+          1985.25048828125
+        ],
+        "frame": 21,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.810412322706038,
+          "cost": 1.5453924373801873,
+          "margin": null,
+          "prediction_error": 0.7302868237498301,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1522,
+        "source_instance_index": 115
+      },
+      {
+        "body_xy": [
+          2860.481689453125,
+          1987.08544921875
+        ],
+        "frame": 22,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 4.669587560897814,
+          "cost": 6.057188671582476,
+          "margin": null,
+          "prediction_error": 3.2949245965133547,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1578,
+        "source_instance_index": 107
+      },
+      {
+        "body_xy": [
+          2860.8896484375,
+          1987.1029052734375
+        ],
+        "frame": 23,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.4083322749643169,
+          "cost": 1.3578928954744924,
+          "margin": null,
+          "prediction_error": 3.4234211962886127,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1636,
+        "source_instance_index": 107
+      },
+      {
+        "body_xy": [
+          2860.63525390625,
+          1986.749755859375
+        ],
+        "frame": 24,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.43523681620767596,
+          "cost": 0.7324511583609206,
+          "margin": null,
+          "prediction_error": 1.304868600102609,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1689,
+        "source_instance_index": 106
+      },
+      {
+        "body_xy": [
+          2862.62646484375,
+          1985.295166015625
+        ],
+        "frame": 25,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 2.465918208530096,
+          "cost": 3.1832585742377217,
+          "margin": null,
+          "prediction_error": 3.134861264908113,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1740,
+        "source_instance_index": 106
+      },
+      {
+        "body_xy": [
+          2868.59716796875,
+          1988.61572265625
+        ],
+        "frame": 26,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 6.831939125203294,
+          "cost": 7.74784963753401,
+          "margin": null,
+          "prediction_error": 6.681821460442084,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1740,
+        "source_instance_index": 109
+      },
+      {
+        "body_xy": [
+          2872.21533203125,
+          1987.1978759765625
+        ],
+        "frame": 27,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 3.8860520313381515,
+          "cost": 5.346186733675677,
+          "margin": null,
+          "prediction_error": 2.7531677057965718,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1854,
+        "source_instance_index": 108
+      },
+      {
+        "body_xy": [
+          2870.29296875,
+          1987.227294921875
+        ],
+        "frame": 28,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.9225883749366546,
+          "cost": 2.9617635650853527,
+          "margin": null,
+          "prediction_error": 5.380811386472506,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1854,
+        "source_instance_index": 109
+      },
+      {
+        "body_xy": [
+          2868.788330078125,
+          1986.8231201171875
+        ],
+        "frame": 29,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.557977793694744,
+          "cost": 2.4787696026055954,
+          "margin": null,
+          "prediction_error": 2.306214032895198,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1854,
+        "source_instance_index": 108
+      },
+      {
+        "body_xy": [
+          2865.03955078125,
+          1984.850341796875
+        ],
+        "frame": 30,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 4.2361775833614,
+          "cost": 4.600784573509653,
+          "margin": null,
+          "prediction_error": 3.813560334920792,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1854,
+        "source_instance_index": 112
+      },
+      {
+        "body_xy": [
+          2868.51611328125,
+          1984.9117431640625
+        ],
+        "frame": 31,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 3.4771046783637023,
+          "cost": 4.174836697088763,
+          "margin": null,
+          "prediction_error": 5.653679185828213,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1854,
+        "source_instance_index": 110
+      },
+      {
+        "body_xy": [
+          2868.670654296875,
+          1987.0284423828125
+        ],
+        "frame": 32,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 2.122333269815857,
+          "cost": 2.332686543997366,
+          "margin": null,
+          "prediction_error": 2.6888234217584,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1854,
+        "source_instance_index": 112
+      },
+      {
+        "body_xy": [
+          2868.611083984375,
+          1987.27099609375
+        ],
+        "frame": 33,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.24976173610243016,
+          "cost": 0.40299326773330296,
+          "margin": null,
+          "prediction_error": 0.7439526028010353,
+          "shoulder_used": true
+        },
+        "new_id": 164,
+        "old_id": 1854,
+        "source_instance_index": 111
+      }
+    ],
+    "raw_file": "Crab_Cam_2_2_000000_000179.review_01.raw.png",
+    "raw_sha256": "d51033b7351e4b1ab3917c28af538610e0957e19de4b692a0c87ae9969addca0",
+    "sha256": "197b7333c6f6c86352a7f6108491944efb72002a884106882148b310ef9dc069",
+    "source_index": 117,
+    "start": 16,
+    "tracklet_local_id": 164,
+    "video": "Crab_Cam_2_2"
+  },
+  {
+    "category": "motion_or_close_competitor",
+    "clip_id": "Crab_Cam_2_2_000000_000179",
+    "crop_xyxy": [
+      2328,
+      2421,
+      2584,
+      2677
+    ],
+    "file": "Crab_Cam_2_2_000000_000179.review_02.png",
+    "frames": [
+      {
+        "body_xy": [
+          2456.27587890625,
+          2548.508544921875
+        ],
+        "frame": 52,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 9.298693993475778,
+          "cost": 8.904843574459335,
+          "margin": null,
+          "prediction_error": 5.076224519023782,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 139
+      },
+      {
+        "body_xy": [
+          2462.071533203125,
+          2544.1904296875
+        ],
+        "frame": 53,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 7.2274288586071265,
+          "cost": 6.298963605673163,
+          "margin": null,
+          "prediction_error": 1.6879418279645808,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 144
+      },
+      {
+        "body_xy": [
+          2462.467529296875,
+          2538.9833984375
+        ],
+        "frame": 54,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 5.222067343949312,
+          "cost": 6.295098099792266,
+          "margin": null,
+          "prediction_error": 5.102059788954871,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 140
+      },
+      {
+        "body_xy": [
+          2464.0400390625,
+          2536.25341796875
+        ],
+        "frame": 55,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 3.150488902177321,
+          "cost": 3.409888417479633,
+          "margin": null,
+          "prediction_error": 1.8752275953445618,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 136
+      },
+      {
+        "body_xy": [
+          2462.19873046875,
+          2534.39453125
+        ],
+        "frame": 56,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 2.6164627210344014,
+          "cost": 3.638158481332828,
+          "margin": null,
+          "prediction_error": 4.307370151578749,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 135
+      },
+      {
+        "body_xy": [
+          2462.090087890625,
+          2538.038330078125
+        ],
+        "frame": 57,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 3.6454180980549777,
+          "cost": 4.51514303347212,
+          "margin": null,
+          "prediction_error": 6.310886797491261,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 137
+      },
+      {
+        "body_xy": [
+          2460.600341796875,
+          2539.7060546875
+        ],
+        "frame": 58,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 2.236213048114687,
+          "cost": 2.1538569659135685,
+          "margin": null,
+          "prediction_error": 1.9174573156585752,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 137
+      },
+      {
+        "body_xy": [
+          2460.567626953125,
+          2538.400390625
+        ],
+        "frame": 59,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.3060738513214292,
+          "cost": 1.68907529710394,
+          "margin": null,
+          "prediction_error": 2.485706732608963,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 132
+      },
+      {
+        "body_xy": [
+          2460.58203125,
+          2539.798583984375
+        ],
+        "frame": 60,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.3982675545005008,
+          "cost": 1.493723453505518,
+          "margin": null,
+          "prediction_error": 1.5626099331930858,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 132
+      },
+      {
+        "body_xy": [
+          2461.87060546875,
+          2539.96044921875
+        ],
+        "frame": 61,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.2987008398112503,
+          "cost": 1.392526675872738,
+          "margin": null,
+          "prediction_error": 1.5491893904970577,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 134
+      },
+      {
+        "body_xy": [
+          2461.885009765625,
+          2540.098876953125
+        ],
+        "frame": 62,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.1391751465336347,
+          "cost": 0.73646674760472,
+          "margin": null,
+          "prediction_error": 0.5990080430870576,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 131
+      },
+      {
+        "body_xy": [
+          2461.914794921875,
+          2540.190185546875
+        ],
+        "frame": 63,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.0960438172160991,
+          "cost": 0.17254208348935665,
+          "margin": null,
+          "prediction_error": 0.31034886984344956,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 133
+      },
+      {
+        "body_xy": [
+          2460.667724609375,
+          2540.2578125
+        ],
+        "frame": 64,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.2489026259512062,
+          "cost": 1.9419098983139627,
+          "margin": null,
+          "prediction_error": 1.4081721790074322,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 130
+      },
+      {
+        "body_xy": [
+          2461.87109375,
+          2540.275634765625
+        ],
+        "frame": 65,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.203501109995566,
+          "cost": 2.0151604200885944,
+          "margin": null,
+          "prediction_error": 1.7518653564946207,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 130
+      },
+      {
+        "body_xy": [
+          2461.848876953125,
+          2540.4140625
+        ],
+        "frame": 66,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.14019922862690995,
+          "cost": 0.6755495036145573,
+          "margin": null,
+          "prediction_error": 0.3576792645307815,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 134
+      },
+      {
+        "body_xy": [
+          2460.426513671875,
+          2540.482177734375
+        ],
+        "frame": 67,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.4239933247744625,
+          "cost": 1.4977333523474434,
+          "margin": null,
+          "prediction_error": 1.5762067963003517,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 135
+      },
+      {
+        "body_xy": [
+          2460.3427734375,
+          2541.7666015625
+        ],
+        "frame": 68,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.2871507282010368,
+          "cost": 1.3071887979426806,
+          "margin": null,
+          "prediction_error": 1.3185293842011119,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 133
+      },
+      {
+        "body_xy": [
+          2460.262939453125,
+          2541.822021484375
+        ],
+        "frame": 69,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.09718452964242225,
+          "cost": 0.29593907393195024,
+          "margin": null,
+          "prediction_error": 0.6891265654154037,
+          "shoulder_used": true
+        },
+        "new_id": 147,
+        "old_id": 3234,
+        "source_instance_index": 138
+      }
+    ],
+    "raw_file": "Crab_Cam_2_2_000000_000179.review_02.raw.png",
+    "raw_sha256": "5f2df19d1561b13e786ebd49a7abaa6f306152fca0910156f8dae1c6e3e6c46f",
+    "sha256": "34bf3ede559b1f1bb37d287cb76f4440325cc98fa85b8e02aad6638810d6c1ec",
+    "source_index": 139,
+    "start": 52,
+    "tracklet_local_id": 147,
+    "video": "Crab_Cam_2_2"
+  },
+  {
+    "category": "new_link_body_only_or_previously_vetoed",
+    "clip_id": "Crab_Cam_2_2_004960_005139",
+    "crop_xyxy": [
+      5062,
+      3833,
+      5318,
+      4089
+    ],
+    "file": "Crab_Cam_2_2_004960_005139.review_00.png",
+    "frames": [
+      {
+        "body_xy": [
+          5190.22021484375,
+          3961.1064453125
+        ],
+        "frame": 4991,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 8.35540855639276,
+          "cost": 8.04633330059692,
+          "margin": null,
+          "prediction_error": 7.325157703739965,
+          "shoulder_used": false
+        },
+        "new_id": 411,
+        "old_id": 2405,
+        "source_instance_index": 182
+      },
+      {
+        "focal_absent": true,
+        "frame": 4992,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 4993,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 4994,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 4995,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 4996,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 4997,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 4998,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 4999,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 5000,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 5001,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 5002,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 5003,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 5004,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 5005,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 5006,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 5007,
+        "new_id": 411
+      },
+      {
+        "focal_absent": true,
+        "frame": 5008,
+        "new_id": 411
+      }
+    ],
+    "raw_file": "Crab_Cam_2_2_004960_005139.review_00.raw.png",
+    "raw_sha256": "9be26e8434334269efb118e7bf07d8c136bb16156cf17d500798a4da6e0e3e4a",
+    "sha256": "0358a77b3d6af17eacf0b89078533f4ebf31e17f11ed77d84e7233f39b8ad847",
+    "source_index": 182,
+    "start": 4991,
+    "tracklet_local_id": 411,
+    "video": "Crab_Cam_2_2"
+  },
+  {
+    "category": "water",
+    "clip_id": "Crab_Cam_2_2_004960_005139",
+    "crop_xyxy": [
+      2722,
+      720,
+      2978,
+      976
+    ],
+    "file": "Crab_Cam_2_2_004960_005139.review_01.png",
+    "frames": [
+      {
+        "body_xy": [
+          2850.18017578125,
+          847.9990844726562
+        ],
+        "frame": 5031,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 8.202060776660034,
+          "cost": 9.694991674366946,
+          "margin": null,
+          "prediction_error": 11.097027060649795,
+          "shoulder_used": true
+        },
+        "new_id": 710,
+        "old_id": 4985,
+        "source_instance_index": 50
+      },
+      {
+        "body_xy": [
+          2852.529541015625,
+          844.3179931640625
+        ],
+        "frame": 5032,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 4.366915413274494,
+          "cost": 5.860589253134259,
+          "margin": null,
+          "prediction_error": 6.636238534703853,
+          "shoulder_used": true
+        },
+        "new_id": 710,
+        "old_id": 4985,
+        "source_instance_index": 49
+      },
+      {
+        "body_xy": [
+          2852.11279296875,
+          842.648681640625
+        ],
+        "frame": 5033,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.720546394856981,
+          "cost": 2.41175666490586,
+          "margin": null,
+          "prediction_error": 2.222750145526703,
+          "shoulder_used": true
+        },
+        "new_id": 710,
+        "old_id": 4985,
+        "source_instance_index": 52
+      },
+      {
+        "body_xy": [
+          2850.348388671875,
+          846.2195434570312
+        ],
+        "frame": 5034,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 3.982985894363562,
+          "cost": 4.944785910945051,
+          "margin": null,
+          "prediction_error": 5.179804873675977,
+          "shoulder_used": true
+        },
+        "new_id": 710,
+        "old_id": 4985,
+        "source_instance_index": 53
+      },
+      {
+        "body_xy": [
+          2852.424072265625,
+          844.2761840820312
+        ],
+        "frame": 5035,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 2.843432440161592,
+          "cost": 4.045693910620532,
+          "margin": null,
+          "prediction_error": 4.177282889426001,
+          "shoulder_used": true
+        },
+        "new_id": 710,
+        "old_id": 4985,
+        "source_instance_index": 52
+      },
+      {
+        "focal_absent": true,
+        "frame": 5036,
+        "new_id": 710
+      },
+      {
+        "focal_absent": true,
+        "frame": 5037,
+        "new_id": 710
+      },
+      {
+        "focal_absent": true,
+        "frame": 5038,
+        "new_id": 710
+      },
+      {
+        "focal_absent": true,
+        "frame": 5039,
+        "new_id": 710
+      },
+      {
+        "focal_absent": true,
+        "frame": 5040,
+        "new_id": 710
+      },
+      {
+        "focal_absent": true,
+        "frame": 5041,
+        "new_id": 710
+      },
+      {
+        "focal_absent": true,
+        "frame": 5042,
+        "new_id": 710
+      },
+      {
+        "focal_absent": true,
+        "frame": 5043,
+        "new_id": 710
+      },
+      {
+        "focal_absent": true,
+        "frame": 5044,
+        "new_id": 710
+      },
+      {
+        "focal_absent": true,
+        "frame": 5045,
+        "new_id": 710
+      },
+      {
+        "focal_absent": true,
+        "frame": 5046,
+        "new_id": 710
+      },
+      {
+        "focal_absent": true,
+        "frame": 5047,
+        "new_id": 710
+      },
+      {
+        "focal_absent": true,
+        "frame": 5048,
+        "new_id": 710
+      }
+    ],
+    "raw_file": "Crab_Cam_2_2_004960_005139.review_01.raw.png",
+    "raw_sha256": "4e5cc0f30dd40fefe03a49bc4d632f1ca489eb4ef51c582654827e96aa065efa",
+    "sha256": "7c91d93f906894897b5d0442a08a93ac04f85c4d3f3596d83152d692a27979a0",
+    "source_index": 50,
+    "start": 5031,
+    "tracklet_local_id": 710,
+    "video": "Crab_Cam_2_2"
+  },
+  {
+    "category": "motion_or_close_competitor",
+    "clip_id": "Crab_Cam_2_2_004960_005139",
+    "crop_xyxy": [
+      3959,
+      1602,
+      4215,
+      1858
+    ],
+    "file": "Crab_Cam_2_2_004960_005139.review_02.png",
+    "frames": [
+      {
+        "body_xy": [
+          4086.544677734375,
+          1729.970458984375
+        ],
+        "frame": 5001,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 10.543624323292066,
+          "cost": 11.795823765168773,
+          "margin": null,
+          "prediction_error": 10.722471869178975,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 2917,
+        "source_instance_index": 108
+      },
+      {
+        "body_xy": [
+          4086.386474609375,
+          1730.008544921875
+        ],
+        "frame": 5002,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.1627229774648299,
+          "cost": 1.643466701690594,
+          "margin": null,
+          "prediction_error": 5.046086585168066,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 2917,
+        "source_instance_index": 109
+      },
+      {
+        "body_xy": [
+          4084.8828125,
+          1729.8526611328125
+        ],
+        "frame": 5003,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.511720706632861,
+          "cost": 1.71650605242775,
+          "margin": null,
+          "prediction_error": 1.9574813177514059,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 2917,
+        "source_instance_index": 107
+      },
+      {
+        "body_xy": [
+          4084.504150390625,
+          1730.0029296875
+        ],
+        "frame": 5004,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.4073887966110441,
+          "cost": 0.9023973241139491,
+          "margin": null,
+          "prediction_error": 1.5273265557761204,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 2917,
+        "source_instance_index": 109
+      },
+      {
+        "body_xy": [
+          4084.474853515625,
+          1728.09765625
+        ],
+        "frame": 5005,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.9054986692537552,
+          "cost": 2.6777883950478136,
+          "margin": 7.569983755444086,
+          "prediction_error": 2.593040981062278,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 3328,
+        "source_instance_index": 110
+      },
+      {
+        "body_xy": [
+          4082.867919921875,
+          1728.258056640625
+        ],
+        "frame": 5006,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.6149191496898359,
+          "cost": 1.542557941703231,
+          "margin": 5.015901168546128,
+          "prediction_error": 1.373715123067819,
+          "shoulder_used": false
+        },
+        "new_id": 423,
+        "old_id": 3408,
+        "source_instance_index": 113
+      },
+      {
+        "body_xy": [
+          4082.478515625,
+          1730.0614013671875
+        ],
+        "frame": 5007,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.8449086452302974,
+          "cost": 1.9495015978850985,
+          "margin": 7.822761483474435,
+          "prediction_error": 2.193551820746302,
+          "shoulder_used": false
+        },
+        "new_id": 423,
+        "old_id": 3482,
+        "source_instance_index": 110
+      },
+      {
+        "body_xy": [
+          4082.242919921875,
+          1730.0145263671875
+        ],
+        "frame": 5008,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.24021365688895197,
+          "cost": 0.86236987402509,
+          "margin": 12.426139283089743,
+          "prediction_error": 0.9503557049089111,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 3552,
+        "source_instance_index": 112
+      },
+      {
+        "body_xy": [
+          4082.478515625,
+          1727.9246826171875
+        ],
+        "frame": 5009,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 2.10308160439509,
+          "cost": 2.3817204973255546,
+          "margin": 8.972922492318068,
+          "prediction_error": 2.551341775904058,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 3626,
+        "source_instance_index": 114
+      },
+      {
+        "body_xy": [
+          4080.7822265625,
+          1728.1278076171875
+        ],
+        "frame": 5010,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.7084075477420864,
+          "cost": 1.9025913567178603,
+          "margin": 8.025696564059912,
+          "prediction_error": 1.9008621000045782,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 3699,
+        "source_instance_index": 115
+      },
+      {
+        "body_xy": [
+          4080.1533203125,
+          1729.8212890625
+        ],
+        "frame": 5011,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.8064889916373077,
+          "cost": 2.33840481973963,
+          "margin": 10.462247250290153,
+          "prediction_error": 2.0444486738883394,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 3772,
+        "source_instance_index": 114
+      },
+      {
+        "body_xy": [
+          4078.642333984375,
+          1730.1156005859375
+        ],
+        "frame": 5012,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.5393826543808957,
+          "cost": 1.814897347591855,
+          "margin": null,
+          "prediction_error": 0.8360914376679917,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 3843,
+        "source_instance_index": 111
+      },
+      {
+        "body_xy": [
+          4078.3857421875,
+          1730.15625
+        ],
+        "frame": 5013,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.25979169557005827,
+          "cost": 0.8706400643598922,
+          "margin": null,
+          "prediction_error": 0.9903635663793191,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 3908,
+        "source_instance_index": 113
+      },
+      {
+        "body_xy": [
+          4078.21240234375,
+          1729.883056640625
+        ],
+        "frame": 5014,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.3235449165693572,
+          "cost": 0.5172983465213292,
+          "margin": null,
+          "prediction_error": 0.7513295536563895,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 3972,
+        "source_instance_index": 111
+      },
+      {
+        "body_xy": [
+          4076.534423828125,
+          1730.0478515625
+        ],
+        "frame": 5015,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.6860513827208428,
+          "cost": 1.673889189666153,
+          "margin": null,
+          "prediction_error": 1.253563438075396,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 4045,
+        "source_instance_index": 110
+      },
+      {
+        "body_xy": [
+          4076.053955078125,
+          1730.348388671875
+        ],
+        "frame": 5016,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.5667210723433912,
+          "cost": 0.9753630231988596,
+          "margin": null,
+          "prediction_error": 0.6171674595985494,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 4114,
+        "source_instance_index": 103
+      },
+      {
+        "body_xy": [
+          4075.802001953125,
+          1730.493896484375
+        ],
+        "frame": 5017,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.2909517154027465,
+          "cost": 0.7196710083336482,
+          "margin": null,
+          "prediction_error": 0.5186923084567732,
+          "shoulder_used": true
+        },
+        "new_id": 423,
+        "old_id": 4189,
+        "source_instance_index": 108
+      },
+      {
+        "body_xy": [
+          4074.260009765625,
+          1730.7711181640625
+        ],
+        "frame": 5018,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.566713683478827,
+          "cost": 1.4079306853734712,
+          "margin": null,
+          "prediction_error": 1.037437023127642,
+          "shoulder_used": false
+        },
+        "new_id": 423,
+        "old_id": 4255,
+        "source_instance_index": 109
+      }
+    ],
+    "raw_file": "Crab_Cam_2_2_004960_005139.review_02.raw.png",
+    "raw_sha256": "f3ed88b1773560516402589090d75b2b5af4db975e0ae03a2cc7815e35d694e0",
+    "sha256": "7af9bad03db2534f4d78489557400810992d13e9f881d0163305ca849494154b",
+    "source_index": 108,
+    "start": 5001,
+    "tracklet_local_id": 423,
+    "video": "Crab_Cam_2_2"
+  },
+  {
+    "category": "new_link_body_only_or_previously_vetoed",
+    "clip_id": "Crab_Cam_2_2_027760_027939",
+    "crop_xyxy": [
+      2043,
+      2697,
+      2299,
+      2953
+    ],
+    "file": "Crab_Cam_2_2_027760_027939.review_00.png",
+    "frames": [
+      {
+        "body_xy": [
+          2170.850830078125,
+          2824.620849609375
+        ],
+        "frame": 27779,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 10.299634740195437,
+          "cost": 10.484159829666819,
+          "margin": null,
+          "prediction_error": 10.91471837176671,
+          "shoulder_used": false
+        },
+        "new_id": 234,
+        "old_id": 1172,
+        "source_instance_index": 118
+      },
+      {
+        "body_xy": [
+          2166.465576171875,
+          2828.329345703125
+        ],
+        "frame": 27780,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 5.743117193618801,
+          "cost": 6.981724453340512,
+          "margin": null,
+          "prediction_error": 9.871808059357836,
+          "shoulder_used": false
+        },
+        "new_id": 234,
+        "old_id": 1230,
+        "source_instance_index": 114
+      },
+      {
+        "body_xy": [
+          2166.11181640625,
+          2828.48828125
+        ],
+        "frame": 27781,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.387822742803346,
+          "cost": 0.8688153328555142,
+          "margin": null,
+          "prediction_error": 1.8848271961791365,
+          "shoulder_used": true
+        },
+        "new_id": 234,
+        "old_id": 1230,
+        "source_instance_index": 115
+      },
+      {
+        "body_xy": [
+          2163.896484375,
+          2822.716552734375
+        ],
+        "frame": 27782,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 6.182276770475503,
+          "cost": 6.475096749410442,
+          "margin": null,
+          "prediction_error": 7.158343366925298,
+          "shoulder_used": false
+        },
+        "new_id": 234,
+        "old_id": 1335,
+        "source_instance_index": 116
+      },
+      {
+        "body_xy": [
+          2163.985107421875,
+          2822.514892578125
+        ],
+        "frame": 27783,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.22027451749165827,
+          "cost": 0.898657748284969,
+          "margin": null,
+          "prediction_error": 2.481551953469361,
+          "shoulder_used": false
+        },
+        "new_id": 234,
+        "old_id": 1385,
+        "source_instance_index": 118
+      },
+      {
+        "body_xy": [
+          2164.043212890625,
+          2820.70751953125
+        ],
+        "frame": 27784,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.8083068257541026,
+          "cost": 1.5017654184244522,
+          "margin": null,
+          "prediction_error": 0.7865021346552689,
+          "shoulder_used": false
+        },
+        "new_id": 234,
+        "old_id": 1439,
+        "source_instance_index": 117
+      },
+      {
+        "focal_absent": true,
+        "frame": 27785,
+        "new_id": 234
+      },
+      {
+        "focal_absent": true,
+        "frame": 27786,
+        "new_id": 234
+      },
+      {
+        "focal_absent": true,
+        "frame": 27787,
+        "new_id": 234
+      },
+      {
+        "focal_absent": true,
+        "frame": 27788,
+        "new_id": 234
+      },
+      {
+        "focal_absent": true,
+        "frame": 27789,
+        "new_id": 234
+      },
+      {
+        "focal_absent": true,
+        "frame": 27790,
+        "new_id": 234
+      },
+      {
+        "focal_absent": true,
+        "frame": 27791,
+        "new_id": 234
+      },
+      {
+        "focal_absent": true,
+        "frame": 27792,
+        "new_id": 234
+      },
+      {
+        "focal_absent": true,
+        "frame": 27793,
+        "new_id": 234
+      },
+      {
+        "focal_absent": true,
+        "frame": 27794,
+        "new_id": 234
+      },
+      {
+        "focal_absent": true,
+        "frame": 27795,
+        "new_id": 234
+      },
+      {
+        "focal_absent": true,
+        "frame": 27796,
+        "new_id": 234
+      }
+    ],
+    "raw_file": "Crab_Cam_2_2_027760_027939.review_00.raw.png",
+    "raw_sha256": "f36780ed29863e2685efc38e84d9ba8ebd4a631b05be1c3db9f42e7876a64036",
+    "sha256": "c0e1eca4b5bf3b3a4edb84ba3f1df263055753224f7d375c7a00f5305ed3998f",
+    "source_index": 118,
+    "start": 27779,
+    "tracklet_local_id": 234,
+    "video": "Crab_Cam_2_2"
+  },
+  {
+    "category": "water",
+    "clip_id": "Crab_Cam_2_2_027760_027939",
+    "crop_xyxy": [
+      2865,
+      250,
+      3121,
+      506
+    ],
+    "file": "Crab_Cam_2_2_027760_027939.review_01.png",
+    "frames": [
+      {
+        "body_xy": [
+          2992.5927734375,
+          378.2281494140625
+        ],
+        "frame": 27795,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 10.188567828577055,
+          "cost": 9.976502257509933,
+          "margin": null,
+          "prediction_error": 9.48168259168665,
+          "shoulder_used": false
+        },
+        "new_id": 356,
+        "old_id": 1970,
+        "source_instance_index": 15
+      },
+      {
+        "focal_absent": true,
+        "frame": 27796,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27797,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27798,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27799,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27800,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27801,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27802,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27803,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27804,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27805,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27806,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27807,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27808,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27809,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27810,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27811,
+        "new_id": 356
+      },
+      {
+        "focal_absent": true,
+        "frame": 27812,
+        "new_id": 356
+      }
+    ],
+    "raw_file": "Crab_Cam_2_2_027760_027939.review_01.raw.png",
+    "raw_sha256": "188a524e175e3e2b1a06773aca62767d29752394e5640a2347a7ec9529b0b07d",
+    "sha256": "84238c597b4cea0335a2a9a67ac401cefc25b6f936872f23fbee6ec770a4dcce",
+    "source_index": 15,
+    "start": 27795,
+    "tracklet_local_id": 356,
+    "video": "Crab_Cam_2_2"
+  },
+  {
+    "category": "motion_or_close_competitor",
+    "clip_id": "Crab_Cam_2_2_027760_027939",
+    "crop_xyxy": [
+      2080,
+      2935,
+      2336,
+      3191
+    ],
+    "file": "Crab_Cam_2_2_027760_027939.review_02.png",
+    "frames": [
+      {
+        "body_xy": [
+          2208.395263671875,
+          3062.621826171875
+        ],
+        "frame": 27848,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 9.995149294266337,
+          "cost": 10.580657036901052,
+          "margin": null,
+          "prediction_error": 9.995149294266337,
+          "shoulder_used": true
+        },
+        "new_id": 678,
+        "old_id": 4880,
+        "source_instance_index": 124
+      },
+      {
+        "body_xy": [
+          2206.53955078125,
+          3064.0302734375
+        ],
+        "frame": 27849,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 2.329676808589194,
+          "cost": 3.798122456160653,
+          "margin": null,
+          "prediction_error": 7.17714084792288,
+          "shoulder_used": true
+        },
+        "new_id": 678,
+        "old_id": 4880,
+        "source_instance_index": 125
+      },
+      {
+        "body_xy": [
+          2206.531982421875,
+          3064.027099609375
+        ],
+        "frame": 27850,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.00820690249705645,
+          "cost": 0.46616131872566585,
+          "margin": null,
+          "prediction_error": 1.5322650056080263,
+          "shoulder_used": true
+        },
+        "new_id": 678,
+        "old_id": 4880,
+        "source_instance_index": 121
+      },
+      {
+        "focal_absent": true,
+        "frame": 27851,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27852,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27853,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27854,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27855,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27856,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27857,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27858,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27859,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27860,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27861,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27862,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27863,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27864,
+        "new_id": 678
+      },
+      {
+        "focal_absent": true,
+        "frame": 27865,
+        "new_id": 678
+      }
+    ],
+    "raw_file": "Crab_Cam_2_2_027760_027939.review_02.raw.png",
+    "raw_sha256": "5bcd79f4857c0ef7258e74a653bac831805c9e93ce113bee03c60ce3ca8fa9ef",
+    "sha256": "f9687549d321e115854b851ff1d33808e44a62dfbbaf65101e8d808bed7c3b47",
+    "source_index": 124,
+    "start": 27848,
+    "tracklet_local_id": 678,
+    "video": "Crab_Cam_2_2"
+  },
+  {
+    "category": "new_link_body_only_or_previously_vetoed",
+    "clip_id": "Crab_Cam_2_3_000000_000179",
+    "crop_xyxy": [
+      4472,
+      1341,
+      4728,
+      1597
+    ],
+    "file": "Crab_Cam_2_3_000000_000179.review_00.png",
+    "frames": [
+      {
+        "body_xy": [
+          4600.431640625,
+          1468.5780029296875
+        ],
+        "frame": 124,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 10.07006248773414,
+          "cost": 9.086077296367648,
+          "margin": null,
+          "prediction_error": 6.790111849845835,
+          "shoulder_used": false
+        },
+        "new_id": 61,
+        "old_id": 7723,
+        "source_instance_index": 65
+      },
+      {
+        "focal_absent": true,
+        "frame": 125,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 126,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 127,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 128,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 129,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 130,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 131,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 132,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 133,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 134,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 135,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 136,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 137,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 138,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 139,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 140,
+        "new_id": 61
+      },
+      {
+        "focal_absent": true,
+        "frame": 141,
+        "new_id": 61
+      }
+    ],
+    "raw_file": "Crab_Cam_2_3_000000_000179.review_00.raw.png",
+    "raw_sha256": "56a81d57d8260bf2f027b7c20db3adb4fc3cab1135e040605bcbf613cbfab4e1",
+    "sha256": "5e9a3362cb6d4eff6c7b4bb7c7e89565b6c57cd28d23a80b454da5b9786ef1b9",
+    "source_index": 65,
+    "start": 124,
+    "tracklet_local_id": 61,
+    "video": "Crab_Cam_2_3"
+  },
+  {
+    "category": "water",
+    "clip_id": "Crab_Cam_2_3_000000_000179",
+    "crop_xyxy": [
+      2617,
+      647,
+      2873,
+      903
+    ],
+    "file": "Crab_Cam_2_3_000000_000179.review_01.png",
+    "frames": [
+      {
+        "body_xy": [
+          2744.70068359375,
+          774.823974609375
+        ],
+        "frame": 119,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 9.597265879331262,
+          "cost": 10.502491037091021,
+          "margin": null,
+          "prediction_error": 9.917998400672396,
+          "shoulder_used": true
+        },
+        "new_id": 1088,
+        "old_id": 7298,
+        "source_instance_index": 30
+      },
+      {
+        "focal_absent": true,
+        "frame": 120,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 121,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 122,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 123,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 124,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 125,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 126,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 127,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 128,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 129,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 130,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 131,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 132,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 133,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 134,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 135,
+        "new_id": 1088
+      },
+      {
+        "focal_absent": true,
+        "frame": 136,
+        "new_id": 1088
+      }
+    ],
+    "raw_file": "Crab_Cam_2_3_000000_000179.review_01.raw.png",
+    "raw_sha256": "ac46156793b5094028b7fa08c9daeaa93d1deac69a6af538a7e9fd1bd5f88b09",
+    "sha256": "54e873a278fdd04a7e8ba9e0da186bb272319839c3dc0ae696476737f210a796",
+    "source_index": 30,
+    "start": 119,
+    "tracklet_local_id": 1088,
+    "video": "Crab_Cam_2_3"
+  },
+  {
+    "category": "motion_or_close_competitor",
+    "clip_id": "Crab_Cam_2_3_000000_000179",
+    "crop_xyxy": [
+      3198,
+      3016,
+      3454,
+      3272
+    ],
+    "file": "Crab_Cam_2_3_000000_000179.review_02.png",
+    "frames": [
+      {
+        "body_xy": [
+          3326.3388671875,
+          3144.275634765625
+        ],
+        "frame": 32,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 10.5331914481861,
+          "cost": 11.376254387044577,
+          "margin": null,
+          "prediction_error": 10.5331914481861,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 120
+      },
+      {
+        "body_xy": [
+          3326.306640625,
+          3144.06298828125
+        ],
+        "frame": 33,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.2150745885678118,
+          "cost": 2.4140829479795185,
+          "margin": null,
+          "prediction_error": 5.476563121724876,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 122
+      },
+      {
+        "body_xy": [
+          3324.427978515625,
+          3143.96484375
+        ],
+        "frame": 34,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.8812239819371872,
+          "cost": 2.929598229707479,
+          "margin": null,
+          "prediction_error": 3.7335306439052434,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 114
+      },
+      {
+        "body_xy": [
+          3324.50634765625,
+          3144.033447265625
+        ],
+        "frame": 35,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.10415452250579733,
+          "cost": 0.4427171953571409,
+          "margin": null,
+          "prediction_error": 1.187995023586772,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 117
+      },
+      {
+        "body_xy": [
+          3326.007080078125,
+          3144.278076171875
+        ],
+        "frame": 36,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.520539740960385,
+          "cost": 2.0360049031098097,
+          "margin": null,
+          "prediction_error": 1.7313244784066388,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 122
+      },
+      {
+        "body_xy": [
+          3324.530029296875,
+          3144.034423828125
+        ],
+        "frame": 37,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.497012182651198,
+          "cost": 2.137476114079309,
+          "margin": null,
+          "prediction_error": 2.2312686944306828,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 123
+      },
+      {
+        "body_xy": [
+          3324.41552734375,
+          3144.1962890625
+        ],
+        "frame": 38,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.1982701474471469,
+          "cost": 0.23787782114349498,
+          "margin": null,
+          "prediction_error": 0.3064117097538778,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 123
+      },
+      {
+        "body_xy": [
+          3324.345458984375,
+          3144.088623046875
+        ],
+        "frame": 39,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.12845834307691695,
+          "cost": 0.18780171228259498,
+          "margin": null,
+          "prediction_error": 0.3024984371966687,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 125
+      },
+      {
+        "body_xy": [
+          3324.339599609375,
+          3144.084228515625
+        ],
+        "frame": 40,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.00732421875,
+          "cost": 0.05417736362636882,
+          "margin": null,
+          "prediction_error": 0.1613279682140234,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 125
+      },
+      {
+        "body_xy": [
+          3324.335693359375,
+          3144.076904296875
+        ],
+        "frame": 41,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.00830078125,
+          "cost": 0.03331600596675188,
+          "margin": null,
+          "prediction_error": 0.08289495346954665,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 122
+      },
+      {
+        "body_xy": [
+          3324.341552734375,
+          3144.074462890625
+        ],
+        "frame": 42,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.00634765625,
+          "cost": 0.020978202932766234,
+          "margin": null,
+          "prediction_error": 0.05094069807915396,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 124
+      },
+      {
+        "body_xy": [
+          3324.368896484375,
+          3144.10888671875
+        ],
+        "frame": 43,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.043962263440842544,
+          "cost": 0.052545090984268274,
+          "margin": null,
+          "prediction_error": 0.059739781821905626,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 125
+      },
+      {
+        "body_xy": [
+          3324.27734375,
+          3144.02880859375
+        ],
+        "frame": 44,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.12163227069760282,
+          "cost": 0.13481156556268634,
+          "margin": null,
+          "prediction_error": 0.13537928603960334,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 125
+      },
+      {
+        "body_xy": [
+          3324.318359375,
+          3144.04931640625
+        ],
+        "frame": 45,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.045856862819819905,
+          "cost": 0.06357577178811799,
+          "margin": null,
+          "prediction_error": 0.09982208680159291,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 126
+      },
+      {
+        "body_xy": [
+          3324.317138671875,
+          3144.055419921875
+        ],
+        "frame": 46,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.0062243890546786924,
+          "cost": 0.01504391735505372,
+          "margin": null,
+          "prediction_error": 0.011881474651885096,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 128
+      },
+      {
+        "body_xy": [
+          3324.302978515625,
+          3144.046142578125
+        ],
+        "frame": 47,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.01692864826499972,
+          "cost": 0.025414437693435904,
+          "margin": null,
+          "prediction_error": 0.015939617127172078,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 130
+      },
+      {
+        "body_xy": [
+          3324.302734375,
+          3144.046875
+        ],
+        "frame": 48,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.0007720404443770458,
+          "cost": 0.008387420642241706,
+          "margin": null,
+          "prediction_error": 0.009173067356645602,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 131
+      },
+      {
+        "body_xy": [
+          3324.327392578125,
+          3144.0322265625
+        ],
+        "frame": 49,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.02868106871344173,
+          "cost": 0.04080188891896961,
+          "margin": null,
+          "prediction_error": 0.03135301640323945,
+          "shoulder_used": true
+        },
+        "new_id": 380,
+        "old_id": 2075,
+        "source_instance_index": 130
+      }
+    ],
+    "raw_file": "Crab_Cam_2_3_000000_000179.review_02.raw.png",
+    "raw_sha256": "a6e8b503825b3a2b50a317b4516253e3faab989f7ef5ab8f985177a4781ed9a0",
+    "sha256": "64b9c36b6677c113fdf08cb13ebb48787ca0b3a81494807482f51ecbbe50fdba",
+    "source_index": 120,
+    "start": 32,
+    "tracklet_local_id": 380,
+    "video": "Crab_Cam_2_3"
+  },
+  {
+    "category": "new_link_body_only_or_previously_vetoed",
+    "clip_id": "Crab_Cam_2_3_022280_022459",
+    "crop_xyxy": [
+      3539,
+      2023,
+      3795,
+      2279
+    ],
+    "file": "Crab_Cam_2_3_022280_022459.review_00.png",
+    "frames": [
+      {
+        "body_xy": [
+          3667.012939453125,
+          2151.05322265625
+        ],
+        "frame": 22334,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 10.38149199975954,
+          "cost": 10.38149199975954,
+          "margin": null,
+          "prediction_error": 10.38149199975954,
+          "shoulder_used": false
+        },
+        "new_id": 607,
+        "old_id": 4263,
+        "source_instance_index": 114
+      },
+      {
+        "body_xy": [
+          3666.7060546875,
+          2150.502197265625
+        ],
+        "frame": 22335,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.630719621136163,
+          "cost": 1.8116245722732773,
+          "margin": null,
+          "prediction_error": 4.567069458259877,
+          "shoulder_used": false
+        },
+        "new_id": 607,
+        "old_id": 4338,
+        "source_instance_index": 113
+      },
+      {
+        "body_xy": [
+          3666.452392578125,
+          2148.56298828125
+        ],
+        "frame": 22336,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.9557290075092955,
+          "cost": 1.70694218297255,
+          "margin": null,
+          "prediction_error": 1.1264395923868107,
+          "shoulder_used": false
+        },
+        "new_id": 607,
+        "old_id": 4406,
+        "source_instance_index": 108
+      },
+      {
+        "body_xy": [
+          3666.318359375,
+          2146.6162109375
+        ],
+        "frame": 22337,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.9513858987084673,
+          "cost": 1.5616679108056473,
+          "margin": null,
+          "prediction_error": 0.6523259390324007,
+          "shoulder_used": false
+        },
+        "new_id": 607,
+        "old_id": 4481,
+        "source_instance_index": 110
+      },
+      {
+        "focal_absent": true,
+        "frame": 22338,
+        "new_id": 607
+      },
+      {
+        "focal_absent": true,
+        "frame": 22339,
+        "new_id": 607
+      },
+      {
+        "focal_absent": true,
+        "frame": 22340,
+        "new_id": 607
+      },
+      {
+        "focal_absent": true,
+        "frame": 22341,
+        "new_id": 607
+      },
+      {
+        "focal_absent": true,
+        "frame": 22342,
+        "new_id": 607
+      },
+      {
+        "focal_absent": true,
+        "frame": 22343,
+        "new_id": 607
+      },
+      {
+        "focal_absent": true,
+        "frame": 22344,
+        "new_id": 607
+      },
+      {
+        "focal_absent": true,
+        "frame": 22345,
+        "new_id": 607
+      },
+      {
+        "focal_absent": true,
+        "frame": 22346,
+        "new_id": 607
+      },
+      {
+        "focal_absent": true,
+        "frame": 22347,
+        "new_id": 607
+      },
+      {
+        "focal_absent": true,
+        "frame": 22348,
+        "new_id": 607
+      },
+      {
+        "focal_absent": true,
+        "frame": 22349,
+        "new_id": 607
+      },
+      {
+        "focal_absent": true,
+        "frame": 22350,
+        "new_id": 607
+      },
+      {
+        "focal_absent": true,
+        "frame": 22351,
+        "new_id": 607
+      }
+    ],
+    "raw_file": "Crab_Cam_2_3_022280_022459.review_00.raw.png",
+    "raw_sha256": "029c72af6ca6683333c9d2f662af7ac634b7857b392a6461543f07d578196380",
+    "sha256": "3b1e38a7fbd0bcd377b1c26a91d40a83381751cd8d93ca93c2dab96f0f9a79c3",
+    "source_index": 114,
+    "start": 22334,
+    "tracklet_local_id": 607,
+    "video": "Crab_Cam_2_3"
+  },
+  {
+    "category": "water",
+    "clip_id": "Crab_Cam_2_3_022280_022459",
+    "crop_xyxy": [
+      2402,
+      1329,
+      2658,
+      1585
+    ],
+    "file": "Crab_Cam_2_3_022280_022459.review_01.png",
+    "frames": [
+      {
+        "body_xy": [
+          2529.8671875,
+          1456.7225341796875
+        ],
+        "frame": 22296,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 7.188876890900964,
+          "cost": 7.562382940117695,
+          "margin": null,
+          "prediction_error": 8.433897054956734,
+          "shoulder_used": false
+        },
+        "new_id": 226,
+        "old_id": 1419,
+        "source_instance_index": 76
+      },
+      {
+        "body_xy": [
+          2529.982421875,
+          1456.7862548828125
+        ],
+        "frame": 22297,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.13167873476148306,
+          "cost": 1.0231568321231013,
+          "margin": null,
+          "prediction_error": 3.1032723926335444,
+          "shoulder_used": false
+        },
+        "new_id": 226,
+        "old_id": 1490,
+        "source_instance_index": 73
+      },
+      {
+        "body_xy": [
+          2530.08740234375,
+          1456.884765625
+        ],
+        "frame": 22298,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.14396272137363136,
+          "cost": 0.5694915163043246,
+          "margin": 6.885327279701006,
+          "prediction_error": 1.5623920378092755,
+          "shoulder_used": false
+        },
+        "new_id": 226,
+        "old_id": 1563,
+        "source_instance_index": 76
+      },
+      {
+        "focal_absent": true,
+        "frame": 22299,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22300,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22301,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22302,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22303,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22304,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22305,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22306,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22307,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22308,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22309,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22310,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22311,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22312,
+        "new_id": 226
+      },
+      {
+        "focal_absent": true,
+        "frame": 22313,
+        "new_id": 226
+      }
+    ],
+    "raw_file": "Crab_Cam_2_3_022280_022459.review_01.raw.png",
+    "raw_sha256": "adbe606fdc48f6c31e3a72c0fd537efb522a41813c56f23c072d33dbac7cb176",
+    "sha256": "4331688533cc2fe63a11fec7481d5d785ea0a7de2337579b2f2d161070a16fbd",
+    "source_index": 76,
+    "start": 22296,
+    "tracklet_local_id": 226,
+    "video": "Crab_Cam_2_3"
+  },
+  {
+    "category": "motion_or_close_competitor",
+    "clip_id": "Crab_Cam_2_3_022280_022459",
+    "crop_xyxy": [
+      3706,
+      216,
+      3962,
+      472
+    ],
+    "file": "Crab_Cam_2_3_022280_022459.review_02.png",
+    "frames": [
+      {
+        "body_xy": [
+          3834.232421875,
+          344.161865234375
+        ],
+        "frame": 22442,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 10.28859666630261,
+          "cost": 11.684417526491229,
+          "margin": null,
+          "prediction_error": 10.273435560752501,
+          "shoulder_used": true
+        },
+        "new_id": 1507,
+        "old_id": 12255,
+        "source_instance_index": 19
+      },
+      {
+        "focal_absent": true,
+        "frame": 22443,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22444,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22445,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22446,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22447,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22448,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22449,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22450,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22451,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22452,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22453,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22454,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22455,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22456,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22457,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22458,
+        "new_id": 1507
+      },
+      {
+        "focal_absent": true,
+        "frame": 22459,
+        "new_id": 1507
+      }
+    ],
+    "raw_file": "Crab_Cam_2_3_022280_022459.review_02.raw.png",
+    "raw_sha256": "16561c08839980e438db509876ed3a03a21eacce452c00bd104f965b738fa1ca",
+    "sha256": "cba684fde13a6cb837b407abba7204572c1416a4811199a590f585857e4e3cba",
+    "source_index": 19,
+    "start": 22442,
+    "tracklet_local_id": 1507,
+    "video": "Crab_Cam_2_3"
+  },
+  {
+    "category": "new_link_body_only_or_previously_vetoed",
+    "clip_id": "Crab_Cam_2_3_025840_026019",
+    "crop_xyxy": [
+      3752,
+      2898,
+      4008,
+      3154
+    ],
+    "file": "Crab_Cam_2_3_025840_026019.review_00.png",
+    "frames": [
+      {
+        "body_xy": [
+          3880.36669921875,
+          3026.19091796875
+        ],
+        "frame": 25948,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 11.935605485485397,
+          "cost": 11.789949563170346,
+          "margin": null,
+          "prediction_error": 11.450085744435226,
+          "shoulder_used": false
+        },
+        "new_id": 993,
+        "old_id": 7522,
+        "source_instance_index": 149
+      },
+      {
+        "body_xy": [
+          3881.959716796875,
+          3024.619384765625
+        ],
+        "frame": 25949,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 2.237726885198362,
+          "cost": 4.02439435961362,
+          "margin": null,
+          "prediction_error": 8.193285133249223,
+          "shoulder_used": false
+        },
+        "new_id": 993,
+        "old_id": 7587,
+        "source_instance_index": 146
+      },
+      {
+        "body_xy": [
+          3880.37890625,
+          3026.672607421875
+        ],
+        "frame": 25950,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 2.5912709741070197,
+          "cost": 2.0662061281771074,
+          "margin": null,
+          "prediction_error": 0.8410548210073121,
+          "shoulder_used": false
+        },
+        "new_id": 993,
+        "old_id": 7662,
+        "source_instance_index": 151
+      },
+      {
+        "body_xy": [
+          3880.37939453125,
+          3026.64208984375
+        ],
+        "frame": 25951,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.030521484125031993,
+          "cost": 0.7028029392788682,
+          "margin": null,
+          "prediction_error": 2.2714596679711527,
+          "shoulder_used": false
+        },
+        "new_id": 993,
+        "old_id": 7735,
+        "source_instance_index": 153
+      },
+      {
+        "body_xy": [
+          3880.40771484375,
+          3026.627685546875
+        ],
+        "frame": 25952,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.03177300534354267,
+          "cost": 0.36334046981691126,
+          "margin": null,
+          "prediction_error": 1.1369978869214379,
+          "shoulder_used": false
+        },
+        "new_id": 993,
+        "old_id": 7801,
+        "source_instance_index": 150
+      },
+      {
+        "body_xy": [
+          3880.433349609375,
+          3026.52978515625
+        ],
+        "frame": 25953,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.10120092733357866,
+          "cost": 0.2624640501846556,
+          "margin": null,
+          "prediction_error": 0.6387446701705017,
+          "shoulder_used": false
+        },
+        "new_id": 993,
+        "old_id": 7861,
+        "source_instance_index": 146
+      },
+      {
+        "body_xy": [
+          3880.401611328125,
+          3026.487548828125
+        ],
+        "frame": 25954,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.05283205381382374,
+          "cost": 0.11020147789921786,
+          "margin": null,
+          "prediction_error": 0.24406346743180418,
+          "shoulder_used": false
+        },
+        "new_id": 993,
+        "old_id": 7921,
+        "source_instance_index": 144
+      },
+      {
+        "body_xy": [
+          3880.404541015625,
+          3026.6728515625
+        ],
+        "frame": 25955,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.18532589251289056,
+          "cost": 0.1723948781161175,
+          "margin": null,
+          "prediction_error": 0.14222251119031376,
+          "shoulder_used": false
+        },
+        "new_id": 993,
+        "old_id": 7991,
+        "source_instance_index": 153
+      },
+      {
+        "focal_absent": true,
+        "frame": 25956,
+        "new_id": 993
+      },
+      {
+        "focal_absent": true,
+        "frame": 25957,
+        "new_id": 993
+      },
+      {
+        "focal_absent": true,
+        "frame": 25958,
+        "new_id": 993
+      },
+      {
+        "focal_absent": true,
+        "frame": 25959,
+        "new_id": 993
+      },
+      {
+        "focal_absent": true,
+        "frame": 25960,
+        "new_id": 993
+      },
+      {
+        "focal_absent": true,
+        "frame": 25961,
+        "new_id": 993
+      },
+      {
+        "focal_absent": true,
+        "frame": 25962,
+        "new_id": 993
+      },
+      {
+        "focal_absent": true,
+        "frame": 25963,
+        "new_id": 993
+      },
+      {
+        "focal_absent": true,
+        "frame": 25964,
+        "new_id": 993
+      },
+      {
+        "focal_absent": true,
+        "frame": 25965,
+        "new_id": 993
+      }
+    ],
+    "raw_file": "Crab_Cam_2_3_025840_026019.review_00.raw.png",
+    "raw_sha256": "cf6d52cc4a25721b9ee539bdab4a3aaeabd716abda3e4554bf332a937fd5fc22",
+    "sha256": "f19efa2872a2e95f67673261aea897d365109b7aee1599d685d6458dd1d89b9d",
+    "source_index": 149,
+    "start": 25948,
+    "tracklet_local_id": 993,
+    "video": "Crab_Cam_2_3"
+  },
+  {
+    "category": "water",
+    "clip_id": "Crab_Cam_2_3_025840_026019",
+    "crop_xyxy": [
+      2495,
+      2333,
+      2751,
+      2589
+    ],
+    "file": "Crab_Cam_2_3_025840_026019.review_01.png",
+    "frames": [
+      {
+        "body_xy": [
+          2622.879150390625,
+          2460.968505859375
+        ],
+        "frame": 25878,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 4.380389912485876,
+          "cost": 4.303459789336929,
+          "margin": null,
+          "prediction_error": 4.001415266651578,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 123
+      },
+      {
+        "body_xy": [
+          2623.097900390625,
+          2462.48095703125
+        ],
+        "frame": 25879,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.5281885059789124,
+          "cost": 1.4448623100754283,
+          "margin": null,
+          "prediction_error": 1.2105487104861303,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 125
+      },
+      {
+        "body_xy": [
+          2622.979248046875,
+          2460.7978515625
+        ],
+        "frame": 25880,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.6872825482454104,
+          "cost": 2.8017416890076388,
+          "margin": null,
+          "prediction_error": 3.5880531898820873,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 128
+      },
+      {
+        "body_xy": [
+          2622.707275390625,
+          2462.498779296875
+        ],
+        "frame": 25881,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.7225342618693398,
+          "cost": 2.2742221076550453,
+          "margin": null,
+          "prediction_error": 1.7460484568610397,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 127
+      },
+      {
+        "body_xy": [
+          2622.718017578125,
+          2462.70361328125
+        ],
+        "frame": 25882,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.20511546930259283,
+          "cost": 0.8687012485899155,
+          "margin": null,
+          "prediction_error": 0.6743419011912692,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 126
+      },
+      {
+        "body_xy": [
+          2622.767822265625,
+          2464.3310546875
+        ],
+        "frame": 25883,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.6282033158282014,
+          "cost": 2.0522950874101866,
+          "margin": null,
+          "prediction_error": 1.0859946904529234,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 130
+      },
+      {
+        "body_xy": [
+          2624.482666015625,
+          2464.630615234375
+        ],
+        "frame": 25884,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.7408117670093202,
+          "cost": 1.848022904798105,
+          "margin": null,
+          "prediction_error": 1.855883940841112,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 129
+      },
+      {
+        "body_xy": [
+          2624.58837890625,
+          2464.8837890625
+        ],
+        "frame": 25885,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.27435780012924776,
+          "cost": 0.9911051944558683,
+          "margin": null,
+          "prediction_error": 0.8848695671596584,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 120
+      },
+      {
+        "body_xy": [
+          2624.871826171875,
+          2464.816162109375
+        ],
+        "frame": 25886,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.2914030836817968,
+          "cost": 0.8923097352028206,
+          "margin": null,
+          "prediction_error": 0.5783699806023612,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 118
+      },
+      {
+        "body_xy": [
+          2624.7080078125,
+          2464.767578125
+        ],
+        "frame": 25887,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.17087088226513872,
+          "cost": 0.854331702702531,
+          "margin": null,
+          "prediction_error": 0.6050415369225508,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 125
+      },
+      {
+        "body_xy": [
+          2624.831787109375,
+          2464.9736328125
+        ],
+        "frame": 25888,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.24037439251216433,
+          "cost": 0.5764945856097952,
+          "margin": null,
+          "prediction_error": 0.1296808045188979,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 128
+      },
+      {
+        "body_xy": [
+          2624.623291015625,
+          2465.0693359375
+        ],
+        "frame": 25889,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.229411658909861,
+          "cost": 0.6652285669670335,
+          "margin": null,
+          "prediction_error": 0.3292975037906479,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 129
+      },
+      {
+        "body_xy": [
+          2624.404052734375,
+          2464.947265625
+        ],
+        "frame": 25890,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.2509314351756307,
+          "cost": 0.28359424410435935,
+          "margin": null,
+          "prediction_error": 0.29686402973837706,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 136
+      },
+      {
+        "body_xy": [
+          2624.2919921875,
+          2465.134033203125
+        ],
+        "frame": 25891,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.21780655271272728,
+          "cost": 0.21222559844076536,
+          "margin": null,
+          "prediction_error": 0.18958767083289266,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 1295,
+        "source_instance_index": 133
+      },
+      {
+        "body_xy": [
+          2624.373046875,
+          2465.22265625
+        ],
+        "frame": 25892,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.12009957037030192,
+          "cost": 1.945057857360992,
+          "margin": null,
+          "prediction_error": 0.2032938603392693,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 3477,
+        "source_instance_index": 129
+      },
+      {
+        "body_xy": [
+          2623.06689453125,
+          2465.266845703125
+        ],
+        "frame": 25893,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.306899633809385,
+          "cost": 1.8383996194861005,
+          "margin": null,
+          "prediction_error": 1.2864151480403974,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 3477,
+        "source_instance_index": 128
+      },
+      {
+        "body_xy": [
+          2624.517333984375,
+          2465.10693359375
+        ],
+        "frame": 25894,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 1.4592280458880684,
+          "cost": 1.6914309521406399,
+          "margin": null,
+          "prediction_error": 2.125987379275054,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 3477,
+        "source_instance_index": 136
+      },
+      {
+        "body_xy": [
+          2624.647216796875,
+          2465.142578125
+        ],
+        "frame": 25895,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 0.1346851053047158,
+          "cost": 0.21881322912702314,
+          "margin": null,
+          "prediction_error": 0.27608610269519623,
+          "shoulder_used": true
+        },
+        "new_id": 297,
+        "old_id": 3477,
+        "source_instance_index": 132
+      }
+    ],
+    "raw_file": "Crab_Cam_2_3_025840_026019.review_01.raw.png",
+    "raw_sha256": "60c21cc06a3cd3aa97a27bf3300646d5b35b5eb4dd53c7382bebe5d99239c437",
+    "sha256": "32866c9dad1be98ff1696ec24b456fd152f3067fe9da5e110ec339b7583cebed",
+    "source_index": 123,
+    "start": 25878,
+    "tracklet_local_id": 297,
+    "video": "Crab_Cam_2_3"
+  },
+  {
+    "category": "motion_or_close_competitor",
+    "clip_id": "Crab_Cam_2_3_025840_026019",
+    "crop_xyxy": [
+      4288,
+      2444,
+      4544,
+      2700
+    ],
+    "file": "Crab_Cam_2_3_025840_026019.review_02.png",
+    "frames": [
+      {
+        "body_xy": [
+          4416.38330078125,
+          2572.14794921875
+        ],
+        "frame": 25933,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 11.845095638538783,
+          "cost": 11.845095638538783,
+          "margin": null,
+          "prediction_error": 11.845095638538783,
+          "shoulder_used": false
+        },
+        "new_id": 882,
+        "old_id": 6434,
+        "source_instance_index": 125
+      },
+      {
+        "body_xy": [
+          4410.46826171875,
+          2576.101318359375
+        ],
+        "frame": 25934,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 7.114549505973441,
+          "cost": 5.4503872761349825,
+          "margin": null,
+          "prediction_error": 1.331174787671198,
+          "shoulder_used": true
+        },
+        "new_id": 882,
+        "old_id": 6434,
+        "source_instance_index": 126
+      },
+      {
+        "body_xy": [
+          4400.69775390625,
+          2578.202880859375
+        ],
+        "frame": 25935,
+        "incoming": "linked",
+        "link_details": {
+          "body_step": 9.993967573267875,
+          "cost": 8.423572604035728,
+          "margin": null,
+          "prediction_error": 4.759317675827383,
+          "shoulder_used": false
+        },
+        "new_id": 882,
+        "old_id": 6578,
+        "source_instance_index": 131
+      },
+      {
+        "focal_absent": true,
+        "frame": 25936,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25937,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25938,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25939,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25940,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25941,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25942,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25943,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25944,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25945,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25946,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25947,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25948,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25949,
+        "new_id": 882
+      },
+      {
+        "focal_absent": true,
+        "frame": 25950,
+        "new_id": 882
+      }
+    ],
+    "raw_file": "Crab_Cam_2_3_025840_026019.review_02.raw.png",
+    "raw_sha256": "4832683fe2d39e1b41f12bd2ddbc8939b3ae0dd685abbe9d25e081c877865162",
+    "sha256": "084f2610bd9dbdf7b860e5236fab695c0ad66745bad1f5c5e6ddc8a1814255aa",
+    "source_index": 125,
+    "start": 25933,
+    "tracklet_local_id": 882,
+    "video": "Crab_Cam_2_3"
+  }
+]
