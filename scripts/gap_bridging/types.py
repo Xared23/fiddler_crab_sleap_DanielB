@@ -41,6 +41,7 @@ class LinkDecision:
     runner_up_cost: float  # NaN when no competitor
     decision: str          # one of DECISIONS
     reason: str
+    n_chain_ignored: int = 0  # chain-reachable competitors excluded from the runner-up (linked/refused_margin)
 
 
 @dataclass(frozen=True)

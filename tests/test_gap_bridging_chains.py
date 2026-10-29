@@ -429,23 +429,24 @@ class TableTests(unittest.TestCase):
                          + sum(t['n_interpolated'].to_pylist()), pc.sum(pc.is_valid(s['out']['trajectory_id'])).as_py())
 
     def test_links_table(self):
-        decisions = [LinkDecision('a', 'b', 1, 2.5, math.nan, 'linked', ''),
-                     LinkDecision('c', 'd', 3, math.nan, math.nan, 'refused_gate', 'displacement')]
+        decisions = [LinkDecision('a', 'b', 1, 2.5, math.nan, 'linked', '', 2),
+                     LinkDecision('c', 'd', 3, math.nan, math.nan, 'refused_gate', 'displacement', 0)]
         t = tables.links_table(decisions, 'v')
         self.assertEqual(t.schema, tables.LINKS_SCHEMA)
         self.assertEqual(t.column_names, ['video_id', 'tracklet_a', 'tracklet_b', 'gap_frames', 'cost',
-                                          'runner_up_cost', 'decision', 'reason'])
+                                          'runner_up_cost', 'decision', 'reason', 'n_chain_ignored'])
+        self.assertEqual(t['n_chain_ignored'].to_pylist(), [2, 0])
         both = tables.concat_links([t, tables.links_table(decisions[:1], 'w'), tables.links_table([], 'x')])
         self.assertEqual(both['video_id'].to_pylist(), ['v', 'v', 'w'])
         self.assertEqual(tables.concat_links([]).num_rows, 0)
         with self.assertRaises(ValueError):
-            tables.links_table([LinkDecision('a', 'b', 1, 1.0, 1.0, 'maybe', '')], 'v')
+            tables.links_table([LinkDecision('a', 'b', 1, 1.0, 1.0, 'maybe', '', 0)], 'v')
 
 
 class WriteTests(unittest.TestCase):
     def outputs(self):
         s = run_scene()
-        decisions = [LinkDecision(a, b, 1, 1.0, math.nan, 'linked', '') for a, b in s['links']]
+        decisions = [LinkDecision(a, b, 1, 1.0, math.nan, 'linked', '', 0) for a, b in s['links']]
         return s['out'], tables.trajectory_table(s['out'], s['trajs']), tables.links_table(decisions, 'vid')
 
     def test_summary_counts_and_hashes(self):

@@ -41,6 +41,9 @@ N_NODES = len(NODES)
 # Shell->Shoulder lengths (px) accepted as a heading measurement.
 MIN_SHOULDER_LENGTH_PX = 10.0
 MAX_SHOULDER_LENGTH_PX = 65.0
+# Columns ``endpoints`` reads; everything else is dropped before filtering.
+ENDPOINT_COLUMNS = (('video_id', 'frame', 'tracklet_id', 'accepted_for_tracking', 'body_x', 'body_y')
+                    + tuple(f'{node}_{axis}' for node in NODES for axis in ('x', 'y', 'visible')))
 
 # ============================================================
 # COLUMN ACCESS
@@ -96,6 +99,7 @@ def _sorted_accepted(obs: pa.Table) -> tuple[pa.Table, np.ndarray, list[str]]:
     for name in ('video_id', 'frame', 'tracklet_id', 'accepted_for_tracking'):
         if name not in obs.column_names:
             raise ValueError(f"observation table lacks required column {name!r}")
+    obs = obs.select([name for name in ENDPOINT_COLUMNS if name in obs.column_names])
     mask = pc.and_(pc.fill_null(obs['accepted_for_tracking'], False), pc.is_valid(obs['tracklet_id']))
     accepted = obs.filter(mask)
     encoded = pc.dictionary_encode(accepted['tracklet_id'].combine_chunks())

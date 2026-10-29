@@ -21,7 +21,7 @@ missing frames (default 5). It fills each missing frame with either a real
 detection the tracker had rejected (**recovered**) or a synthesized pose
 (**interpolated**). It writes new tables and an audit row for every candidate
 link. The input table is never modified, and its rows are carried into the
-output byte-identical.
+output value- and type-identical (pyarrow `Table.equals`).
 
 Implementation: `scripts/gap_bridging/` (`geometry.py`, `candidates.py`,
 `chains.py`, `recover.py`, `tables.py`, `pipeline.py`).
@@ -53,6 +53,11 @@ Units are native-image pixels, px/frame and integer frames.
    - `err <= 18 · dt`, where `err` is the mean of the forward error
      `|pb − (pa + va·dt)|` and the backward error `|pa − (pb − vb·dt)|` over the
      endpoints with a known velocity. When neither velocity is known, `err = dist`.
+
+   With the defaults, the prediction-error gate can never fail. Endpoint speeds
+   are clipped to 6 px/frame and the displacement gate allows at most `12·dt`,
+   so `err <= dist + 6·dt <= 18·dt`. It matters only when
+   `max_velocity_px_per_frame` or `max_body_displacement_px` is raised.
 3. **Cost** (a per-frame equivalent of the tracker's cost):
 
    ```text
@@ -84,7 +89,8 @@ Units are native-image pixels, px/frame and integer frames.
    Without this rule, the cost is per frame, so skipping one of a crab's own
    short tracklets would cost about the same as linking to it. The skip pair
    would then veto the true link. The `reason` of a `linked` or
-   `refused_margin` row ends with `; N chain competitors ignored` when N > 0.
+   `refused_margin` row ends with `; N chain competitors ignored` when N > 0,
+   and the same N is in the `n_chain_ignored` column.
 
    The other outcomes of the audit are:
    - `refused_assignment`: the pair passed the gates but lost the assignment.
@@ -192,8 +198,11 @@ and its `rejection_reason`. Only the three new columns mark it as adopted.
 
 **`links.parquet`**. One audit row per candidate pair, with these columns:
 `video_id`, `tracklet_a`, `tracklet_b`, `gap_frames`, `cost` (NaN when a motion
-gate failed), `runner_up_cost` (NaN when there is no competitor), `decision` and
-`reason`.
+gate failed), `runner_up_cost` (NaN when there is no competitor), `decision`,
+`reason` and `n_chain_ignored`. `n_chain_ignored` (int64) is the number of
+chain-reachable competitors left out of the runner-up (method, step 5). It is
+set on `linked` and `refused_margin` rows and is 0 on all other rows. Filter or
+sum it directly; there is no need to parse `reason`.
 
 **`GAP_BRIDGING_COMPLETE.json`** contains:
 - `config`: the full parameter set.
@@ -234,8 +243,9 @@ violation:
   The residual risk is that a genuinely different crab is not counted as a
   competitor when it is a plausible successor of b or predecessor of a, so a
   real ambiguity can go unvetoed. The audit `reason` records how many
-  competitors were ignored for each link: on the demo, 206 links had at least
-  one, 246 in total.
+  competitors were ignored for each link, and so does the `n_chain_ignored`
+  column. On the demo, 206 links had at least one, 241 in total over the
+  `linked` rows.
 - **Not refit through recoveries.** The interpolated path is not refit through
   recovered detections, so a recovered detection and the interpolated frames
   next to it can be inconsistent by up to `recovery_radius_px`.
@@ -301,7 +311,7 @@ These numbers come from the default config (`gap_bridging_v001.yaml`) applied to
 | Links | 654 |
 | Trajectories with ≥ 2 tracklets | 217 (max 47 tracklets) |
 | Bridged frames | 1,338 |
-| Recovered detections (all `low_body_score`; 54 rejected rows available) | 15 |
+| Recovered detections (all `low_body_score`; 45 of the 54 rejected rows are recoverable, the other 9 are `missing_position` with no body position) | 15 |
 | Interpolated rows | 1,323 |
 | Output rows (36,573 + 1,323) | 37,896 |
 | Rejected rows left unassigned | 39 |
@@ -318,9 +328,9 @@ These numbers come from the default config (`gap_bridging_v001.yaml`) applied to
 - **Gate failures:** 18,480 failed on displacement and 14 on `max_cost`.
 - **Linked costs:** median 0.59, maximum 8.76 (px-equivalent per frame).
 - **Chain competitors:** 206 links ignored at least one chain-reachable
-  competitor (246 in total). Of the 10 `refused_margin` decisions, 3 also
-  ignored chain competitors; their remaining runner-up was still within the
-  margin.
+  competitor, 241 in total (sum of `n_chain_ignored` over `linked` rows). Of the
+  10 `refused_margin` decisions, 3 also ignored chain competitors (5 in total);
+  their remaining runner-up was still within the margin.
 - **Interpolated poses:** every interpolated row has a heading and all five
   nodes, because every bridged endpoint had a usable Shoulder.
 

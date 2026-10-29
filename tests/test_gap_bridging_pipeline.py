@@ -134,6 +134,12 @@ class DemoRunTests(unittest.TestCase):
                         self.traj['n_interpolated'])
         self.assertTrue(pc.all(pc.equal(span, filled)).as_py())
 
+    def test_chain_ignored_column(self):
+        self.assertEqual(self.links.schema, tables.LINKS_SCHEMA)
+        self.assertIn('n_chain_ignored', self.links.column_names)
+        linked = self.links.filter(pc.equal(self.links['decision'], 'linked'))
+        self.assertGreater(pc.sum(linked['n_chain_ignored']).as_py(), 0)
+
     def test_force_rerun_is_byte_identical(self):
         with self.assertRaises(FileExistsError):
             pipeline.run(DEMO, self.out, CFG)
@@ -354,10 +360,11 @@ N_FRAMES = 60
 def crab_scenes(draw):
     """Piecewise-linear crabs on a 700-px grid with dropped-frame runs <= max_gap.
 
-    Each observed run between drops has >= max_gap + 1 frames, so no end can
-    also reach the tracklet after next (which would tie in per-frame cost and
-    trigger the margin veto). Speeds <= 4 px/frame keep every crab within
-    240 px of its start, i.e. > 100 px from every other crab.
+    Observed runs between drops may be as short as 1 frame (flicker
+    tracklets and skip pairs, where an end also reaches the tracklet after
+    next); the first and last frames are never dropped. Speeds <= 4 px/frame
+    keep every crab within 240 px of its start, i.e. > 100 px from every
+    other crab.
     """
     n_crabs = draw(st.integers(1, 4))
     crabs, drops = [], {}
@@ -376,14 +383,14 @@ def crab_scenes(draw):
         heading = draw(st.floats(-math.pi, math.pi))
         crabs.append(Crab(c, np.arange(N_FRAMES, dtype=np.int64), positions,
                           np.full(N_FRAMES, heading)))
-        dropped, frame = [], draw(st.integers(MAX_GAP + 1, 2 * MAX_GAP + 2))
+        dropped, frame = [], draw(st.integers(1, 2 * MAX_GAP + 2))
         while True:
             run = draw(st.integers(1, MAX_GAP))
-            if frame + run + MAX_GAP + 1 > N_FRAMES:
+            if frame + run > N_FRAMES - 1:
                 break
             if draw(st.booleans()):
                 dropped.extend(range(frame, frame + run))
-            frame += run + draw(st.integers(MAX_GAP + 1, 3 * MAX_GAP))
+            frame += run + draw(st.integers(1, 3 * MAX_GAP))
         drops[c] = dropped
     return crabs, drops
 

@@ -246,7 +246,10 @@ class CandidateExampleTests(unittest.TestCase):
         for key in (('A', 'B'), ('B', 'C')):
             self.assertTrue(math.isnan(d[key].runner_up_cost))
             self.assertIn('1 chain competitors ignored', d[key].reason)
+        self.assertEqual(d[('A', 'B')].decision, 'linked')
+        self.assertEqual(d[('A', 'B')].n_chain_ignored, 1)
         self.assertEqual(d[('A', 'C')].decision, 'refused_assignment')
+        self.assertEqual(d[('A', 'C')].n_chain_ignored, 0)
 
     def test_chain_successor_only_row_exclusion(self):
         # (B, C) passes the motion gates but fails max_cost: C still counts as B's successor.

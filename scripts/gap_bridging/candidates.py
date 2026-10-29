@@ -298,7 +298,7 @@ def _fmt(x: float) -> str:
 
 def _decide(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, gate: np.ndarray,
             assigned: np.ndarray, ids: Tuple[np.ndarray, np.ndarray],
-            cfg: BridgeConfig) -> List[Tuple[str, float, float, str]]:
+            cfg: BridgeConfig) -> List[Tuple[str, float, float, str, int]]:
     """
     Label each candidate pair.
 
@@ -316,8 +316,10 @@ def _decide(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, gate: np.ndarr
 
     Returns
     -------
-    list of (decision, cost, runner_up_cost, reason)
-        One entry per pair, in pair order.
+    list of (decision, cost, runner_up_cost, reason, n_chain_ignored)
+        One entry per pair, in pair order; ``n_chain_ignored`` counts the
+        chain-reachable competitors excluded from the runner-up of an
+        assigned pair (0 for unassigned pairs).
     """
     motion_ok = (gate == '') | (gate == GATE_MAX_COST)
     gated_cost = np.where(motion_ok, cost, np.inf)
@@ -332,7 +334,7 @@ def _decide(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, gate: np.ndarr
         by_col[int(cols[k])].append(k)
         if assigned[k]:
             win_row[int(rows[k])] = win_col[int(cols[k])] = float(cost[k])
-    out: List[Tuple[str, float, float, str]] = []
+    out: List[Tuple[str, float, float, str, int]] = []
     for k in range(len(rows)):
         c = float(cost[k])
         if assigned[k]:
@@ -341,21 +343,21 @@ def _decide(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, gate: np.ndarr
             note = f"; {n_chain} chain competitors ignored" if n_chain else ""
             if math.isfinite(ru) and ru - c < cfg.minimum_cost_margin:
                 out.append(('refused_margin', c, ru, f"cost {_fmt(c)} runner-up {_fmt(ru)} "
-                            f"margin {_fmt(ru - c)} < {cfg.minimum_cost_margin:g}{note}"))
+                            f"margin {_fmt(ru - c)} < {cfg.minimum_cost_margin:g}{note}", n_chain))
             elif math.isfinite(ru):
-                out.append(('linked', c, ru, f"cost {_fmt(c)} margin {_fmt(ru - c)}{note}"))
+                out.append(('linked', c, ru, f"cost {_fmt(c)} margin {_fmt(ru - c)}{note}", n_chain))
             else:
-                out.append(('linked', c, math.nan, f"cost {_fmt(c)} no competitor{note}"))
+                out.append(('linked', c, math.nan, f"cost {_fmt(c)} no competitor{note}", n_chain))
         elif gate[k] == '':
             wins = [x for x in (win_row.get(int(rows[k])), win_col.get(int(cols[k])))
                     if x is not None]
             ru = min(wins) if wins else math.nan
             note = f"assignment chose cost {_fmt(ru)}" if wins else "not assigned"
-            out.append(('refused_assignment', c, ru, note))
+            out.append(('refused_assignment', c, ru, note, 0))
         elif gate[k] == GATE_MAX_COST:
-            out.append(('refused_gate', c, math.nan, GATE_MAX_COST))
+            out.append(('refused_gate', c, math.nan, GATE_MAX_COST, 0))
         else:
-            out.append(('refused_gate', math.nan, math.nan, str(gate[k])))
+            out.append(('refused_gate', math.nan, math.nan, str(gate[k]), 0))
     assert len(out) == len(rows)
     return out
 
@@ -408,9 +410,9 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint],
     labels = _decide(rows, cols, cost, gate, assigned, ids, cfg)
     links: List[Tuple[str, str]] = []
     decisions: List[LinkDecision] = []
-    for k, (decision, c, ru, reason) in enumerate(labels):
+    for k, (decision, c, ru, reason, n_chain) in enumerate(labels):
         a, b = ends[rows[k]].tracklet_id, starts[cols[k]].tracklet_id
-        decisions.append(LinkDecision(a, b, int(dt[k]) - 1, c, ru, decision, reason))
+        decisions.append(LinkDecision(a, b, int(dt[k]) - 1, c, ru, decision, reason, int(n_chain)))
         if decision == 'linked':
             links.append((a, b))
     assert len({a for a, _ in links}) == len({b for _, b in links}) == len(links)
