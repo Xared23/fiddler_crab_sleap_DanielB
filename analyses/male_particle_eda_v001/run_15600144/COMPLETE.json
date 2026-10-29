@@ -1,0 +1,397 @@
+{
+  "status": "complete",
+  "job_id": "15600144",
+  "elapsed_s": 58.370113372802734,
+  "artifacts": [
+    {
+      "path": "figures/Crab_Cam_2_2_occupancy.pdf",
+      "bytes": 27614,
+      "sha256": "b4cba7daff947ef16ba9de20cda95984e6ced171ce26e491ddea6a1729c72ecc"
+    },
+    {
+      "path": "figures/Crab_Cam_2_2_occupancy.png",
+      "bytes": 103496,
+      "sha256": "3817fc4fd1ad5a08078bfd4dac608f7b13a614e57793d7865d7be839c32c1b45"
+    },
+    {
+      "path": "figures/Crab_Cam_2_2_trajectories.pdf",
+      "bytes": 32377,
+      "sha256": "001618fd0fef858227b9ac0db6a96f06fb0a208aded988c20928f96c166505b9"
+    },
+    {
+      "path": "figures/Crab_Cam_2_2_trajectories.png",
+      "bytes": 44071,
+      "sha256": "34130486a15eef89f71fe7a1827e47fad75d93f9d7056c0ec1f2e6d728a058e0"
+    },
+    {
+      "path": "figures/Crab_Cam_2_3_occupancy.pdf",
+      "bytes": 27705,
+      "sha256": "e7f69994d814fba8e6bf3717c33500a510e20b66696db85567b773eddb4c611a"
+    },
+    {
+      "path": "figures/Crab_Cam_2_3_occupancy.png",
+      "bytes": 104206,
+      "sha256": "10a8c77c620baa5ba800ac65560e5a5a637bc71b4250373889e59cf5ad2de2b7"
+    },
+    {
+      "path": "figures/Crab_Cam_2_3_trajectories.pdf",
+      "bytes": 42324,
+      "sha256": "62df88adb804b6d9d193c1baab9ac542438e4cf14528bb3ec46948eab5c405f1"
+    },
+    {
+      "path": "figures/Crab_Cam_2_3_trajectories.png",
+      "bytes": 55505,
+      "sha256": "9bf4c5f03ae388536d09fdfb84c06ab7bb6208a781ffd7ddeeace1380ff54d0f"
+    },
+    {
+      "path": "figures/correlations.pdf",
+      "bytes": 27638,
+      "sha256": "43aabc9737d14a4b0b8c30eb2579c8e7935520d8fde3ca6f49118d428ceb5567"
+    },
+    {
+      "path": "figures/correlations.png",
+      "bytes": 183094,
+      "sha256": "3b47a9591158c1965768f2aca3f0046441a2f6acf05e299f4f19cce4d4ac26fd"
+    },
+    {
+      "path": "figures/counts.pdf",
+      "bytes": 20458,
+      "sha256": "35b66c46d0dd3f9a22afd6b83f9487bdf16cfbedc8d421f3e577ad92120324fb"
+    },
+    {
+      "path": "figures/counts.png",
+      "bytes": 179852,
+      "sha256": "ac2b26302e8e9f01860aa4effe330f69d163a0104c52820a38134ea475d0d02b"
+    },
+    {
+      "path": "figures/density_speed.pdf",
+      "bytes": 19037,
+      "sha256": "fe8c522a4b047bc6abfb2c41be550d2732630f01db81e4508bb5e94e42fb1835"
+    },
+    {
+      "path": "figures/density_speed.png",
+      "bytes": 99348,
+      "sha256": "9f3ae90d813497ab43d01fcdc5fa1541a33e821a74ad9a429a6f810556299662"
+    },
+    {
+      "path": "figures/motion.pdf",
+      "bytes": 28993,
+      "sha256": "da73fe8d8fffd35c45137db436767ec7afda3dea1925fb58492d49bc45dc1d70"
+    },
+    {
+      "path": "figures/motion.png",
+      "bytes": 258064,
+      "sha256": "36f1be742f4dc781ca38b34a29a355f7e23247136aefc5bc592c91f6367dea67"
+    },
+    {
+      "path": "figures/spatial_pairs.pdf",
+      "bytes": 21248,
+      "sha256": "08013ea8b1e4b4fe8be2c0682ca9d23e3f14fdd53b6419dbbf3b6f51efa85ac4"
+    },
+    {
+      "path": "figures/spatial_pairs.png",
+      "bytes": 147896,
+      "sha256": "3fd56ce93fb03b28029448f6134fcae8d7c73e54a756920e6300619f3dff30ca"
+    },
+    {
+      "path": "figures/tracking_support.pdf",
+      "bytes": 36260,
+      "sha256": "ea1ce82a7937bd1b26d2ec0140aa1f69a4876fc4488a346f766ac89300c35cf2"
+    },
+    {
+      "path": "figures/tracking_support.png",
+      "bytes": 114230,
+      "sha256": "99ad3449c9e0c1575f57745b5b59374621e9489424b7b1e30d0b5b555b6033d0"
+    },
+    {
+      "path": "figures/vanhove.pdf",
+      "bytes": 24164,
+      "sha256": "b11e101796a4f5b790a5799750d4532d61b46a3d177c0ad2e85b37916f3bfe79"
+    },
+    {
+      "path": "figures/vanhove.png",
+      "bytes": 217509,
+      "sha256": "7bec1acec79ecb166b214d9672e5588a36e7bb450f80efb4528e09fbad7a8edd"
+    },
+    {
+      "path": "male_crab_preliminary_report.pdf",
+      "bytes": 1587321,
+      "sha256": "2ba1dbeb6fa62898c2e2853b289d6a5b6f14f3ec2016e04452a7ac15cd6bc6bf"
+    },
+    {
+      "path": "provenance.json",
+      "bytes": 14822,
+      "sha256": "1e17af4c6db31251696921bff4f72fb04b81f6452688ff9150caa388504f2910"
+    },
+    {
+      "path": "report.md",
+      "bytes": 17404,
+      "sha256": "65b67b4f191a920bfae16d276e3f1a8f3859ede91229574ac3dfd292125d5868"
+    },
+    {
+      "path": "report_pages/page_01.png",
+      "bytes": 147377,
+      "sha256": "6c3490257e8f8f80f67355c9b529840f685b4844f1ae6b48b1387395cc2817d4"
+    },
+    {
+      "path": "report_pages/page_02.png",
+      "bytes": 175972,
+      "sha256": "def23c116fb3435e953db70d9403530da6db50721d786045cb2f970170863daa"
+    },
+    {
+      "path": "report_pages/page_03.png",
+      "bytes": 142227,
+      "sha256": "6838fc831f5ec7f526e84fb6ca0d65a25cfee57bbbb3d142b81ee406ec3b4ead"
+    },
+    {
+      "path": "report_pages/page_04.png",
+      "bytes": 149195,
+      "sha256": "a66449d585ec37a347af2d2c4b5ffcb9a1d881907f8cc0767260b3952618c99f"
+    },
+    {
+      "path": "report_pages/page_05.png",
+      "bytes": 147808,
+      "sha256": "1a21749269268dfe6efe211e56eea69faae6508be561bd88b73ad07cc5a4f380"
+    },
+    {
+      "path": "report_pages/page_06.png",
+      "bytes": 148691,
+      "sha256": "e4509a4087a8cfa3e9d4f96d527bf8834033edeeafd4adc3f42aa79fc81f4fae"
+    },
+    {
+      "path": "report_pages/page_07.png",
+      "bytes": 180151,
+      "sha256": "3981157a983b865ece39a1c68e7c5daf5424e144aeac18b0b0dfc8dbe3ba6fe1"
+    },
+    {
+      "path": "report_pages/page_08.png",
+      "bytes": 211353,
+      "sha256": "d041ba916cbdc63da1c4182f3ca1ef013855fcf5897e13c459802d2e852e5db7"
+    },
+    {
+      "path": "report_pages/page_09.png",
+      "bytes": 165079,
+      "sha256": "e5aaf2b6d9fb59c1fd06165f839d69f045ab3e3e8941c84eabaded4852a4d0fa"
+    },
+    {
+      "path": "report_pages/page_10.png",
+      "bytes": 166453,
+      "sha256": "f753e3f21587d926c581a875e5154b79ebfda19659a61986278f4e8348646d33"
+    },
+    {
+      "path": "report_pages/page_11.png",
+      "bytes": 184019,
+      "sha256": "2a77f8d260b91c80337bff5e38a561cde1446f0b57840198c422f8e13cec3210"
+    },
+    {
+      "path": "report_pages/page_12.png",
+      "bytes": 136499,
+      "sha256": "8c4a6ea9ad23b66e4d0744786556d13ec25c96e2a3cf94bcb00aafa500b7bc02"
+    },
+    {
+      "path": "report_pages/page_13.png",
+      "bytes": 88412,
+      "sha256": "5a450ee2185f490a9255607ef3f6db75abae5889ac8381981222b75abd328a91"
+    },
+    {
+      "path": "report_pages/page_14.png",
+      "bytes": 95331,
+      "sha256": "50aceeac4757333f26ea314e91b23bd758763fdd31323bd060f98419898ccc1a"
+    },
+    {
+      "path": "report_pages/page_15.png",
+      "bytes": 138933,
+      "sha256": "2bfe8a47ec41ccf9aec44abde3a9f79f457207469592ca846eadff61395d5d3b"
+    },
+    {
+      "path": "report_pages/page_16.png",
+      "bytes": 179628,
+      "sha256": "21660ca634d9e000da45345edc3ed1873215006c086df5b6a9af682b0e8a6656"
+    },
+    {
+      "path": "report_validation.json",
+      "bytes": 157,
+      "sha256": "6db6dd240e07d9f5fa7db6ca3db9859b15cdb37ffbc6e41bfac99e5064259635"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 4585,
+      "sha256": "a7f857134956228c4d54e5bf90dbfa8a52dcfda95e163288deab01d9e99cde56"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_all_motion.csv",
+      "bytes": 3160,
+      "sha256": "b4e85e2ab9e46b3ed3a6b421bb77c304c3d4f7bd6b772f0991c3b658fbccd1f4"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_all_nn.csv",
+      "bytes": 12275,
+      "sha256": "266ed6a8195f607ebc4e05fa9bae72f71cb4e12653d4e42ebe40517212f77cb5"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_all_pairs.csv",
+      "bytes": 6993,
+      "sha256": "61b28c29e019a63e328425184df944ed8f0744fcc23b939cc3c91ae9df27e7cc"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_all_vacf.csv",
+      "bytes": 496,
+      "sha256": "76a68e0efd9275f2fe151456b974fc7d724ade134fc2d895dacf1c47295cb1f2"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_all_vanhove.csv",
+      "bytes": 73495,
+      "sha256": "1bacc4659817c881cf7c72b671535349774ec1a0045c87d7d261cea27b0acba4"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_counts.csv",
+      "bytes": 1169434,
+      "sha256": "76632ecb743df5fa68755d41576e9c903a11c92fc4d454d3a8a17c10dfa88441"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_density_acf.csv",
+      "bytes": 23801,
+      "sha256": "71cf732e61f66bb94ed934f2498f56057fb019988f304fc054a7264d5e1e9391"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_density_grids.npz",
+      "bytes": 138525,
+      "sha256": "3fc9ade49142769aa41be110e6b7df3e267b0672dd58a591f9e62cc8171ff06b"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_density_speed.csv",
+      "bytes": 567,
+      "sha256": "6b8bd005208a8194e4149d0bc36d30182085d76e6c97ffb8db053c83c8f3ae6b"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_density_speed_samples.csv",
+      "bytes": 4116457,
+      "sha256": "2eeb6b87b6e7d6545e9af6c30c515256c937028af340c1cf00cd2e6a89a20e05"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_frame_spatial.csv",
+      "bytes": 93670,
+      "sha256": "2484002be365b927263b31ea65c067f692c6a42145b11727ad471f502b9818fc"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_land_motion.csv",
+      "bytes": 3175,
+      "sha256": "7ab0ee76d68ab70186717762040b1d77ed1d89cc882d1f17918d636baf6d7d94"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_land_nn.csv",
+      "bytes": 12259,
+      "sha256": "7597b0c13c4a51a5e89d499f5b60987f8d52f7cff83f02407a456e518a17a7f0"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_land_pairs.csv",
+      "bytes": 5584,
+      "sha256": "7aacf0244a6671d5f0f39d35d35465b0bbd338c37fe9a6e27ae4785062054bf1"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_land_vacf.csv",
+      "bytes": 502,
+      "sha256": "8e86c443dedf4c942bbee36fd9de22f31caafb0dc6937d4780211f2aa47d11a4"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_land_vanhove.csv",
+      "bytes": 74368,
+      "sha256": "14195e9b7421384606805029200f74cbd14569626d2bcbfd38bd9c4084c7e320"
+    },
+    {
+      "path": "tables/Crab_Cam_2_2_track_lengths.csv",
+      "bytes": 10107,
+      "sha256": "e80178b32b0062cee75d30edd52a1fa99ef06b3f2b0555395b2526b38df3e1a6"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_all_motion.csv",
+      "bytes": 3154,
+      "sha256": "e5b4c329c2b4b1c8c5d6032cf99a3b11bd392d946e8eb8f7781e2746a8790ae8"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_all_nn.csv",
+      "bytes": 12296,
+      "sha256": "ec7f426d1fde3b47e1fa8c1df287c3d172c10d7ead781384eb867015e17c2f9e"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_all_pairs.csv",
+      "bytes": 7087,
+      "sha256": "d63e7df5495b283440a4b3b22a1da1a94ee027cf284f6f8dd586fc83f2dc4743"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_all_vacf.csv",
+      "bytes": 497,
+      "sha256": "5c448aceaee41c731d9a237475a150dad8a02bad438e6e14a2f5f42600139c45"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_all_vanhove.csv",
+      "bytes": 73696,
+      "sha256": "e11042d5de68659f5bba892df9a218cf702a2b46eb245ce65db53ecbc42cbfb1"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_counts.csv",
+      "bytes": 1174898,
+      "sha256": "44290364688a27d72f7981799c0c498ea7a10c7cde3cc7ec358abbda80795cc8"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_density_acf.csv",
+      "bytes": 23436,
+      "sha256": "ce9094afe1d4b9fb68b50e8705f2b7449bbaf18dfb91db8b9d1a5def14f6c789"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_density_grids.npz",
+      "bytes": 173006,
+      "sha256": "955ec19a57f6f6b5753f27b6428071d119f105c99701d8f2922c8ded195f908c"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_density_speed.csv",
+      "bytes": 558,
+      "sha256": "81a8256f0e78a31b076ba279afdecfe15095294ecd732816de71b1d4343f0bdb"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_density_speed_samples.csv",
+      "bytes": 4502622,
+      "sha256": "800886ed4a87607d5f34187c1bb77cff799f077b91cd2c7c88582391e880097c"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_frame_spatial.csv",
+      "bytes": 93721,
+      "sha256": "a41523250b9ad64c6d2e1ebf58bec6669765de1932debf51b27f378f94bb0b7c"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_land_motion.csv",
+      "bytes": 3178,
+      "sha256": "a473cfae09e4d0418de1d96460a6860fb8374a1f95776cd1be434aa6d1010ba2"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_land_nn.csv",
+      "bytes": 12280,
+      "sha256": "275d551565536a7d10824a93036ec49c0791fee87513f894db1785f823c0c413"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_land_pairs.csv",
+      "bytes": 5592,
+      "sha256": "97b9c584407db911fac8540249ba6bc791a8c8a1c7ea730967b37af6cd63cce0"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_land_vacf.csv",
+      "bytes": 500,
+      "sha256": "f39deaab8a86fd8235a86439e789a6e4fadfec0100dc64354caee4077b17ee24"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_land_vanhove.csv",
+      "bytes": 74579,
+      "sha256": "227c0ad5b7cf040979be70f5b575d583faf3b791134ebd3287ccc59dbae74eed"
+    },
+    {
+      "path": "tables/Crab_Cam_2_3_track_lengths.csv",
+      "bytes": 10333,
+      "sha256": "2caf02002deaa78fe7e6aec20a40e0e7738c82241f970cb0b7668e04e1a186fe"
+    },
+    {
+      "path": "tests.json",
+      "bytes": 334,
+      "sha256": "f8718b4e3762d924e56fb0b542a652c8850b07d0a2e8758860c8cd6d0ecff8fe"
+    }
+  ]
+}

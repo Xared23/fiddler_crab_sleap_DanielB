@@ -1,0 +1,21 @@
+{
+  "video_id": "Crab_Cam_2_2",
+  "video": "crab_vids/Crab_Cam_2_2.mp4",
+  "start_frame": 0,
+  "stop_frame_exclusive": 1000,
+  "birth_thresholds": [0.2, 0.1],
+  "continuation_threshold": 0.05,
+  "keypoint_threshold": 0.2,
+  "grace_frames": 5,
+  "batch_size": 1,
+  "max_instances": null,
+  "persist_frame_chunks": false,
+  "output_root": "predictions/test runs",
+  "baseline_config": "configs/prediction/v007_best_body_first_v001.json",
+  "baseline_manifest": "predictions/v007_best_body_first_v001/RUN_MANIFEST.json",
+  "raw_candidates": "One shared whole-selection NPZ; all centroid slots and raw pose arrays, including excluded/empty poses",
+  "final_slp_policy": "All poses at/above birth threshold, plus lower-score poses successfully linked to established tracks; high-threshold rejected bodies remain unassigned",
+  "gap_policy": "Up to five intervening missed frames; no synthetic poses; no revival after expiry",
+  "motion_policy": "Displacement <=12*dt px; prediction residual <=18 px; cost uses displacement/dt and unscaled residual; other body-first gates unchanged",
+  "control_policy": "Same candidate pool filtered at each birth threshold with unchanged adjacent-frame tracker; tables only, no extra inference or SLPs"
+}

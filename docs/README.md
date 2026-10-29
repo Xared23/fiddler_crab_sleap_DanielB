@@ -17,6 +17,14 @@ agent/tool configuration are deliberately excluded from this reorganization.
 
 ## New-model predictions and optional experimental tracking
 
+- [1,000-frame continuation-threshold / five-missed-frame tests](prediction_grace_tests.md)
+  — independent 0.2/0.1 births with 0.05 continuation; no interpolation,
+  no fixed count, two final SLPs and a complete raw-candidate audit archive.
+- [200-frame centroid-threshold comparison](prediction_threshold_tests.md)
+  — timestamped 0.1/0.05 tests against existing 0.2 predictions; no retraining,
+  no saved frame chunks, unchanged variable-count body-first tracking.
+- [Viewing predictions in the SLEAP GUI or as overlays](VISUALIZING_PREDICTIONS.md)
+  — matching video/SLP paths, local relinking, remote-workflow caveats and excerpt options.
 - **[Frozen-best prediction run: separate raw poses and optional identities](PREDICTION_V007_BEST.md)**
   — both full videos; new output root; the raw predictions remain independently
   usable even if the body-first identities are discarded.
@@ -27,6 +35,15 @@ agent/tool configuration are deliberately excluded from this reorganization.
 - [Body-first tracking method, pilot results, and original review plan](BODY_FIRST_TRACKLETS.md)
   — numerical continuity checks passed; scientific identity accuracy remains
   unvalidated. The user explicitly authorized experimental identities.
+
+## Preliminary male-only analyses
+
+- [In-frame detection counts notebook](analyses/crab_counts_v001.md)
+  — per-frame series, 10-second means, land/water and acceptance comparisons,
+  with embedded figures and aggregation/data validations.
+- [Particle-system exploratory analysis and technical report](analyses/male_particle_eda_v001.md)
+  — isolated CPU workflow with known-answer tests, occupancy/pair statistics,
+  displacement distributions and temporal correlations; experimental-identity caveats.
 
 ## Original-model dataset organization
 

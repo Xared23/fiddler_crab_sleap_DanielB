@@ -1,0 +1,19 @@
+{
+  "assigned_observations": 26954,
+  "centroid_threshold": 0.1,
+  "filename": "Crab_Cam_2_2_261015_2000_c100.predictions.slp",
+  "frames": 200,
+  "keypoint_threshold": 0.2,
+  "mean_assigned_per_frame": 134.77,
+  "mean_in_image_per_frame": 135.04,
+  "mean_raw_per_frame": 135.065,
+  "measurement_readback_passed": true,
+  "raw_detections": 27013,
+  "sha256": "3dec392296cf06276f6155ea9f7976df6abd8e2c16a6bd3442fba91616423ede",
+  "source": "new inference",
+  "tracklets": 895,
+  "unassigned_reasons": {
+    "low_body_score": 54,
+    "missing_position": 5
+  }
+}

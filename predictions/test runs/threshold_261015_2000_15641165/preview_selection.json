@@ -1,0 +1,41 @@
+[
+  {
+    "crop_xywh": [
+      2080,
+      0,
+      1200,
+      900
+    ],
+    "file": "review_frame_000000.png",
+    "frame": 0,
+    "limitation": "Deliberately selected candidate, not random precision/recall validation",
+    "selected_detection_index_c005": 12,
+    "selection": "highest Shell score among unmatched c005 assigned detections; fallback any unmatched then fixed center"
+  },
+  {
+    "crop_xywh": [
+      3441,
+      1180,
+      1200,
+      900
+    ],
+    "file": "review_frame_000100.png",
+    "frame": 100,
+    "limitation": "Deliberately selected candidate, not random precision/recall validation",
+    "selected_detection_index_c005": 99,
+    "selection": "highest Shell score among unmatched c005 assigned detections; fallback any unmatched then fixed center"
+  },
+  {
+    "crop_xywh": [
+      0,
+      0,
+      1200,
+      900
+    ],
+    "file": "review_frame_000199.png",
+    "frame": 199,
+    "limitation": "Deliberately selected candidate, not random precision/recall validation",
+    "selected_detection_index_c005": 0,
+    "selection": "highest Shell score among unmatched c005 assigned detections; fallback any unmatched then fixed center"
+  }
+]

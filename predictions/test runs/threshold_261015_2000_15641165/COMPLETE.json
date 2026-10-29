@@ -1,0 +1,135 @@
+{
+  "artifacts": [
+    {
+      "bytes": 5323696,
+      "path": "Crab_Cam_2_2_261015_2000_c050.predictions.slp",
+      "sha256": "eeebd785fca7e3cb8f74c42eb73879f393bb259d5b069a5d296c22e196837e16"
+    },
+    {
+      "bytes": 5134152,
+      "path": "Crab_Cam_2_2_261015_2000_c100.predictions.slp",
+      "sha256": "3dec392296cf06276f6155ea9f7976df6abd8e2c16a6bd3442fba91616423ede"
+    },
+    {
+      "bytes": 4872899,
+      "path": "Crab_Cam_2_2_261015_2000_c200.predictions.slp",
+      "sha256": "75d7744706cb5c18e69fc44aaaf3ddce5299c18d84a7bdef1637aced63f2b87a"
+    },
+    {
+      "bytes": 5631,
+      "path": "RUN_MANIFEST.json",
+      "sha256": "7ab2c335f3a8fdbd5d35dc8755c2e391d888de684a83b583837e4c675c8a21c9"
+    },
+    {
+      "bytes": 72,
+      "path": "TESTS.json",
+      "sha256": "23b97e09e6abc4912b622c9f90b1a2d82eb04a45094d35d8d322a22802fa8a50"
+    },
+    {
+      "bytes": 12929,
+      "path": "baseline_spatial_comparison.csv",
+      "sha256": "0ac238ca7321f227d0a4bea1de27a1bc0fb7057b9c97a04e2aa0f384a7a44860"
+    },
+    {
+      "bytes": 595,
+      "path": "c050_COMPLETE.json",
+      "sha256": "eaa7ddddb619fa58e106a44a13ab8c542fbcea55f8fffc7c98d2651afcbe643f"
+    },
+    {
+      "bytes": 560,
+      "path": "c100_COMPLETE.json",
+      "sha256": "9397b41b021b988865162b5d53a79fd21510adcd0c9ddb6747e306740c427006"
+    },
+    {
+      "bytes": 620,
+      "path": "c200_COMPLETE.json",
+      "sha256": "d4e85273b1bf3a09e591e50120a731ed512cc29e8c1a73d6aaef623b7dc24ca2"
+    },
+    {
+      "bytes": 1246,
+      "path": "comparison.md",
+      "sha256": "dd0801a5a5517f0e89f1b665c39bd651910c43d47344cd712b638f1196adead7"
+    },
+    {
+      "bytes": 21953,
+      "path": "counts_per_frame.csv",
+      "sha256": "b3593ffbdbf6219a5d1b69e6385e818840b007b299a7ffca23cef956dd0b6c8d"
+    },
+    {
+      "bytes": 198,
+      "path": "effective_thresholds.json",
+      "sha256": "6f7df6417057f9212cf2f1eb13a72894455138fed2521e1bc395b6678720bba2"
+    },
+    {
+      "bytes": 1173,
+      "path": "preview_selection.json",
+      "sha256": "1124d14b3b63488be7dd1d67d1aba9e6d22e955f40d2157c82ecc0ec19737476"
+    },
+    {
+      "bytes": 2718005,
+      "path": "review_frame_000000.png",
+      "sha256": "b728d957b275821ff9310d3cb04782b176b573cd2f43f9000bc661d53c400359"
+    },
+    {
+      "bytes": 3589967,
+      "path": "review_frame_000100.png",
+      "sha256": "9f6019404f1fd38d0af1ddb08125a55fd8e6924abe0f813564e4abe54151118a"
+    },
+    {
+      "bytes": 2646550,
+      "path": "review_frame_000199.png",
+      "sha256": "faa7fdb6094517315539ad0e3779bfb85e8ddea1e9b01400458684022e89b071"
+    },
+    {
+      "bytes": 841,
+      "path": "source/predict_threshold_tests.sh",
+      "sha256": "cfdf4cc784b18157191285ce129ef65ba5992e1ac8e5acefb2292fdcfeb16c27"
+    },
+    {
+      "bytes": 5711,
+      "path": "source/test_body_first_tracklets.py",
+      "sha256": "f1a9db386569fb7826bd306c780249155a584fa0750afe589c27a67d3f297ea8"
+    },
+    {
+      "bytes": 7310,
+      "path": "source/test_threshold_prediction_tests.py",
+      "sha256": "37eac089a3e3ecf0e79c647e05e6f218f4705cb3f965c0c87608d23d350faa33"
+    },
+    {
+      "bytes": 23874,
+      "path": "source/threshold_prediction_tests.py",
+      "sha256": "965236ffc847b4c2e38ebf43a53cb2911ce073141ef307bf34bf8c49a851a121"
+    },
+    {
+      "bytes": 1149,
+      "path": "source/threshold_tests_200_v001.json",
+      "sha256": "5c5939717eef182e55fc74c4cbe399c57c3f9cbf3e74eefec97c1d03c8f5590d"
+    },
+    {
+      "bytes": 2117,
+      "path": "summary.json",
+      "sha256": "c5c7831a63f4a6434ceb20638814b5caffc5b2a4dec2a5a027fbc7bd6fe91ee0"
+    },
+    {
+      "bytes": 4347,
+      "path": "tests.txt",
+      "sha256": "280531392f68d5a9613aefb0383222a1da94b6933cf4fbb46584eb64de450512"
+    },
+    {
+      "bytes": 26030,
+      "path": "threshold_comparison.pdf",
+      "sha256": "e69bfd51f08cfdc2b0ceae11a0d38b6ac8f193952454ef0b61719716babf5632"
+    },
+    {
+      "bytes": 382699,
+      "path": "threshold_comparison.png",
+      "sha256": "6d07fa7935c5f07180fd3a41695a576a475b2d992ffba75ad52872f6f62d5e0c"
+    }
+  ],
+  "baseline_frames_extracted": 200,
+  "elapsed_s": 307.7530734119937,
+  "job_id": "15641165",
+  "new_prediction_frames": 400,
+  "no_frame_chunks_saved": true,
+  "status": "complete"
+}

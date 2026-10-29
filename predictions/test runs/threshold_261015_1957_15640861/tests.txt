@@ -1,0 +1,64 @@
+test_chunk_boundary_is_not_a_gap (test_body_first_tracklets.BodyFirstTests.test_chunk_boundary_is_not_a_gap) ... ok
+test_closed_track_does_not_reappear (test_body_first_tracklets.BodyFirstTests.test_closed_track_does_not_reappear) ... ok
+test_deterministic_ids (test_body_first_tracklets.BodyFirstTests.test_deterministic_ids) ... ok
+test_duplicates_are_not_arbitrarily_resolved (test_body_first_tracklets.BodyFirstTests.test_duplicates_are_not_arbitrarily_resolved) ... ok
+test_empty_frame_ends_identity (test_body_first_tracklets.BodyFirstTests.test_empty_frame_ends_identity) ... ok
+test_equal_alternatives_are_not_forced (test_body_first_tracklets.BodyFirstTests.test_equal_alternatives_are_not_forced) ... ok
+test_far_candidate_is_not_forced (test_body_first_tracklets.BodyFirstTests.test_far_candidate_is_not_forced) ... ok
+test_invalid_body_not_assigned (test_body_first_tracklets.BodyFirstTests.test_invalid_body_not_assigned) ... ok
+test_low_confidence_body_not_assigned (test_body_first_tracklets.BodyFirstTests.test_low_confidence_body_not_assigned) ... ok
+test_missing_frame_ends_identity (test_body_first_tracklets.BodyFirstTests.test_missing_frame_ends_identity) ... ok
+test_missing_shoulder_preserves_body_identity (test_body_first_tracklets.BodyFirstTests.test_missing_shoulder_preserves_body_identity) ... ok
+test_motion_cannot_exceed_cap (test_body_first_tracklets.BodyFirstTests.test_motion_cannot_exceed_cap) ... ok
+test_nearby_but_clearly_distinguishable_neighbors (test_body_first_tracklets.BodyFirstTests.test_nearby_but_clearly_distinguishable_neighbors) ... ok
+test_one_to_one_and_birth (test_body_first_tracklets.BodyFirstTests.test_one_to_one_and_birth) ... ok
+test_raw_measurements_unchanged (test_body_first_tracklets.BodyFirstTests.test_raw_measurements_unchanged) ... ok
+test_rejected_competitor_still_counts (test_body_first_tracklets.BodyFirstTests.test_rejected_competitor_still_counts) ... ok
+test_repeated_frame_rejected (test_body_first_tracklets.BodyFirstTests.test_repeated_frame_rejected) ... ok
+test_shuffled_detection_order (test_body_first_tracklets.BodyFirstTests.test_shuffled_detection_order) ... ok
+test_unusable_shoulder_geometry_is_ignored (test_body_first_tracklets.BodyFirstTests.test_unusable_shoulder_geometry_is_ignored) ... ok
+test_video_scoped_ids (test_body_first_tracklets.BodyFirstTests.test_video_scoped_ids) ... ok
+test_all_frame_slp_roundtrip_including_empty_and_unassigned (test_threshold_prediction_tests.ThresholdPredictionTests.test_all_frame_slp_roundtrip_including_empty_and_unassigned) ... ERROR
+test_corrupt_measurement_fails (test_threshold_prediction_tests.ThresholdPredictionTests.test_corrupt_measurement_fails) ... ok
+test_corrupt_node_score_fails (test_threshold_prediction_tests.ThresholdPredictionTests.test_corrupt_node_score_fails) ... ok
+test_counts_vary_birth_empty_reappearance_no_synthesis (test_threshold_prediction_tests.ThresholdPredictionTests.test_counts_vary_birth_empty_reappearance_no_synthesis) ... ok
+test_existing_final_is_never_overwritten (test_threshold_prediction_tests.ThresholdPredictionTests.test_existing_final_is_never_overwritten) ... ERROR
+test_inference_dispatch_no_count_cap_no_files_landmarks_fixed (test_threshold_prediction_tests.ThresholdPredictionTests.test_inference_dispatch_no_count_cap_no_files_landmarks_fixed) ... ok
+test_low_score_and_duplicate_predictions_retained (test_threshold_prediction_tests.ThresholdPredictionTests.test_low_score_and_duplicate_predictions_retained) ... ok
+test_matching_missing_positions_and_empty (test_threshold_prediction_tests.ThresholdPredictionTests.test_matching_missing_positions_and_empty) ... ok
+test_matching_one_to_one_and_unmatched (test_threshold_prediction_tests.ThresholdPredictionTests.test_matching_one_to_one_and_unmatched) ... ok
+test_matching_radius_boundary_and_reordered_detections (test_threshold_prediction_tests.ThresholdPredictionTests.test_matching_radius_boundary_and_reordered_detections) ... ok
+test_missing_frame_coverage_fails (test_threshold_prediction_tests.ThresholdPredictionTests.test_missing_frame_coverage_fails) ... ok
+test_zero_detection_selection_serializes (test_threshold_prediction_tests.ThresholdPredictionTests.test_zero_detection_selection_serializes) ... ok
+
+======================================================================
+ERROR: test_all_frame_slp_roundtrip_including_empty_and_unassigned (test_threshold_prediction_tests.ThresholdPredictionTests.test_all_frame_slp_roundtrip_including_empty_and_unassigned)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/tests/test_threshold_prediction_tests.py", line 75, in test_all_frame_slp_roundtrip_including_empty_and_unassigned
+    check=save_final(labels,output,self.video_path,0,3)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/scripts/threshold_prediction_tests.py", line 106, in save_final
+    validate_labels(labels, video, start, stop, NODES)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/scripts/pipeline_common.py", line 157, in validate_labels
+    raise RuntimeError("Unexpected prediction skeleton/node order")
+RuntimeError: Unexpected prediction skeleton/node order
+
+======================================================================
+ERROR: test_existing_final_is_never_overwritten (test_threshold_prediction_tests.ThresholdPredictionTests.test_existing_final_is_never_overwritten)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/tests/test_threshold_prediction_tests.py", line 86, in test_existing_final_is_never_overwritten
+    save_final(labels,output,self.video_path,0,1)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/scripts/threshold_prediction_tests.py", line 106, in save_final
+    validate_labels(labels, video, start, stop, NODES)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/scripts/pipeline_common.py", line 157, in validate_labels
+    raise RuntimeError("Unexpected prediction skeleton/node order")
+RuntimeError: Unexpected prediction skeleton/node order
+
+----------------------------------------------------------------------
+Ran 32 tests in 5.487s
+
+FAILED (errors=2)

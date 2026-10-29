@@ -1,0 +1,29 @@
+{
+  "status": "complete",
+  "job_id": "15642396",
+  "tests_run": 7,
+  "tests_passed": true,
+  "source_prediction_run": "predictions/test runs/threshold_261015_2000_15641165",
+  "source_completion_sha256": "11843daab76ec2e93eead413b6359f62fdd0cfe7c61ebe0884146dff45b643f8",
+  "counts_sha256": "b3593ffbdbf6219a5d1b69e6385e818840b007b299a7ffca23cef956dd0b6c8d",
+  "code_sha256": "92ab5dc8065de20b98ad893f85a3162cd0aa3788215cbc3df1e237cffbbb9a9c",
+  "script_sha256": "6099c6e133e7665786a177a6a72c0822b3cac3a76c52805514adbabd3597549e",
+  "artifacts": [
+    {
+      "path": "adjacent_frame_changes.csv",
+      "sha256": "ef31061f4700a2f824c1c04418d76f88c92a5ffcde458fd9a67a9bd9ce643d38"
+    },
+    {
+      "path": "fluctuation_summary.csv",
+      "sha256": "6e3f2cab52a99b3d5bc569c15bd00b46bd9c94816f58b1b58301da00d586b019"
+    },
+    {
+      "path": "results.md",
+      "sha256": "9e0f3117cfc8f3ec051740e550c427842296a0daa040f4fc2258ba90236e1622"
+    },
+    {
+      "path": "tests.txt",
+      "sha256": "013be8771361ee45acee51264767be606ee559a8e42f90498712b4dde665469f"
+    }
+  ]
+}

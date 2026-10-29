@@ -1,0 +1,21 @@
+test_ballistic (__main__.AnalysisControls.test_ballistic) ... ok
+test_block_resampling_constant (__main__.AnalysisControls.test_block_resampling_constant) ... ok
+test_cell_correlation_removes_static_occupancy (__main__.AnalysisControls.test_cell_correlation_removes_static_occupancy) ... ok
+test_coordinate_rotation_invariance (__main__.AnalysisControls.test_coordinate_rotation_invariance) ... ok
+test_fixed_origin_cohort (__main__.AnalysisControls.test_fixed_origin_cohort) ... ok
+test_gaussian_walk_diffusion (__main__.AnalysisControls.test_gaussian_walk_diffusion) ... ok
+test_iid_and_ar1_autocorrelation (__main__.AnalysisControls.test_iid_and_ar1_autocorrelation) ... ok
+test_invalid_displacements_fail (__main__.AnalysisControls.test_invalid_displacements_fail) ... ok
+test_land_filter_splits_crossings (__main__.AnalysisControls.test_land_filter_splits_crossings) ... ok
+test_localization_noise_plateau (__main__.AnalysisControls.test_localization_noise_plateau) ... ok
+test_nearest_neighbor_and_pair_exclusion (__main__.AnalysisControls.test_nearest_neighbor_and_pair_exclusion) ... ok
+test_no_gap_or_identity_bridging (__main__.AnalysisControls.test_no_gap_or_identity_bridging) ... ok
+test_radial_pdf_with_atom_at_zero (__main__.AnalysisControls.test_radial_pdf_with_atom_at_zero) ... ok
+test_rayleigh_cdf (__main__.AnalysisControls.test_rayleigh_cdf) ... ok
+test_stationary (__main__.AnalysisControls.test_stationary) ... ok
+test_uniform_rectangle_g_and_time_mixed_ratio (__main__.AnalysisControls.test_uniform_rectangle_g_and_time_mixed_ratio) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.347s
+
+OK

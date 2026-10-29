@@ -1,0 +1,370 @@
+{
+  "job_id": "15600144",
+  "dataset_manifest_sha256": "9dcec268c1de2d366cb57dc101a245c4ec009baa8588f4897bcc1fe121359756",
+  "inputs": [
+    {
+      "path": "config/water_regions.json",
+      "sha256": "0bd75bb46fc4abdcbb066743e9e37c857fd28b7d763be8083d30cf1b5b2e3f87"
+    },
+    {
+      "path": "tables/frames.parquet",
+      "sha256": "f699c9e1ecd5e7640b01fa3efeeb86e1e44dbc1a2f1c79ff8ea4ec39b2ff503c"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00000.parquet",
+      "sha256": "54bf1a57d6f39e88fa3e88c22f1a1e0de2e7fec43fec78a6957ec575e8bf9d79"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00001.parquet",
+      "sha256": "38b8ec9134e2c3233de1f92ab3c5ae60142f1e74367d5dd936537e00c4bc02ae"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00002.parquet",
+      "sha256": "085cad2a9e6b595259454a7f088fbf92e3cb9d8f43ef484281a67f45b43fc189"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00003.parquet",
+      "sha256": "bbd0a228c310919a152f5cc0e20163cd0138237e48eb24945b2080e51d861cd7"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00004.parquet",
+      "sha256": "a81c3a8ac20d973a03243b79a0b417416b63fb6d1c620ae34b4a069f3f345fa0"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00005.parquet",
+      "sha256": "e84e0100d751c25dfe4bd2fe5b4cf9629a474a284b1d4d12faeeff077e741f43"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00006.parquet",
+      "sha256": "d2773ec94d5569f8ce1e1d0e24e7db184767294ed3d7cdcfcde8167c043de824"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00007.parquet",
+      "sha256": "aac1a788da6e28b6ff7c0dc8d80270c5468653936e4b97f968a1a387ad771c13"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00008.parquet",
+      "sha256": "f483259683bb72d4fcc33cce135475a3a68d52e3a41263c9353d2b355e8dbd2a"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00009.parquet",
+      "sha256": "8cca03d9ce6cd01e71df968440e05ca018bc0743a7f6f8a81c9a0b0f0fd4d213"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00010.parquet",
+      "sha256": "f6443621374fabc1974ee8fe0a18ff0f9ae8a1e6735ad45de1387d4f09e7b21c"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00011.parquet",
+      "sha256": "20141bad2050041228ea7b38d1524482fef8e752fc08a0c8238a9a264d547f55"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00012.parquet",
+      "sha256": "feecc6dde77f99a1ebd6b6521a1cd8f7c150bd60b619decfdb44cd08b59ef44d"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00013.parquet",
+      "sha256": "7686c265ade3d51cb36cea321100c97e6db66a12237f9c2e7c4c4a9942f722e4"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00014.parquet",
+      "sha256": "e6761865bf42bfd154c7a331c14635d9ce33de77244d41b88546816df871ef0d"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00015.parquet",
+      "sha256": "fa34ff48bfc237365c78cc2e4cfab390ee9ab2ae04b9caa7ab8a554dad43fd8c"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00016.parquet",
+      "sha256": "c778d44cd633dddc53ee3c813992c963a24d76bff55f6ab24cd12a7ef66c6ba5"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00017.parquet",
+      "sha256": "a46cb4e5feb9635cb2410cc24ded0621a0ddc59328481ab72eb32ad245f946aa"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00018.parquet",
+      "sha256": "77164091acdaecbd18f269cb019dc3d80cd506b91dbe5ff7ee45525ab362737d"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00019.parquet",
+      "sha256": "1c587f8553e5cd0b43a94930c1204567c9a021fc65c5e130e4932970c45cec29"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00020.parquet",
+      "sha256": "897ce7189312bec6a2e6746aeba96c47299607931860ba971be9fa229e5d1d77"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00021.parquet",
+      "sha256": "4e3cb5177be37ab655436c851a8c267d3597a1dd716a381c1d113f9cbfa89e96"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00022.parquet",
+      "sha256": "2bd7a376c5b59712bcf8cfe83c0278a530b5e9a93a014b2b1bccf73330f55fd5"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00023.parquet",
+      "sha256": "51a55c05a0d63ae4a4f66f4f3d31653d72004c1161e09588b244c6e0b55ffb40"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00024.parquet",
+      "sha256": "a2dfa42beddde08df8d37e32a0e0791b820c93ddccf845e343e0b01dddcad00d"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00025.parquet",
+      "sha256": "c98027902480c9660987e6704e61dbc5082c53742c017e9dd65f9ade8e5dc961"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00026.parquet",
+      "sha256": "dc08c9e8b2c0c06f728c7e3cf0d4e37047c46fb757ec4d7aae8d26d8fb7cd5f2"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00027.parquet",
+      "sha256": "6f5cc3e8c37bd54061dcda77cd55c6129fbcd2de584c05a209559a2c4959fcdb"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00028.parquet",
+      "sha256": "4f23a4c338103fc4ee5d2e0084c2940158425083b028011a2f8e0224be4a3ceb"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00029.parquet",
+      "sha256": "b20d3ea2e401919260060ecb7595cb0953514ce772f3ff9113967e6fe38480de"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00030.parquet",
+      "sha256": "2d927d53c71f90afdbaaa19943332ae07b4ab22ce1aac70063c19e10a026a622"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00031.parquet",
+      "sha256": "dfdfb6e51416f9659ca0380ac74a25870283af3c025497d34074e62e878f1e5a"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00032.parquet",
+      "sha256": "c9907b3ca235014d1e764bff079aacdcbeb24b14cc618b0498c3735cc6c5deaa"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00033.parquet",
+      "sha256": "3031f6a41348269ef725cc2ee7e435082213fd2717a405b29d550438aa18da6a"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00034.parquet",
+      "sha256": "7405a8bc3e581389225905fccb04034b8f10aca7873ba2c43aef7aa708d76712"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00035.parquet",
+      "sha256": "865eeaec41f08fe146d373efdb10b78a0f7dbd76b02d8e4b8d5f5953c4cecc61"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_2/part-00036.parquet",
+      "sha256": "d4c6af46e74f9969fa82655badaf890a369fd9d8f44d0d89d25067a2e92eeb6b"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00000.parquet",
+      "sha256": "e200eaec1a6078cef5a7c6b131c4f877fe9616131e27b23f4b1e35e9815b0de4"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00001.parquet",
+      "sha256": "d5afbb950974df3b006396adc90d566caed9cede8a09c535757368cf55b434e4"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00002.parquet",
+      "sha256": "9e855108a172cce6209b8c8abcc79462bbbcb4ca99913c9e2752432671775a0f"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00003.parquet",
+      "sha256": "9a3367ebd032d63506ecf52c62715043de35f178927f9e6c2261b8f08679ac05"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00004.parquet",
+      "sha256": "479dd0a711c8313c33d0e07a912a83993f2578a997224133e786d01a5d2294b7"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00005.parquet",
+      "sha256": "68c9141251fc73f254543e73424a7b8bd642345857a564aca382dc1b8f7d2556"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00006.parquet",
+      "sha256": "555dad3d7741ba9890996f511db2e863847701513a491f5b01798d1bfb717bd2"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00007.parquet",
+      "sha256": "ca47935e5802e43d796e15fe3464333d40d140f223e6be909e4895c89d74c5f2"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00008.parquet",
+      "sha256": "2da68e99a492c35799ccde827f3529fe71b8c0d1053deffef6b63b2eb0dfb8c9"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00009.parquet",
+      "sha256": "549f3d65de0c6c023e2c85c9712bc036ce10d6ac11255cae9061878cb5d3ee02"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00010.parquet",
+      "sha256": "aca054ae399b23d00cd658568981178d362bdcf64b9330496dca5ae8bfb76dfd"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00011.parquet",
+      "sha256": "1acb6566ca7c78bf828fa2c85cc75196eca5558de3a70c458fc87af1d2491923"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00012.parquet",
+      "sha256": "ba745f4178525aea3162d68f20aa1a124b88b3f7ba42cfb97c58543a56f76296"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00013.parquet",
+      "sha256": "34cbcf886c4afe081e0973822b0c7dc1102b53714ec5fc5d1ddd780136b28226"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00014.parquet",
+      "sha256": "aa04b37c038f344de49143274faf311eee19ec3bed2cdcc7d58809f32c11df00"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00015.parquet",
+      "sha256": "25e858781af95037a352e5ef7e4d58d511f694c193277f7bc9900080b4bd856e"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00016.parquet",
+      "sha256": "02acf387c8aaad646cde2540e2b087213bf2cef648445484afde80f2bc4335c7"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00017.parquet",
+      "sha256": "266f233e4a41958b5e68214bde7657106f40a620d412a88f728eba081670421b"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00018.parquet",
+      "sha256": "67e0dd282b8edb8e5ad645e0aee18832ce8fe8c53585f634a1a07c25d1ef6a54"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00019.parquet",
+      "sha256": "73643849622d14df6e2ced289a9c7f867ce217d67dbb898d8ed3d6c7aec3d41c"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00020.parquet",
+      "sha256": "4c3c792145a94783691668955326c9b5319dea21b23d137ec0fa870996ba7880"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00021.parquet",
+      "sha256": "3c6a9eb916059a5f39cf3adaed96be050a6f2b3aa7be7ad142767b1041a0124e"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00022.parquet",
+      "sha256": "8523412f6b1346e4bb0ebcd8cc6da6dd7bcc67b87e3d2dd106c812a3a25e50cf"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00023.parquet",
+      "sha256": "3c5c6180a2d09d1ca58e4f990d26fa36f3d430f454ab8e04400a2ddc053a7683"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00024.parquet",
+      "sha256": "77175625a7a6f5b8f0861ff669aa26da287ec571846fe10d580bd4252f528adc"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00025.parquet",
+      "sha256": "c51595597e9df0bfef47512953a0b5f184112ef38ae6627f39dea4f4ba8939ef"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00026.parquet",
+      "sha256": "c9ca18843a9ebb6ca067717c4a12c696c969c28ec0297e34b4924b796036d5ea"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00027.parquet",
+      "sha256": "12aac98f35b89d375b4b1061e868d6f6e226e6138537d055b7c7775ac6db1d42"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00028.parquet",
+      "sha256": "f08634ec0678ac149e3bd31e6dd7c6abe0928e0528673391ae4a12b2cb98f466"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00029.parquet",
+      "sha256": "5588a9862097f0e6c2349246c41ef9807fd1bbcc48ee8ba94236de0c99f2d3ee"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00030.parquet",
+      "sha256": "29fdb28769e3eebc4866e55da3b3791c1ac03851aa263a4b27ee29aea4c6d3aa"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00031.parquet",
+      "sha256": "42163947689026cd1106316fe67386be5eaa6a5f47ee045a1a41dd03a04fcbf5"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00032.parquet",
+      "sha256": "f11d43427df8947bd2c264ee532ff2d5e38f5154cecb97ba4fa3d07ca5501ea2"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00033.parquet",
+      "sha256": "6dc7cdceb828b11730ef51aefec24c0b1b520719f4f92595c07b907de5e7401d"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00034.parquet",
+      "sha256": "4f9e305a3d589c82cf643aa1c5c02cfeb1ce6dd9d3e95067ddf90d68439cb61c"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00035.parquet",
+      "sha256": "8d8819b9e9f1ff1f18633a3fb5473a3331f42097b5ec9e99d6b4c682b2ea56d9"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00036.parquet",
+      "sha256": "bd9c5eed80434e8b630b268ee426f3bd1f80dfcac0c6bf5e740f211045611c75"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00037.parquet",
+      "sha256": "ba42621a6a15f5a08c398441b6242abd2bafe01cb0493e77e1609deddfeb21e7"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00038.parquet",
+      "sha256": "03015f15deed6393a4ac168dcc5832e35f6281034d0cd22c0a0f1ee6faf4f073"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00039.parquet",
+      "sha256": "da7c28fba005783f1e7e9a76c40763de8e3c0938bf1c12ed5b89a1e8470e6fc3"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00040.parquet",
+      "sha256": "ef1ed405866416a240b7730c68c00c8c032f1ff206261747954d50c419028048"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00041.parquet",
+      "sha256": "807c002ed2ecfcc67bdb035da7aefc200cebad86ae883ade97a4b06594464411"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00042.parquet",
+      "sha256": "68eaabc888db4fdc35a98614c4161507300bf53d8c1781901eee98d3e3c6f9ca"
+    },
+    {
+      "path": "tables/observations/Crab_Cam_2_3/part-00043.parquet",
+      "sha256": "dcc5a451c1e8812c4880944fe8fa62cabaffbe54810dac8274ad26ada1041a84"
+    },
+    {
+      "path": "tables/tracklets.parquet",
+      "sha256": "2132ed79acece0fa7f50866f29c8d591991119ed12d169ec359a51cb20a03055"
+    }
+  ],
+  "analysis_sha256": "ec4908b98c734143019469f0b8d6b1191167200b070b07a902b5960e8caa4c18",
+  "report_code_sha256": "42516bb1daacf4f9481a5ef9f4c4564050434dc6bf2262a5f8f86028b5e0102c",
+  "job_script_sha256": "e325fb1bd55207b12075a59dd6a47b527106db890487f15143f359a88621611b",
+  "unit_test_code_sha256": "23918123a568b55a5b10ef1beddbfb5e1610b3b792f5246f264176887a933a99",
+  "python": "3.13.13 (main, Jun  2 2026, 22:27:49) [Clang 22.1.3 ]",
+  "platform": "Linux-5.14.0-687.44.1.el9_8.x86_64-x86_64-with-glibc2.34",
+  "versions": {
+    "numpy": "2.5.2",
+    "pandas": "3.0.5",
+    "scipy": "1.17.1",
+    "matplotlib": "3.11.1"
+  },
+  "seed": 20261015,
+  "frame_interval_s": 0.03336666666666667,
+  "spatial_stride_frames": 30,
+  "motion_origin_stride_frames": 10,
+  "lags_frames": [
+    1,
+    3,
+    10,
+    30,
+    60,
+    150,
+    300,
+    600,
+    1500
+  ],
+  "elapsed_before_report_s": 52.29195690155029
+}

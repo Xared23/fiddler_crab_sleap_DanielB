@@ -1,0 +1,64 @@
+{
+  "c050": {
+    "assigned_observations": 27903,
+    "centroid_threshold": 0.05,
+    "filename": "Crab_Cam_2_2_261015_2000_c050.predictions.slp",
+    "frames": 200,
+    "keypoint_threshold": 0.2,
+    "mean_assigned_per_frame": 139.515,
+    "mean_in_image_per_frame": 140.055,
+    "mean_raw_per_frame": 140.105,
+    "mean_unmatched_baseline_per_frame": 0.0,
+    "mean_unmatched_new_in_image_per_frame": 11.83,
+    "measurement_readback_passed": true,
+    "raw_detections": 28021,
+    "sha256": "eeebd785fca7e3cb8f74c42eb73879f393bb259d5b069a5d296c22e196837e16",
+    "source": "new inference",
+    "tracklets": 905,
+    "unassigned_reasons": {
+      "duplicate_candidate": 6,
+      "low_body_score": 102,
+      "missing_position": 10
+    }
+  },
+  "c100": {
+    "assigned_observations": 26954,
+    "centroid_threshold": 0.1,
+    "filename": "Crab_Cam_2_2_261015_2000_c100.predictions.slp",
+    "frames": 200,
+    "keypoint_threshold": 0.2,
+    "mean_assigned_per_frame": 134.77,
+    "mean_in_image_per_frame": 135.04,
+    "mean_raw_per_frame": 135.065,
+    "mean_unmatched_baseline_per_frame": 0.0,
+    "mean_unmatched_new_in_image_per_frame": 6.815,
+    "measurement_readback_passed": true,
+    "raw_detections": 27013,
+    "sha256": "3dec392296cf06276f6155ea9f7976df6abd8e2c16a6bd3442fba91616423ede",
+    "source": "new inference",
+    "tracklets": 895,
+    "unassigned_reasons": {
+      "low_body_score": 54,
+      "missing_position": 5
+    }
+  },
+  "c200": {
+    "assigned_observations": 25619,
+    "centroid_threshold": 0.2,
+    "filename": "Crab_Cam_2_2_261015_2000_c200.predictions.slp",
+    "frames": 200,
+    "keypoint_threshold": 0.2,
+    "mean_assigned_per_frame": 128.095,
+    "mean_in_image_per_frame": 128.225,
+    "mean_raw_per_frame": 128.23,
+    "measurement_readback_passed": true,
+    "raw_detections": 25646,
+    "sha256": "75d7744706cb5c18e69fc44aaaf3ddce5299c18d84a7bdef1637aced63f2b87a",
+    "source": "existing baseline excerpt; identities reapplied with unchanged algorithm",
+    "tracklets": 818,
+    "unassigned_reasons": {
+      "low_body_score": 26,
+      "missing_position": 1
+    }
+  }
+}

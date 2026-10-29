@@ -1,0 +1,13 @@
+{
+  "source_analysis_job": "15600144",
+  "notebook_job": "15635974",
+  "count_csv_sha256": {
+    "Crab_Cam_2_2": "76632ecb743df5fa68755d41576e9c903a11c92fc4d454d3a8a17c10dfa88441",
+    "Crab_Cam_2_3": "44290364688a27d72f7981799c0c498ea7a10c7cde3cc7ec358abbda80795cc8"
+  },
+  "source_completion_sha256": "2ce1c0e88043421d754f825fa81c0e3f143252aa43e7c9501589ab108b1cf02d",
+  "frame_interval_s": 0.03336666666666667,
+  "bin_seconds": 10.0,
+  "tests_and_data_validations_passed": true,
+  "count_definition": "accepted per-frame detections including singleton tracklets and water"
+}
