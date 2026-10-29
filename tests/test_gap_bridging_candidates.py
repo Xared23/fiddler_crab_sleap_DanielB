@@ -69,6 +69,21 @@ def by_pair(decisions) -> dict:
     return {(d.tracklet_a, d.tracklet_b): d for d in decisions}
 
 
+def chain_free_runner_up(decisions, a: str, b: str) -> float:
+    """
+    Independent runner-up for (a, b) over non-chain-reachable competitors.
+
+    Motion-gated pairs are those with a finite cost. A row competitor (a, c) is
+    dropped when (b, c) is motion-gated; a column competitor (d, b) is dropped
+    when (d, a) is motion-gated.
+    """
+    gated = {(d.tracklet_a, d.tracklet_b): d.cost for d in decisions if math.isfinite(d.cost)}
+    values = [cost for (x, y), cost in gated.items()
+              if (x == a and y != b and (b, y) not in gated)
+              or (y == b and x != a and (x, a) not in gated)]
+    return min(values) if values else math.nan
+
+
 @st.composite
 def scenes(draw, max_tracklets: int = 10, gap_free: bool = False):
     """
@@ -219,6 +234,81 @@ class CandidateExampleTests(unittest.TestCase):
         _, close = link_tracklets([a], [b_same], CFG)
         self.assertAlmostEqual(close[0].cost, 0.7 + 0.15 * 5.0)
 
+    def test_chain_successor_not_counted_as_competitor(self):
+        # A -> B -> C is one crab; (A, C) is B's successor, not A's alternative.
+        a = ep('A', 10, (0., 0.), (1., 0.))
+        b_start, b_end = ep('B', 12, (2., 0.), (1., 0.)), ep('B', 13, (3., 0.), (1., 0.))
+        c = ep('C', 15, (5., 0.), (1., 0.))
+        links, decisions = link_tracklets([a, b_end], [b_start, c], CFG)
+        self.assertEqual(links, [('A', 'B'), ('B', 'C')])
+        d = by_pair(decisions)
+        self.assertAlmostEqual(d[('A', 'C')].cost, d[('A', 'B')].cost)  # would veto pre-fix
+        for key in (('A', 'B'), ('B', 'C')):
+            self.assertTrue(math.isnan(d[key].runner_up_cost))
+            self.assertIn('1 chain competitors ignored', d[key].reason)
+        self.assertEqual(d[('A', 'C')].decision, 'refused_assignment')
+
+    def test_chain_successor_only_row_exclusion(self):
+        # (B, C) passes the motion gates but fails max_cost: C still counts as B's successor.
+        cfg = replace(CFG, max_body_displacement_px=20.0)
+        a = ep('A', 10, (0., 0.), vel_known=False)
+        b_start = ep('B', 12, (4., 0.), vel_known=False)
+        b_end = ep('B', 13, (2., 0.), vel_known=False)
+        c = ep('C', 15, (28., 0.), vel_known=False)
+        links, decisions = link_tracklets([a, b_end], [b_start, c], cfg)
+        d = by_pair(decisions)
+        self.assertEqual((d[('B', 'C')].decision, d[('B', 'C')].reason),
+                         ('refused_gate', 'max_cost'))
+        self.assertLess(d[('A', 'C')].cost - d[('A', 'B')].cost, cfg.minimum_cost_margin)
+        self.assertEqual(links, [('A', 'B')])
+        self.assertTrue(math.isnan(d[('A', 'B')].runner_up_cost))
+        self.assertIn('1 chain competitors ignored', d[('A', 'B')].reason)
+
+    def test_chain_predecessor_only_column_exclusion(self):
+        # Mirror: (D, A) is motion-gated (fails only max_cost), so (D, B) is not B's rival.
+        cfg = replace(CFG, max_body_displacement_px=20.0)
+        dd = ep('D', 10, (0., 0.), vel_known=False)
+        a_start = ep('A', 12, (26., 0.), vel_known=False)
+        a_end = ep('A', 13, (24., 0.), vel_known=False)
+        b = ep('B', 15, (28., 0.), vel_known=False)
+        links, decisions = link_tracklets([dd, a_end], [a_start, b], cfg)
+        d = by_pair(decisions)
+        self.assertEqual((d[('D', 'A')].decision, d[('D', 'A')].reason),
+                         ('refused_gate', 'max_cost'))
+        self.assertLess(d[('D', 'B')].cost - d[('A', 'B')].cost, cfg.minimum_cost_margin)
+        self.assertEqual(links, [('A', 'B')])
+        self.assertTrue(math.isnan(d[('A', 'B')].runner_up_cost))
+        self.assertIn('1 chain competitors ignored', d[('A', 'B')].reason)
+
+    def test_unenumerated_successor_pair_still_vetoes(self):
+        # B is still present when C starts, so (B, C) is not enumerated and C stays a rival.
+        a = ep('A', 10, (0., 0.), vel_known=False)
+        b_start = ep('B', 12, (2., 0.), vel_known=False)
+        b_end = ep('B', 20, (2., 0.), vel_known=False)
+        c = ep('C', 15, (0., 10.), vel_known=False)
+        links, decisions = link_tracklets([a, b_end], [b_start, c], CFG)
+        d = by_pair(decisions)
+        self.assertNotIn(('B', 'C'), d)
+        self.assertEqual(links, [])
+        self.assertEqual(d[('A', 'B')].decision, 'refused_margin')
+        self.assertAlmostEqual(d[('A', 'B')].runner_up_cost, 2.0)
+        self.assertNotIn('chain', d[('A', 'B')].reason)
+
+    def test_genuine_second_crab_still_vetoes(self):
+        a = ep('A', 10, (0., 0.), vel_known=False)
+        b_start = ep('B', 12, (2., 0.), vel_known=False)
+        b_end = ep('B', 20, (2., 0.), vel_known=False)
+        c_start = ep('C', 12, (0., 3.), vel_known=False)
+        c_end = ep('C', 20, (0., 3.), vel_known=False)
+        links, decisions = link_tracklets([a, b_end, c_end], [b_start, c_start], CFG)
+        d = by_pair(decisions)
+        self.assertEqual(links, [])
+        self.assertEqual(d[('A', 'B')].decision, 'refused_margin')
+        self.assertAlmostEqual(d[('A', 'B')].runner_up_cost, 1.5)
+        self.assertIn('1.0000', d[('A', 'B')].reason)
+        self.assertIn('1.5000', d[('A', 'B')].reason)
+        self.assertNotIn('chain', d[('A', 'B')].reason)
+
     def test_cross_video_never_links(self):
         a = ep('a', 0, (0., 0.), video='v1')
         b = ep('b', 2, (1., 0.), video='v2')
@@ -282,12 +372,15 @@ class CandidatePropertyTests(unittest.TestCase):
         for d in decisions:
             self.assertIn(d.decision, DECISIONS)
             self.assertTrue(1 <= d.gap_frames <= max_gap)
+            if d.decision in ('linked', 'refused_margin'):
+                expected = chain_free_runner_up(decisions, d.tracklet_a, d.tracklet_b)
+                np.testing.assert_allclose(d.runner_up_cost, expected, rtol=1e-12)
             if d.decision == 'linked':
-                self.assertTrue(math.isnan(d.runner_up_cost)
-                                or d.runner_up_cost - d.cost >= cfg.minimum_cost_margin)
+                self.assertTrue(math.isnan(expected)
+                                or expected - d.cost >= cfg.minimum_cost_margin)
                 self.assertLessEqual(d.cost, cfg.max_assignment_cost)
             elif d.decision == 'refused_margin':
-                self.assertLess(d.runner_up_cost - d.cost, cfg.minimum_cost_margin)
+                self.assertLess(expected - d.cost, cfg.minimum_cost_margin)
             elif d.decision == 'refused_gate':
                 self.assertIn(d.reason, GATE_REASONS)
                 self.assertEqual(math.isnan(d.cost), d.reason != 'max_cost')

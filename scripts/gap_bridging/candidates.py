@@ -9,7 +9,9 @@ prediction-error gate, receive a per-frame-equivalent cost, and are assigned
 one-to-one with a Hungarian solve over an ``(m+n) x (m+n)`` matrix that mirrors
 ``body_first_tracklets.association`` (non-candidate cells ``1e9``, dummy
 diagonals ``unmatched_cost``, dummy-dummy block 0). An assigned pair whose
-runner-up competitor is within ``minimum_cost_margin`` is vetoed. Every
+runner-up competitor is within ``minimum_cost_margin`` is vetoed; competitors
+that are chain-reachable (a plausible successor of b, or predecessor of a,
+under the motion gates) do not count as runner-ups. Every
 candidate produces exactly one ``LinkDecision`` audit row.
 
 The assignment is solved per connected component of the assignable-pair graph;
@@ -27,7 +29,7 @@ Sam
 # ----- standard library -----
 import math
 from collections import defaultdict
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 # ----- numerics -----
 import numpy as np
@@ -245,12 +247,48 @@ def _assign(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, assignable: np
 # ============================================================
 
 def _runner_up(k: int, rows: np.ndarray, cols: np.ndarray, gated_cost: np.ndarray,
-               by_row: Dict[int, List[int]], by_col: Dict[int, List[int]]) -> float:
-    """Minimum gated cost over the other pairs sharing pair k's row or column."""
-    others = [q for q in by_row[int(rows[k])] + by_col[int(cols[k])] if q != k]
-    values = gated_cost[others] if others else np.empty(0)
-    values = values[np.isfinite(values)]
-    return float(values.min()) if values.size else math.nan
+               by_row: Dict[int, List[int]], by_col: Dict[int, List[int]],
+               chain: Tuple[np.ndarray, np.ndarray, Set[Tuple[str, str]]]) -> Tuple[float, int]:
+    """
+    Runner-up cost for assigned pair k over non-chain-reachable competitors.
+
+    Parameters
+    ----------
+    k : int
+        Index of the assigned pair (a, b).
+    rows, cols, gated_cost : np.ndarray
+        Pair indices and costs (``inf`` where a motion gate failed).
+    by_row, by_col : dict
+        Pair indices grouped by end index and by start index.
+    chain : tuple
+        (end tracklet ids, start tracklet ids, set of motion-gated
+        (end_id, start_id) pairs). A row competitor (a, c) is ignored when
+        (b, c) is motion-gated; a column competitor (d, b) is ignored when
+        (d, a) is motion-gated.
+
+    Returns
+    -------
+    (runner_up, n_ignored) : tuple of (float, int)
+        Minimum competitor cost (NaN if none) and number of motion-gated
+        competitors ignored as chain-reachable.
+    """
+    end_ids, start_ids, gated = chain
+    a, b = end_ids[rows[k]], start_ids[cols[k]]
+    kept: List[float] = []
+    ignored = 0
+    for q in by_row[int(rows[k])] + by_col[int(cols[k])]:
+        if q == k or not math.isfinite(float(gated_cost[q])):
+            continue
+        if rows[q] == rows[k]:
+            reachable = (b, start_ids[cols[q]]) in gated
+        else:
+            reachable = (end_ids[rows[q]], a) in gated
+        if reachable:
+            ignored += 1
+        else:
+            kept.append(float(gated_cost[q]))
+    assert ignored + len(kept) <= len(by_row[int(rows[k])]) + len(by_col[int(cols[k])])
+    return (min(kept) if kept else math.nan), ignored
 
 
 def _fmt(x: float) -> str:
@@ -259,7 +297,7 @@ def _fmt(x: float) -> str:
 
 
 def _decide(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, gate: np.ndarray,
-            assigned: np.ndarray,
+            assigned: np.ndarray, ids: Tuple[np.ndarray, np.ndarray],
             cfg: BridgeConfig) -> List[Tuple[str, float, float, str]]:
     """
     Label each candidate pair.
@@ -270,6 +308,9 @@ def _decide(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, gate: np.ndarr
         Per-pair indices, costs and first failing gate.
     assigned : np.ndarray
         Mask of Hungarian-assigned pairs.
+    ids : tuple of np.ndarray
+        Tracklet ids of the sorted ends and of the sorted starts; used to find
+        chain-reachable competitors, which do not count toward the runner-up.
     cfg : BridgeConfig
         Supplies ``minimum_cost_margin``.
 
@@ -280,6 +321,8 @@ def _decide(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, gate: np.ndarr
     """
     motion_ok = (gate == '') | (gate == GATE_MAX_COST)
     gated_cost = np.where(motion_ok, cost, np.inf)
+    end_ids, start_ids = ids
+    gated = {(end_ids[r], start_ids[c]) for r, c in zip(rows[motion_ok], cols[motion_ok])}
     by_row: Dict[int, List[int]] = defaultdict(list)
     by_col: Dict[int, List[int]] = defaultdict(list)
     win_row: Dict[int, float] = {}
@@ -293,14 +336,16 @@ def _decide(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, gate: np.ndarr
     for k in range(len(rows)):
         c = float(cost[k])
         if assigned[k]:
-            ru = _runner_up(k, rows, cols, gated_cost, by_row, by_col)
+            ru, n_chain = _runner_up(k, rows, cols, gated_cost, by_row, by_col,
+                                     (end_ids, start_ids, gated))
+            note = f"; {n_chain} chain competitors ignored" if n_chain else ""
             if math.isfinite(ru) and ru - c < cfg.minimum_cost_margin:
                 out.append(('refused_margin', c, ru, f"cost {_fmt(c)} runner-up {_fmt(ru)} "
-                            f"margin {_fmt(ru - c)} < {cfg.minimum_cost_margin:g}"))
+                            f"margin {_fmt(ru - c)} < {cfg.minimum_cost_margin:g}{note}"))
             elif math.isfinite(ru):
-                out.append(('linked', c, ru, f"cost {_fmt(c)} margin {_fmt(ru - c)}"))
+                out.append(('linked', c, ru, f"cost {_fmt(c)} margin {_fmt(ru - c)}{note}"))
             else:
-                out.append(('linked', c, math.nan, f"cost {_fmt(c)} no competitor"))
+                out.append(('linked', c, math.nan, f"cost {_fmt(c)} no competitor{note}"))
         elif gate[k] == '':
             wins = [x for x in (win_row.get(int(rows[k])), win_col.get(int(cols[k])))
                     if x is not None]
@@ -358,7 +403,9 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint],
         return [], []
     dt, cost, gate = _pair_costs(ends, starts, rows, cols, cfg)
     assigned = _assign(rows, cols, cost, gate == '', len(ends), cfg)
-    labels = _decide(rows, cols, cost, gate, assigned, cfg)
+    ids = (np.array([e.tracklet_id for e in ends], dtype=object),
+           np.array([b.tracklet_id for b in starts], dtype=object))
+    labels = _decide(rows, cols, cost, gate, assigned, ids, cfg)
     links: List[Tuple[str, str]] = []
     decisions: List[LinkDecision] = []
     for k, (decision, c, ru, reason) in enumerate(labels):
