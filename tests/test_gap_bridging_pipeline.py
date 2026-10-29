@@ -1,0 +1,420 @@
+"""Tests for gap-bridging WP-D: end-to-end pipeline, CLI and invariants."""
+from __future__ import annotations
+
+import json
+import math
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+
+from hypothesis import given, settings, strategies as st
+import numpy as np
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.parquet as pq
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+sys.path.insert(0, str(ROOT / 'tests'))
+
+from gap_bridging import pipeline, tables  # noqa: E402
+from gap_bridging.config import BridgeConfig  # noqa: E402
+from gap_bridging.types import DECISIONS, NODES  # noqa: E402
+from gap_bridging_fixtures import (Crab, make_observations, node_positions,  # noqa: E402
+                                   straight_crab, tracklet_count)
+from pipeline_common import sha256  # noqa: E402
+
+DEMO = ROOT / 'demo/crab_cam2_2_middle_300/observations.parquet'
+PYTHON = ROOT / '.venv/bin/python'
+CLI = ROOT / 'scripts/bridge_gaps.py'
+CFG = BridgeConfig()
+OUTPUTS = tables.OUTPUT_NAMES
+
+
+# --------------------------------------------------------------------------- #
+# Helpers
+# --------------------------------------------------------------------------- #
+def read_outputs(out_dir: Path) -> tuple[pa.Table, pa.Table, pa.Table, dict]:
+    """Observations, trajectories, links and the marker of one run."""
+    obs, traj, links = (pq.read_table(out_dir / name) for name in OUTPUTS)
+    marker = json.loads((out_dir / tables.COMPLETE_NAME).read_text())
+    return obs, traj, links, marker
+
+
+def write_parquet(table: pa.Table, directory: Path, name: str = 'observations.parquet') -> Path:
+    path = directory / name
+    pq.write_table(table, path)
+    return path
+
+
+# Synthetic scene: three straight crabs far apart; gaps of 1..5 frames.
+#   crab 1: gap 1 at frame 8, gap 2 at frames 18-19
+#   crab 2: gap 4 at frames 10-13, gap 3 at frames 24-26 with frame 25 a planted
+#           low_body_score detection (rejected, on the true path)
+#   crab 3: gap 5 at frames 15-19
+SCENE_DROPS = {1: [8, 18, 19], 2: [10, 11, 12, 13, 24, 26], 3: [15, 16, 17, 18, 19]}
+SCENE_REJECT = {2: {25: 'low_body_score'}}
+SCENE_GAPS = {1: [[8], [18, 19]], 2: [[10, 11, 12, 13], [24, 25, 26]], 3: [[15, 16, 17, 18, 19]]}
+
+
+def scene_crabs() -> list[Crab]:
+    return [straight_crab(1, 0, 40, (100.0, 100.0), (2.0, 1.0)),
+            straight_crab(2, 0, 40, (900.0, 200.0), (-1.5, 2.0)),
+            straight_crab(3, 0, 40, (500.0, 1200.0), (0.5, -3.0))]
+
+
+def scene_table() -> pa.Table:
+    return make_observations(scene_crabs(), drop_frames=SCENE_DROPS, reject_frames=SCENE_REJECT)
+
+
+# --------------------------------------------------------------------------- #
+# Demo clip
+# --------------------------------------------------------------------------- #
+@unittest.skipUnless(DEMO.exists(), 'demo parquet not present')
+class DemoRunTests(unittest.TestCase):
+    """Full pipeline on the 300-frame demo clip."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.out = Path(cls._tmp.name) / 'demo'
+        cls.marker = pipeline.run(DEMO, cls.out, CFG)
+        cls.input = pq.read_table(DEMO)
+        cls.obs, cls.traj, cls.links, cls.disk_marker = read_outputs(cls.out)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def test_outputs_exist_and_marker_matches_files(self):
+        self.assertEqual(self.marker, self.disk_marker)
+        for name in OUTPUTS:
+            self.assertTrue((self.out / name).is_file())
+            self.assertEqual(self.marker['outputs'][name]['sha256'], sha256(self.out / name))
+        self.assertEqual(self.marker['outputs']['observations.parquet']['rows'], self.obs.num_rows)
+        self.assertEqual(self.marker['outputs']['trajectories.parquet']['rows'], self.traj.num_rows)
+        self.assertEqual(self.marker['outputs']['links.parquet']['rows'], self.links.num_rows)
+        self.assertEqual(self.marker['input']['sha256'], sha256(DEMO))
+        self.assertEqual(self.marker['input']['rows'], self.input.num_rows)
+        self.assertEqual(self.marker['config'], CFG.to_dict())
+        self.assertEqual(set(self.marker['versions']), {'numpy', 'scipy', 'pyarrow'})
+        self.assertEqual(sorted(p.name for p in self.out.iterdir()),
+                         sorted(OUTPUTS + (tables.COMPLETE_NAME,)))
+
+    def test_original_rows_unchanged(self):
+        original = self.obs.slice(0, self.input.num_rows).select(self.input.schema.names)
+        self.assertTrue(original.equals(self.input))
+        added = ['trajectory_id', 'source', 'bridge_id']
+        self.assertEqual(self.obs.schema.names, self.input.schema.names + added)
+
+    def test_counts_consistent(self):
+        counts = self.marker['counts']
+        tracklets = tracklet_count(self.input)
+        self.assertEqual(counts['tracklets'], tracklets)
+        self.assertEqual(self.marker['input']['tracklets'], tracklets)
+        self.assertEqual(counts['trajectories'], self.traj.num_rows)
+        self.assertEqual(counts['trajectories'], tracklets - counts['links'])
+        decisions = pc.value_counts(self.links['decision']).to_pylist()
+        self.assertEqual({d['values']: d['counts'] for d in decisions},
+                         {k: v for k, v in counts['decisions'].items() if v})
+        self.assertEqual(set(counts['decisions']), set(DECISIONS))
+        self.assertEqual(counts['decisions']['linked'], counts['links'])
+        sources = {d['values']: d['counts']
+                   for d in pc.value_counts(self.obs['source']).to_pylist()}
+        self.assertEqual(sources.get('interpolated', 0), counts['n_interpolated'])
+        self.assertEqual(sources.get('recovered', 0), counts['n_recovered'])
+        self.assertEqual(self.obs.num_rows, self.input.num_rows + counts['n_interpolated'])
+        self.assertLessEqual(counts['n_recovered'], 54)
+        self.assertEqual(sum(self.traj['n_tracklets'].to_pylist()), tracklets)
+        span = pc.add(pc.subtract(self.traj['end_frame'], self.traj['start_frame']), 1)
+        filled = pc.add(pc.add(self.traj['n_observed'], self.traj['n_recovered']),
+                        self.traj['n_interpolated'])
+        self.assertTrue(pc.all(pc.equal(span, filled)).as_py())
+
+    def test_force_rerun_is_byte_identical(self):
+        with self.assertRaises(FileExistsError):
+            pipeline.run(DEMO, self.out, CFG)
+        again = pipeline.run(DEMO, self.out, CFG, force=True)
+        for name in OUTPUTS:
+            expected = self.marker['outputs'][name]['sha256']
+            self.assertEqual(again['outputs'][name]['sha256'], expected)
+            self.assertEqual(sha256(self.out / name), self.marker['outputs'][name]['sha256'])
+
+
+# --------------------------------------------------------------------------- #
+# Synthetic end-to-end
+# --------------------------------------------------------------------------- #
+class SyntheticSceneTests(unittest.TestCase):
+    """Three straight crabs with gaps 1..5 and one planted rejected detection."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        tmp = Path(cls._tmp.name)
+        cls.input = scene_table()
+        cls.path = write_parquet(cls.input, tmp)
+        cls.marker = pipeline.run(cls.path, tmp / 'out', CFG)
+        cls.obs, cls.traj, cls.links, _ = read_outputs(tmp / 'out')
+        cls.crabs = {c.crab_id: c for c in scene_crabs()}
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def trajectory_of_crab(self, crab_id: int) -> str:
+        """Trajectory of the crab's observed frame 0 row (rows sorted by frame, crab)."""
+        rows = self.obs.filter(pc.and_(pc.equal(self.obs['frame'], 0),
+                                       pc.equal(self.obs['source'], 'observed'))).to_pylist()
+        return rows[crab_id - 1]['trajectory_id']
+
+    def test_all_relinked(self):
+        self.assertEqual(tracklet_count(self.input), 8)
+        counts = self.marker['counts']
+        self.assertEqual(counts['trajectories'], 3)
+        self.assertEqual(counts['links'], 5)
+        # Only cross-crab pairs are enumerated besides the true links, and they fail the gate.
+        self.assertEqual(counts['decisions']['refused_margin'], 0)
+        self.assertEqual(counts['decisions']['refused_assignment'], 0)
+        linked = self.links.filter(pc.equal(self.links['decision'], 'linked'))
+        self.assertEqual(sorted(linked['gap_frames'].to_pylist()), [1, 2, 3, 4, 5])
+        refused = self.links.filter(pc.equal(self.links['decision'], 'refused_gate'))
+        self.assertEqual(set(refused['reason'].to_pylist()), {'displacement'})
+        for crab_id, crab in self.crabs.items():
+            traj = self.traj.filter(pc.equal(self.traj['trajectory_id'],
+                                             self.trajectory_of_crab(crab_id))).to_pylist()[0]
+            self.assertEqual((traj['start_frame'], traj['end_frame']), (0, 39))
+            self.assertEqual(traj['n_tracklets'], len(SCENE_GAPS[crab_id]) + 1)
+
+    def test_planted_detection_recovered(self):
+        rec = self.obs.filter(pc.equal(self.obs['source'], 'recovered'))
+        self.assertEqual(rec.num_rows, 1)
+        row = rec.to_pylist()[0]
+        self.assertEqual(row['frame'], 25)
+        self.assertEqual(row['rejection_reason'], 'low_body_score')
+        traj = self.trajectory_of_crab(2)
+        self.assertEqual(row['trajectory_id'], traj)
+        self.assertEqual(row['bridge_id'], f'{traj}/b002')
+        index = self.input['detection_id'].to_pylist().index(row['detection_id'])
+        original = self.obs.slice(index, 1).select(self.input.schema.names)
+        self.assertTrue(original.equals(self.input.slice(index, 1)))
+        self.assertEqual(self.marker['counts']['n_recovered'], 1)
+
+    def test_interpolated_rows_on_the_line(self):
+        interp = self.obs.filter(pc.equal(self.obs['source'], 'interpolated')).to_pylist()
+        expected = sum(len(f) for gaps in SCENE_GAPS.values() for f in gaps) - 1
+        self.assertEqual(len(interp), expected)
+        self.assertEqual(self.marker['counts']['n_interpolated'], expected)
+        by_traj = {self.trajectory_of_crab(c): c for c in self.crabs}
+        seen = set()
+        for row in interp:
+            crab = self.crabs[by_traj[row['trajectory_id']]]
+            k = int(np.flatnonzero(crab.frames == row['frame'])[0])
+            truth = node_positions(crab.positions[k], crab.headings[k], crab.offsets)
+            for j, node in enumerate(NODES):
+                self.assertAlmostEqual(row[f'{node}_x'], truth[j, 0], delta=1e-6)
+                self.assertAlmostEqual(row[f'{node}_y'], truth[j, 1], delta=1e-6)
+                self.assertIs(row[f'{node}_visible'], True)
+                self.assertIsNone(row[f'{node}_score'])
+            self.assertAlmostEqual(row['body_x'], truth[0, 0], delta=1e-6)
+            self.assertAlmostEqual(row['body_y'], truth[0, 1], delta=1e-6)
+            self.assertIsNone(row['body_score'])
+            self.assertIsNone(row['instance_score'])
+            self.assertIsNone(row['tracklet_id'])
+            self.assertIs(row['accepted_for_tracking'], False)
+            self.assertEqual(row['centroid_source'], 'interpolated')
+            self.assertEqual(row['incoming_reason'], 'bridged')
+            self.assertEqual((row['instance_index'], row['raw_instance_id']), (-1, -1))
+            self.assertEqual(row['detection_id'],
+                             f"synthetic/f{row['frame']:06d}/{row['bridge_id']}")
+            self.assertAlmostEqual(row['time_s'], row['frame'] / CFG.fps, delta=1e-12)
+            seen.add((by_traj[row['trajectory_id']], row['frame']))
+        gap_frames = {(c, f) for c, gaps in SCENE_GAPS.items() for g in gaps for f in g}
+        self.assertEqual(seen, gap_frames - {(2, 25)})
+
+    def test_synthetic_rows_follow_originals_sorted(self):
+        n = self.input.num_rows
+        tail = self.obs.slice(n)
+        self.assertEqual(set(tail['source'].to_pylist()), {'interpolated'})
+        keys = list(zip(tail['video_id'].to_pylist(), tail['frame'].to_pylist(),
+                        tail['trajectory_id'].to_pylist()))
+        self.assertEqual(keys, sorted(keys))
+        self.assertTrue(self.obs.slice(0, n).select(self.input.schema.names).equals(self.input))
+
+
+class MaxGapZeroTests(unittest.TestCase):
+    """max_gap=0 disables linking: the output is the identity relabelling."""
+
+    def test_identity(self):
+        table = scene_table()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_parquet(table, Path(tmp))
+            marker = pipeline.run(path, Path(tmp) / 'out', BridgeConfig(max_gap=0))
+            obs, traj, links, _ = read_outputs(Path(tmp) / 'out')
+        n_tracklets = tracklet_count(table)
+        self.assertEqual(traj.num_rows, n_tracklets)
+        self.assertEqual(set(traj['n_tracklets'].to_pylist()), {1})
+        self.assertEqual(links.num_rows, 0)
+        self.assertEqual(links.schema, tables.LINKS_SCHEMA)
+        self.assertEqual(obs.num_rows, table.num_rows)
+        self.assertEqual(set(obs['source'].to_pylist()), {'observed'})
+        self.assertEqual(obs['bridge_id'].null_count, obs.num_rows)
+        self.assertEqual(marker['counts']['links'], 0)
+        self.assertEqual(marker['counts']['n_interpolated'], 0)
+        self.assertEqual(marker['counts']['n_recovered'], 0)
+        # One trajectory per tracklet, and every row of a tracklet maps to it.
+        pairs = obs.select(['tracklet_id', 'trajectory_id']).filter(pc.is_valid(obs['tracklet_id']))
+        mapping = pairs.group_by(['tracklet_id', 'trajectory_id']).aggregate([])
+        self.assertEqual(mapping.num_rows, n_tracklets)
+        self.assertEqual(len(set(mapping['trajectory_id'].to_pylist())), n_tracklets)
+        unassigned = obs.filter(pc.is_null(obs['tracklet_id']))
+        self.assertEqual(unassigned['trajectory_id'].null_count, unassigned.num_rows)
+
+
+# --------------------------------------------------------------------------- #
+# CLI
+# --------------------------------------------------------------------------- #
+class CliTests(unittest.TestCase):
+    """scripts/bridge_gaps.py as a subprocess."""
+
+    def run_cli(self, *args: str) -> subprocess.CompletedProcess:
+        env = {k: v for k, v in os.environ.items() if k != 'PYTHONPATH'}
+        return subprocess.run([str(PYTHON), str(CLI), *args], capture_output=True, text=True,
+                              cwd=str(ROOT), env=env, timeout=300)
+
+    def test_smoke_and_refuse_overwrite(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_parquet(scene_table(), Path(tmp))
+            out = Path(tmp) / 'out'
+            base = ['--observations', str(path), '--out', str(out),
+                    '--config', str(ROOT / 'configs/tracking/gap_bridging_v001.yaml')]
+            first = self.run_cli(*base)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            marker = json.loads(first.stdout[first.stdout.index('\n{') + 1:])
+            self.assertEqual(marker, json.loads((out / tables.COMPLETE_NAME).read_text()))
+            self.assertEqual(marker['counts']['trajectories'], 3)
+            self.assertIn('[bridge_gaps]', first.stdout)
+            hashes = {n: sha256(out / n) for n in OUTPUTS}
+
+            refused = self.run_cli(*base, '--max-gap', '0')
+            self.assertNotEqual(refused.returncode, 0)
+            self.assertIn('already exist', refused.stderr)
+            self.assertEqual({n: sha256(out / n) for n in OUTPUTS}, hashes)
+
+            forced = self.run_cli(*base, '--max-gap', '0', '--margin', '2.5',
+                                  '--recovery-radius', '3', '--force')
+            self.assertEqual(forced.returncode, 0, forced.stderr)
+            marker = json.loads((out / tables.COMPLETE_NAME).read_text())
+            self.assertEqual(marker['config']['max_gap'], 0)
+            self.assertEqual(marker['config']['minimum_cost_margin'], 2.5)
+            self.assertEqual(marker['config']['recovery_radius_px'], 3.0)
+            self.assertEqual(marker['counts']['links'], 0)
+
+    def test_missing_input_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_cli('--observations', str(Path(tmp) / 'absent.parquet'),
+                                  '--out', str(Path(tmp) / 'out'))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('not found', result.stderr)
+
+
+class DirectoryInputTests(unittest.TestCase):
+    """A directory of parquet parts is read in sorted order and hashed by listing."""
+
+    def test_parts_equal_single_file(self):
+        table = scene_table()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            single = write_parquet(table, tmp)
+            parts = tmp / 'parts' / 'synthetic'
+            parts.mkdir(parents=True)
+            half = table.num_rows // 2
+            write_parquet(table.slice(0, half), parts, 'part-000.parquet')
+            write_parquet(table.slice(half), parts, 'part-001.parquet')
+            a = pipeline.run(single, tmp / 'a', CFG)
+            b = pipeline.run(tmp / 'parts', tmp / 'b', CFG)
+            self.assertEqual([f['path'] for f in b['input']['files']],
+                             ['synthetic/part-000.parquet', 'synthetic/part-001.parquet'])
+            for name in OUTPUTS:
+                self.assertEqual(sha256(tmp / 'a' / name), sha256(tmp / 'b' / name), name)
+        self.assertEqual(a['counts'], b['counts'])
+        self.assertNotIn('files', a['input'])
+
+
+# --------------------------------------------------------------------------- #
+# Hypothesis end-to-end
+# --------------------------------------------------------------------------- #
+MAX_GAP = CFG.max_gap
+N_FRAMES = 60
+
+
+@st.composite
+def crab_scenes(draw):
+    """Piecewise-linear crabs on a 700-px grid with dropped-frame runs <= max_gap.
+
+    Each observed run between drops has >= max_gap + 1 frames, so no end can
+    also reach the tracklet after next (which would tie in per-frame cost and
+    trigger the margin veto). Speeds <= 4 px/frame keep every crab within
+    240 px of its start, i.e. > 100 px from every other crab.
+    """
+    n_crabs = draw(st.integers(1, 4))
+    crabs, drops = [], {}
+    for c in range(1, n_crabs + 1):
+        knots = sorted(draw(st.sets(st.integers(5, N_FRAMES - 6), max_size=2)))
+        bounds = [0] + knots + [N_FRAMES - 1]
+        velocity = [draw(st.tuples(st.floats(-2.8, 2.8), st.floats(-2.8, 2.8)))
+                    for _ in range(len(bounds) - 1)]
+        positions = np.empty((N_FRAMES, 2))
+        positions[0] = (300.0 + 700.0 * (c - 1), 300.0 + 350.0 * (c % 2))
+        segment = 0
+        for f in range(1, N_FRAMES):
+            while f > bounds[segment + 1]:
+                segment += 1
+            positions[f] = positions[f - 1] + velocity[segment]
+        heading = draw(st.floats(-math.pi, math.pi))
+        crabs.append(Crab(c, np.arange(N_FRAMES, dtype=np.int64), positions,
+                          np.full(N_FRAMES, heading)))
+        dropped, frame = [], draw(st.integers(MAX_GAP + 1, 2 * MAX_GAP + 2))
+        while True:
+            run = draw(st.integers(1, MAX_GAP))
+            if frame + run + MAX_GAP + 1 > N_FRAMES:
+                break
+            if draw(st.booleans()):
+                dropped.extend(range(frame, frame + run))
+            frame += run + draw(st.integers(MAX_GAP + 1, 3 * MAX_GAP))
+        drops[c] = dropped
+    return crabs, drops
+
+
+class HypothesisEndToEndTests(unittest.TestCase):
+    """Random well-separated crabs with short gaps are fully re-linked."""
+
+    @settings(deadline=None, max_examples=25)
+    @given(crab_scenes())
+    def test_relinked(self, scene):
+        crabs, drops = scene
+        table = make_observations(crabs, drop_frames=drops)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_parquet(table, Path(tmp))
+            marker = pipeline.run(path, Path(tmp) / 'out', CFG)
+            obs, traj, _, _ = read_outputs(Path(tmp) / 'out')
+        self.assertEqual(marker['counts']['trajectories'], len(crabs))
+        self.assertEqual(traj.num_rows, len(crabs))
+        n_dropped = sum(len(v) for v in drops.values())
+        self.assertEqual(marker['counts']['n_interpolated'], n_dropped)
+        self.assertEqual(obs.num_rows, table.num_rows + n_dropped)
+        for row in traj.to_pylist():
+            self.assertEqual((row['start_frame'], row['end_frame']), (0, N_FRAMES - 1))
+            rows = obs.filter(pc.equal(obs['trajectory_id'], row['trajectory_id']))
+            frames = sorted(rows['frame'].to_pylist())
+            self.assertEqual(frames, list(range(N_FRAMES)))
+            observed = set(rows.filter(pc.equal(rows['source'], 'observed'))['frame'].to_pylist())
+            interp = rows.filter(pc.equal(rows['source'], 'interpolated'))
+            synthetic = set(interp['frame'].to_pylist())
+            self.assertFalse(observed & synthetic)
+
+
+if __name__ == '__main__':
+    unittest.main()

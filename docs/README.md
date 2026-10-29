@@ -45,6 +45,9 @@ agent/tool configuration are deliberately excluded from this reorganization.
 - [Body-first tracking method, pilot results, and original review plan](BODY_FIRST_TRACKLETS.md)
   — numerical continuity checks passed; scientific identity accuracy remains
   unvalidated. The user explicitly authorized experimental identities.
+- [Gap bridging between tracklets: method, outputs and demo results](GAP_BRIDGING.md)
+  — experimental post-processing that links tracklets across 1–5 missing frames
+  (recovered or interpolated fills, full link audit); validated on the demo clip only.
 
 ## Preliminary male-only analyses
 
