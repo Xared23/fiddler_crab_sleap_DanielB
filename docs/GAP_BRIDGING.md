@@ -72,7 +72,21 @@ Units are native-image pixels, px/frame and integer frames.
    the same optimum with bounded memory.
 5. **Margin veto.** An assigned pair is refused (`refused_margin`) when another
    gated pair in its row or column costs less than `cost + 4`. Neither side is
-   then linked, and the pair is not retried. The other outcomes of the audit are:
+   then linked, and the pair is not retried.
+
+   Competitors that are reachable along the chain are not counted. For an
+   assigned pair (a, b):
+   - A row competitor (a, c) is ignored when (b, c) passes the motion gates,
+     because c is then a plausible successor of b.
+   - A column competitor (d, b) is ignored when (d, a) passes the motion gates,
+     because d is then a plausible predecessor of a.
+
+   Without this rule, the cost is per frame, so skipping one of a crab's own
+   short tracklets would cost about the same as linking to it. The skip pair
+   would then veto the true link. The `reason` of a `linked` or
+   `refused_margin` row ends with `; N chain competitors ignored` when N > 0.
+
+   The other outcomes of the audit are:
    - `refused_assignment`: the pair passed the gates but lost the assignment.
    - `refused_gate`: the pair failed a gate. The reason is `displacement`,
      `prediction_error` or `max_cost`.
@@ -214,16 +228,14 @@ violation:
     have none within 29 frames.
   - These figures come from a nearest-start heuristic. They are not identity
     truth.
-- **Self-competition vetoes many true gap-1 links.** The cost is per frame, so
-  skipping one of a crab's own short tracklets costs about the same as linking
-  to it. Example: tracklet A, then a 1-frame tracklet B two frames later, then C.
-  The pair A→C competes with A→B at nearly equal cost, so the margin veto
-  refuses A→B.
-  - On the demo, 208 of the 214 `refused_margin` decisions have such a "skip"
-    pair as their runner-up.
-  - The veto is conservative: it never creates a wrong link, but it leaves
-    these breaks unbridged.
-  - A chain-aware runner-up rule is a candidate follow-up.
+- **Chain-aware runner-up (residual risk).** The chain-aware rule (method,
+  step 5) stops a crab's own later or earlier tracklets from vetoing its links.
+  Without the rule, 214 links on the demo were margin-vetoed; with it, 10 are.
+  The residual risk is that a genuinely different crab is not counted as a
+  competitor when it is a plausible successor of b or predecessor of a, so a
+  real ambiguity can go unvetoed. The audit `reason` records how many
+  competitors were ignored for each link: on the demo, 206 links had at least
+  one, 246 in total.
 - **Not refit through recoveries.** The interpolated path is not refit through
   recovered detections, so a recovered detection and the interpolated frames
   next to it can be inconsistent by up to `recovery_radius_px`.
@@ -271,45 +283,48 @@ These numbers come from the default config (`gap_bridging_v001.yaml`) applied to
 `demo/crab_cam2_2_middle_300/observations.parquet`: 36,573 rows, 300 frames,
 `Crab_Cam_2_2` frames 14250–14549. Input sha256
 `739c2daf087bd1967d53dcfd8d41653166d7d30b9cc713d5ba5203a41432e1ef`. The run took
-1.4 s, and a forced rerun gave byte-identical parquet files.
+1.5 s, and a forced rerun gave byte-identical parquet files.
 
 | Quantity | Tracklets (input) | Trajectories (bridged) |
 |---|---:|---:|
-| Count | 1,181 | 731 |
-| Median length (frames) | 3 | 6 |
-| Mean length (frames) | 30.9 | 51.4 |
-| 90th percentile length | 99 | 280 |
-| Length 1 frame | 398 | 227 |
-| Spanning all 300 frames | 62 | 69 |
-| Fraction of frames in units ≥ 30 frames | 0.871 | 0.920 |
-| Fraction of frames in units ≥ 150 frames | 0.709 | 0.767 |
+| Count | 1,181 | 527 |
+| Median length (frames) | 3 | 13 |
+| Mean length (frames) | 30.9 | 71.8 |
+| 90th percentile length | 99 | 300 |
+| Length 1 frame | 398 | 113 |
+| Spanning all 300 frames | 62 | 72 |
+| Fraction of frames in units ≥ 30 frames | 0.871 | 0.938 |
+| Fraction of frames in units ≥ 150 frames | 0.709 | 0.789 |
 
 | Count | Value |
 |---|---:|
-| Links | 450 |
-| Trajectories with ≥ 2 tracklets | 224 (max 10 tracklets) |
-| Bridged frames | 1,055 |
-| Recovered detections (all `low_body_score`; 54 rejected rows available) | 12 |
-| Interpolated rows | 1,043 |
-| Output rows (36,573 + 1,043) | 37,616 |
-| Rejected rows left unassigned | 42 |
+| Links | 654 |
+| Trajectories with ≥ 2 tracklets | 217 (max 47 tracklets) |
+| Bridged frames | 1,338 |
+| Recovered detections (all `low_body_score`; 54 rejected rows available) | 15 |
+| Interpolated rows | 1,323 |
+| Output rows (36,573 + 1,323) | 37,896 |
+| Rejected rows left unassigned | 39 |
 
 | Gap (frames) | linked | refused_margin | refused_assignment | refused_gate |
 |---:|---:|---:|---:|---:|
-| 1 | 170 | 137 | 0 | 3,733 |
-| 2 | 103 | 62 | 5 | 3,761 |
-| 3 | 72 | 12 | 39 | 3,643 |
+| 1 | 306 | 1 | 0 | 3,733 |
+| 2 | 160 | 5 | 5 | 3,761 |
+| 3 | 83 | 1 | 39 | 3,643 |
 | 4 | 62 | 2 | 54 | 3,662 |
 | 5 | 43 | 1 | 48 | 3,695 |
-| **Total** | **450** | **214** | **146** | **18,494** |
+| **Total** | **654** | **10** | **146** | **18,494** |
 
 - **Gate failures:** 18,480 failed on displacement and 14 on `max_cost`.
-- **Linked costs:** median 0.65, maximum 8.76 (px-equivalent per frame).
+- **Linked costs:** median 0.59, maximum 8.76 (px-equivalent per frame).
+- **Chain competitors:** 206 links ignored at least one chain-reachable
+  competitor (246 in total). Of the 10 `refused_margin` decisions, 3 also
+  ignored chain competitors; their remaining runner-up was still within the
+  margin.
 - **Interpolated poses:** every interpolated row has a heading and all five
   nodes, because every bridged endpoint had a usable Shoulder.
 
-The gains are modest because most `refused_margin` decisions come from the
-self-competition described under Limitations. The median length rises from 3 to
-6 frames, the number of 1-frame units drops from 398 to 227, and the fraction of
-frames in units of 30 frames or more rises from 0.871 to 0.920. These are
-continuity statistics only; they do not measure identity accuracy.
+The median length rises from 3 to 13 frames. The number of 1-frame units drops
+from 398 to 113, and the fraction of frames in units of 30 frames or more rises
+from 0.871 to 0.938. These are continuity statistics only; they do not measure
+identity accuracy.
