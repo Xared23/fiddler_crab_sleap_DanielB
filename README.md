@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-Current codebase for analyses of the crab data (including a 300-frame demo) is under the my-code branch.
-=======
 # Fiddler crab SLEAP
 
 Project notes are centralized in **[docs/README.md](docs/README.md)**.
@@ -11,4 +8,3 @@ Project notes are centralized in **[docs/README.md](docs/README.md)**.
 - [Original-model dataset notes](docs/datasets/legacy_native_tracklets_v001/README.md)
 
 This file is only a navigation pointer; keep substantive notes under `docs/`.
->>>>>>> my-code

@@ -12,15 +12,6 @@
 #SBATCH --mem=64G
 #SBATCH --gres=gpu:1
 #SBATCH --constraint=gpu80
-<<<<<<< HEAD
-#SBATCH --time=24:00:00
-#SBATCH --output=/scratch/gpfs/SHAEVITZ/kr3541/crab/centered_v004_logs/sleap_%j.out
-#SBATCH --error=/scratch/gpfs/SHAEVITZ/kr3541/crab/centered_v004_logs/sleap_%j.err
-#SBATCH --mail-type=begin,end,fail
-#SBATCH --mail-user=kr3541@princeton.edu
-
-mkdir -p /scratch/gpfs/SHAEVITZ/kr3541/crab/centered_v004_logs
-=======
 #SBATCH --time=00:58:00
 #SBATCH --signal=B:USR1@90
 #SBATCH --requeue
@@ -28,7 +19,6 @@ mkdir -p /scratch/gpfs/SHAEVITZ/kr3541/crab/centered_v004_logs
 #SBATCH --error=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/centered_v004_logs/sleap_%j.err
 #SBATCH --mail-type=fail
 #SBATCH --mail-user=db8682@princeton.edu
->>>>>>> my-code
 
 set -euo pipefail
 module purge
