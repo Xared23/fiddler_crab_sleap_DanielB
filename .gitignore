@@ -36,3 +36,6 @@ models/**/*.ckpt
 !/demo/crab_cam2_2_middle_300/Crab_Cam_2_2.frames_014250_014549.tracked.slp
 !/demo/crab_cam2_2_middle_300/observations.parquet
 !/demo/crab_cam2_2_middle_300/frames.parquet
+
+# Local agent planning scratch.
+.superpowers/

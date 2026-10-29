@@ -1,0 +1,16 @@
+# Gap bridging between body-first tracklets (post-processing, v001).
+# Distances are native-image pixels; velocities px/frame. See docs/GAP_BRIDGING.md.
+max_gap: 5
+velocity_window: 3
+max_velocity_px_per_frame: 6.0
+max_body_displacement_px: 12.0
+max_prediction_error_px: 18.0
+motion_weight: 0.3
+shoulder_vector_weight: 0.15
+shoulder_vector_cost_cap_px: 12.0
+max_assignment_cost: 12.0
+unmatched_cost: 7.0
+minimum_cost_margin: 4.0
+recovery_radius_px: 8.0
+recoverable_reasons: [low_body_score, missing_position, outside_image, invisible, duplicate_candidate]
+fps: 29.97002997002997

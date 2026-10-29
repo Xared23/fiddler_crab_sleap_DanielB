@@ -12,6 +12,11 @@ dependencies = [
 train = [
     "sleap-nn>=0.3.0,<0.4",
 ]
+# Test tooling for the gap-bridging suite (unit, integration, property tests).
+dev = [
+    "pytest>=8,<10",
+    "hypothesis>=6.100,<7",
+]
 
 [tool.uv]
 package = false
