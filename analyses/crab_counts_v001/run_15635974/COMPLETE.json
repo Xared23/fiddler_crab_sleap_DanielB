@@ -1,0 +1,71 @@
+{
+  "status": "complete",
+  "job_id": "15635974",
+  "code_cells_executed": 5,
+  "embedded_plots": 2,
+  "tests_and_data_validations_passed": true,
+  "notebook_sha256": "02840e357ef0adeb1b5bfac8f94f7a22033bbc0569d4b3d810df4eb64438a558",
+  "python": "3.13.13 (main, Jun  2 2026, 22:27:49) [Clang 22.1.3 ]",
+  "artifacts": [
+    {
+      "path": "crab_counts_over_time.executed.ipynb",
+      "bytes": 432000,
+      "sha256": "02840e357ef0adeb1b5bfac8f94f7a22033bbc0569d4b3d810df4eb64438a558"
+    },
+    {
+      "path": "execute_notebook.py",
+      "bytes": 3447,
+      "sha256": "158b4b5eed01f37a4332e6ddeaecb7663b3909d4cbac3d1f880df36eebfc367d"
+    },
+    {
+      "path": "figures/Crab_Cam_2_2_binned_counts.csv",
+      "bytes": 10031,
+      "sha256": "a4e434f0b69d52f35626b96943ed0228adba4f4f23367b3cb21a11b71afd66fd"
+    },
+    {
+      "path": "figures/Crab_Cam_2_3_binned_counts.csv",
+      "bytes": 10087,
+      "sha256": "c8d1472f2811eaabf4a9091ec11e3fe44d0d7b8f4876f8230a72262baeae1dc6"
+    },
+    {
+      "path": "figures/count_provenance.json",
+      "bytes": 577,
+      "sha256": "792871f6d7af1f4c26b4d735d196cc63a0753f131b04d0f1f58e9d381c19b837"
+    },
+    {
+      "path": "figures/count_selection_comparison.pdf",
+      "bytes": 25105,
+      "sha256": "4f75dc579010b51cbbebd93cfca366ddaa84400a37623b2bf7b39fed206bce4c"
+    },
+    {
+      "path": "figures/count_selection_comparison.png",
+      "bytes": 250640,
+      "sha256": "ada3f20017c4944679f300416e1c23c99b4235073b5bcfa437f075ef3351998c"
+    },
+    {
+      "path": "figures/count_summary.csv",
+      "bytes": 309,
+      "sha256": "98c25e0a9f2755a6dafd5b08480a24ccdf0eb9077e850c0741f2c24ffe968cef"
+    },
+    {
+      "path": "figures/in_frame_crab_counts.pdf",
+      "bytes": 53373,
+      "sha256": "e78c54134704d34c9efe3de6242855d99423be33a39b821587875d3d16cacf94"
+    },
+    {
+      "path": "figures/in_frame_crab_counts.png",
+      "bytes": 236511,
+      "sha256": "5c6a009b97fdeb9a8d32f38bd305590c5b200bd5e2bc15a54a9be0ba22d28e2c"
+    },
+    {
+      "path": "notebook_input.ipynb",
+      "bytes": 470893,
+      "sha256": "f5a52df695d2212539efffe9470afd93c28e64acbcc6a6cf88a5b2082b8e3c11"
+    },
+    {
+      "path": "run.sh",
+      "bytes": 778,
+      "sha256": "f1146d1c344d81ea2eb5d9c134278bb3d7fa77153f58da116dafbdd6a5afb867"
+    }
+  ]
+}

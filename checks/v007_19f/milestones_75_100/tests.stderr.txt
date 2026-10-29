@@ -1,0 +1,48 @@
+test_partial_save_is_not_published_and_training_callback_does_not_raise (test_milestone_checkpoints.MilestoneTests.test_partial_save_is_not_published_and_training_callback_does_not_raise) ... MILESTONE_SAVE_FAILED completed_epochs=75
+Traceback (most recent call last):
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/scripts/milestone_checkpoints.py", line 156, in on_train_epoch_end
+    save_snapshot(trainer, run_dir, completed, timing_summary(log_path, self.fit_started))
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/scripts/milestone_checkpoints.py", line 100, in save_snapshot
+    trainer.save_checkpoint(str(checkpoint))
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/.local/share/uv/python/cpython-3.13.13-linux-x86_64-gnu/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/.local/share/uv/python/cpython-3.13.13-linux-x86_64-gnu/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/WBIALEK/db8682/.local/share/uv/python/cpython-3.13.13-linux-x86_64-gnu/lib/python3.13/unittest/mock.py", line 1240, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/tests/test_milestone_checkpoints.py", line 78, in fail
+    raise OSError("simulated write failure")
+OSError: simulated write failure
+ok
+test_real_lightning_epoch_end_save_and_unchanged_optimization (test_milestone_checkpoints.MilestoneTests.test_real_lightning_epoch_end_save_and_unchanged_optimization) ... /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/cuda/__init__.py:1112: UserWarning: Can't initialize NVML
+  raw_cnt = _raw_device_count_nvml()
+GPU available: False, used: False
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+`Trainer(limit_val_batches=1)` was configured so 1 batch will be used.
+SLURM auto-requeueing enabled. Setting signal handlers.
+/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/cuda/__init__.py:1112: UserWarning: Can't initialize NVML
+  raw_cnt = _raw_device_count_nvml()
+/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/utilities/_pytree.py:21: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+`Trainer.fit` stopped: `max_epochs=2` reached.
+GPU available: False, used: False
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+`Trainer(limit_val_batches=1)` was configured so 1 batch will be used.
+SLURM auto-requeueing enabled. Setting signal handlers.
+`weights_only` was not set, defaulting to `False`.
+`weights_only` was not set, defaulting to `False`.
+`Trainer.fit` stopped: `max_epochs=2` reached.
+ok
+test_receipt_rejects_drift (test_milestone_checkpoints.MilestoneTests.test_receipt_rejects_drift) ... ok
+test_snapshot_is_immutable_and_does_not_consume_rng (test_milestone_checkpoints.MilestoneTests.test_snapshot_is_immutable_and_does_not_consume_rng) ... ok
+test_targets_mean_completed_epochs_not_zero_based_indices (test_milestone_checkpoints.MilestoneTests.test_targets_mean_completed_epochs_not_zero_based_indices) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 20.420s
+
+OK

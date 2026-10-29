@@ -1,0 +1,114 @@
+{
+  "baseline_model_config": {
+    "authorization": "User explicitly requested both full-video predictions with the frozen best pair and body-first tracking, accepting that identities may later be ignored. Raw predictions must remain independent and complete.",
+    "batch_size": 1,
+    "centered": "models/v007_19f/pauses/step_00021212/centered_best",
+    "centroid": "models/v007_19f/pauses/step_00021212/centroid_best",
+    "checkpoint_sha256": {
+      "centered": "3ae4e3fd048f2d01b76949fe63ec283c616394f6755e031380a08dec91eed1e2",
+      "centroid": "99ddf439f8d8b656b5e625ccca636fd7bb9e1dd5a51ada3941b2e4568c587e0f"
+    },
+    "chunk_frames": 40,
+    "fps_denominator": 1001,
+    "fps_numerator": 30000,
+    "frames_per_video": 28800,
+    "height": 4320,
+    "hop_work_seconds": 900,
+    "max_hops": 1000,
+    "max_instances": null,
+    "max_no_progress_hops": 3,
+    "nodes": [
+      "Shell",
+      "Shoulder",
+      "Elbow",
+      "Claw",
+      "Arm"
+    ],
+    "output_root": "predictions/v007_best_body_first_v001",
+    "peak_threshold": 0.2,
+    "raw_tracking_enabled": false,
+    "regional_inference_or_tracking_filtering": false,
+    "run_id": "v007_best_body_first_v001",
+    "tracker_config": "configs/tracking/body_first_v001.yaml",
+    "tracking_status": "experimental_not_ground_truth_validated",
+    "videos": {
+      "Crab_Cam_2_2": "crab_vids/Crab_Cam_2_2.mp4",
+      "Crab_Cam_2_3": "crab_vids/Crab_Cam_2_3.mp4"
+    },
+    "water_regions": "datasets/legacy_native_tracklets_v001/config/water_regions_effective_v002.json",
+    "width": 7680
+  },
+  "baseline_source": "existing raw v007 predictions; no baseline inference",
+  "config": {
+    "baseline_config": "configs/prediction/v007_best_body_first_v001.json",
+    "baseline_manifest": "predictions/v007_best_body_first_v001/RUN_MANIFEST.json",
+    "baseline_matching_radius_px": 5.0,
+    "baseline_raw_slp": "predictions/v007_best_body_first_v001/Crab_Cam_2_2/raw/Crab_Cam_2_2.predictions.slp",
+    "baseline_threshold": 0.2,
+    "batch_size": 1,
+    "bridge_gaps": false,
+    "centroid_thresholds": [
+      0.1,
+      0.05
+    ],
+    "dataset": "datasets/v007_best_body_first_dataframe_v001",
+    "experiment": "centroid_threshold_tests_200_v001",
+    "keep_unassigned_detections": true,
+    "keypoint_threshold": 0.2,
+    "max_instances": null,
+    "output_root": "predictions/test runs",
+    "persist_frame_chunks": false,
+    "reidentify": false,
+    "review_frames": [
+      0,
+      100,
+      199
+    ],
+    "scope": "Exactly two new 200-frame predictions, one existing-baseline excerpt; centroid thresholds change, landmark threshold and model pair stay fixed. No training, full-video inference, tracker tuning, or automatic retries.",
+    "start_frame": 0,
+    "stop_frame_exclusive": 200,
+    "tracker": "unchanged_body_first_v001",
+    "video": "crab_vids/Crab_Cam_2_2.mp4",
+    "video_id": "Crab_Cam_2_2"
+  },
+  "job_id": "15641165",
+  "persisted_prediction_chunks": false,
+  "prediction_files": "one all-instance, optionally tracked final SLP per condition",
+  "run_id": "threshold_261015_2000_15641165",
+  "timestamp_utc": "261015_2000",
+  "verified_inputs_sha256": {
+    "configs/prediction/threshold_tests_200_v001.json": "5c5939717eef182e55fc74c4cbe399c57c3f9cbf3e74eefec97c1d03c8f5590d",
+    "configs/prediction/v007_best_body_first_v001.json": "a199c3242db91518ed50a2df87adca462fe6106b37ad3b82b8a2da185d907737",
+    "configs/tracking/body_first_v001.yaml": "ceac2f7f59d387cca49178b466f7200d8def8cd3827863460c180127cbb342d0",
+    "jobs/predict_threshold_tests.sh": "cfdf4cc784b18157191285ce129ef65ba5992e1ac8e5acefb2292fdcfeb16c27",
+    "models/v007_19f/pauses/step_00021212/centered_best/best.ckpt": "3ae4e3fd048f2d01b76949fe63ec283c616394f6755e031380a08dec91eed1e2",
+    "models/v007_19f/pauses/step_00021212/centered_best/snapshot.json": "b943965a3bb4b13a4641a96f21d9b82e8e3cc6cc8ad5d341e55b599134ed3b33",
+    "models/v007_19f/pauses/step_00021212/centered_best/training_config.yaml": "57d98fb511f109012dab8c9cfa35f4232c666aaa10efafcc435a5494850b3dc8",
+    "models/v007_19f/pauses/step_00021212/centroid_best/best.ckpt": "99ddf439f8d8b656b5e625ccca636fd7bb9e1dd5a51ada3941b2e4568c587e0f",
+    "models/v007_19f/pauses/step_00021212/centroid_best/snapshot.json": "2d60c361a3d4e64cc2b25f122298b83eeb52078fb233fe9b8e2cc00d5a50afdc",
+    "models/v007_19f/pauses/step_00021212/centroid_best/training_config.yaml": "54f785015e4c914fd7e34eaebf7fe45fbffeb7411d55e991057ef70ebd5a9a10",
+    "predictions/v007_best_body_first_v001/Crab_Cam_2_2/raw/Crab_Cam_2_2.predictions.slp": "8a71b7feee1a4f7fa7470e8bde15ae0db1137096530c0425dc1620e57a3e3e1f",
+    "scripts/body_first_tracklets.py": "35d859cb43975dc589e3fd6cc9f1507bcbb99a31e8ec16546bde04bbbe743371",
+    "scripts/legacy_dataset/tracklets.py": "41a4a4b5bb565b712fb93a57ad5be216d726ab92543a7f7ce0447b100df290b0",
+    "scripts/threshold_prediction_tests.py": "965236ffc847b4c2e38ebf43a53cb2911ce073141ef307bf34bf8c49a851a121",
+    "tests/test_body_first_tracklets.py": "f1a9db386569fb7826bd306c780249155a584fa0750afe589c27a67d3f297ea8",
+    "tests/test_threshold_prediction_tests.py": "37eac089a3e3ecf0e79c647e05e6f218f4705cb3f965c0c87608d23d350faa33"
+  },
+  "versions": {
+    "h5py": "3.16.0",
+    "lightning": "2.6.5",
+    "numpy": "2.5.2",
+    "pandas": "3.0.5",
+    "pyarrow": "25.0.1",
+    "scipy": "1.17.1",
+    "sleap-io": "0.9.2",
+    "sleap-nn": "0.3.3",
+    "torch": "2.13.0"
+  },
+  "video": {
+    "bytes": 11451768931,
+    "mtime_ns": 1785036716000000000,
+    "path": "crab_vids/Crab_Cam_2_2.mp4",
+    "verification": "size/mtime checked against baseline; full video not rehashed"
+  }
+}

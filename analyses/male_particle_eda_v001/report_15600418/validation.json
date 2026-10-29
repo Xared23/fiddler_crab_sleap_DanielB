@@ -1,0 +1,18 @@
+{
+  "unit_tests": {
+    "job_id": "15600418",
+    "tests_run": 16,
+    "failures": 0,
+    "errors": 0,
+    "passed": true
+  },
+  "input_output_checksums_passed": 78,
+  "saved_estimator_readback_checks": [
+    "Crab_Cam_2_2/all: saved moments, survival, PDF, NN and velocity readback",
+    "Crab_Cam_2_2/land: saved moments, survival, PDF, NN and velocity readback",
+    "Crab_Cam_2_3/all: saved moments, survival, PDF, NN and velocity readback",
+    "Crab_Cam_2_3/land: saved moments, survival, PDF, NN and velocity readback"
+  ],
+  "actual_pdf_metadata_checked": false,
+  "actual_pdf_pages_rendered": false
+}

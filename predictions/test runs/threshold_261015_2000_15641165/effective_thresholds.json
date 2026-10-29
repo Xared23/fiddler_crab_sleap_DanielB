@@ -1,0 +1,12 @@
+[
+  {
+    "centroid_threshold": 0.1,
+    "keypoint_threshold": 0.2,
+    "max_instances": null
+  },
+  {
+    "centroid_threshold": 0.05,
+    "keypoint_threshold": 0.2,
+    "max_instances": null
+  }
+]

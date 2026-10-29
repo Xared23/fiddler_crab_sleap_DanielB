@@ -1,0 +1,29 @@
+{
+  "approved_scope": "User-requested additional epoch-end checkpoint retention only; no training hyperparameter or scheduler changes.",
+  "baseline_implementation": {
+    "scripts/gputest_train.py": "9c6ff986179475b2292f99bebfcf3d8f7fdcd4976ca1cf8a4f82e9f8d0133d56",
+    "scripts/pipeline_common.py": "a427da68a340550cc475c6cac9c37338a1713eb07258f056f701491daf7a3baf",
+    "scripts/train_versioned.py": "a64c125505f65cb2ce2c958d4b87271572265915f265926fe7fc8719d99be674",
+    "scripts/train_versioned_chain.sh": "60c8dc0292dbdcd97b01bb68ecc02b324d088afb169daa7f09b1e96b1f7a9ffb"
+  },
+  "completed_epochs": [
+    75,
+    100
+  ],
+  "dataset_sha256": "4f376b929103407795b8d5f32e0bc1bb5964e264471521e7898243c5a4ac4322",
+  "implementation": {
+    "scripts/gputest_train.py": "9c6ff986179475b2292f99bebfcf3d8f7fdcd4976ca1cf8a4f82e9f8d0133d56",
+    "scripts/milestone_checkpoints.py": "735ffae91de2ae502238d88c833b2c0a42cb1c49853628c81353b7f926113170",
+    "scripts/pipeline_common.py": "a427da68a340550cc475c6cac9c37338a1713eb07258f056f701491daf7a3baf",
+    "scripts/train_versioned.py": "0f447b1d0be3a296969dbff0eaae55bb89dd6fd5760406bf713ce78337e8fd60",
+    "scripts/train_versioned_chain.sh": "60c8dc0292dbdcd97b01bb68ecc02b324d088afb169daa7f09b1e96b1f7a9ffb"
+  },
+  "roles": [
+    "centroid"
+  ],
+  "run_config_sha256": "cc88bf6d9cead370c4809bfe187dfbfe8a06dd245aabdc300cc732eb679ae8ef",
+  "run_id": "v007_19f",
+  "schema_version": 1,
+  "test_report_sha256": "40b57d06aca6d742b254df14019ba25d4460684f707f991769577f9295ad2adc",
+  "tests_passed": true
+}

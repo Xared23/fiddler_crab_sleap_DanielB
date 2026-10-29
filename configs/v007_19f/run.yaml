@@ -1,0 +1,36 @@
+schema_version: 1
+run_id: v007_19f
+# User decision: v007 is treated as cumulative; do not train on v004 as well.
+dataset:
+  source: danlabels.v007.slp
+  collaborator_sha256: 4fb48565c24024f5c4745aaa8b682841a32209280575c8c6cf95d7035ae2e684
+  video: clip_cam2_8k.mp4
+  expected_user_frames: 19
+  validation_frames: 2
+  validation_fraction: 0.10526315789473684
+  split_seed: 42
+  source_policy: v007_only_cumulative_per_user
+  regional_handling: none
+training:
+  base_configs:
+    centroid: della_centroid_config_dan_v004.yaml
+    centered: della_centered_instance_config_dan_v004.yaml
+  max_epochs: 200
+  early_stopping_patience: 40
+  seed: 42
+  max_hops: 400
+  max_no_progress_hops: 3
+  checkpoint_every_steps: 10
+  # Keep full native resolution, crop size, model architecture and augmentations.
+  regional_handling: none
+# Future inference requirements, NOT an active inference submission.
+prediction:
+  chunk_frames: 40
+  allocation_minutes: 20
+  tracking: conservative_tracklets_separate_cpu_stage
+  gap_bridging: false
+  cross_video_identities: false
+  regional_handling: none
+videos:
+  Crab_Cam_2_2: crab_vids/Crab_Cam_2_2.mp4
+  Crab_Cam_2_3: crab_vids/Crab_Cam_2_3.mp4

@@ -1,0 +1,33 @@
+{
+  "run_id": "v007_best_body_first_v001",
+  "output_root": "predictions/v007_best_body_first_v001",
+  "centroid": "models/v007_19f/pauses/step_00021212/centroid_best",
+  "centered": "models/v007_19f/pauses/step_00021212/centered_best",
+  "checkpoint_sha256": {
+    "centroid": "99ddf439f8d8b656b5e625ccca636fd7bb9e1dd5a51ada3941b2e4568c587e0f",
+    "centered": "3ae4e3fd048f2d01b76949fe63ec283c616394f6755e031380a08dec91eed1e2"
+  },
+  "tracker_config": "configs/tracking/body_first_v001.yaml",
+  "water_regions": "datasets/legacy_native_tracklets_v001/config/water_regions_effective_v002.json",
+  "videos": {
+    "Crab_Cam_2_2": "crab_vids/Crab_Cam_2_2.mp4",
+    "Crab_Cam_2_3": "crab_vids/Crab_Cam_2_3.mp4"
+  },
+  "frames_per_video": 28800,
+  "width": 7680,
+  "height": 4320,
+  "fps_numerator": 30000,
+  "fps_denominator": 1001,
+  "nodes": ["Shell", "Shoulder", "Elbow", "Claw", "Arm"],
+  "chunk_frames": 40,
+  "batch_size": 1,
+  "peak_threshold": 0.2,
+  "max_instances": null,
+  "hop_work_seconds": 900,
+  "max_hops": 1000,
+  "max_no_progress_hops": 3,
+  "tracking_status": "experimental_not_ground_truth_validated",
+  "authorization": "User explicitly requested both full-video predictions with the frozen best pair and body-first tracking, accepting that identities may later be ignored. Raw predictions must remain independent and complete.",
+  "raw_tracking_enabled": false,
+  "regional_inference_or_tracking_filtering": false
+}

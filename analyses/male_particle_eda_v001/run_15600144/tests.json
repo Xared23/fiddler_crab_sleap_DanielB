@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "checks": [
+    "gap and ID exclusion",
+    "ballistic MSD",
+    "ACF normalization",
+    "uniform rectangle pair correction",
+    "radial PDF normalization",
+    "Gaussian alpha2"
+  ],
+  "unit_tests": {
+    "job_id": "15600144",
+    "tests_run": 16,
+    "failures": 0,
+    "errors": 0,
+    "passed": true
+  }
+}

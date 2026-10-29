@@ -1,0 +1,10 @@
+{
+  "note": "Historical pause receipt, not a scheduler lock or live job-status file. No completion was declared.",
+  "pause_receipt": "models/v007_19f/pauses/step_00021212/PAUSE_COMPLETE.json",
+  "pause_receipt_sha256": "08fe38f9a0051ac61b21e4ecf1836ffd254c3c8475c003f9c0fb609305f328b7",
+  "resume_progress": {
+    "epoch": 104,
+    "global_step": 21212
+  },
+  "stopped_training_job_id": "15256499"
+}

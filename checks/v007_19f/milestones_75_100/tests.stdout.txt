@@ -1,0 +1,8 @@
+Milestone snapshots enabled after completed epochs [75, 100]
+Milestone snapshots enabled after completed epochs [1, 2]
+MILESTONE_SAVED completed_epochs=1 step=2 path=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/checks/v007_19f/milestones_75_100/tmpby1d5anl/milestones/epoch_0001
+MILESTONE_SAVED completed_epochs=2 step=4 path=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/checks/v007_19f/milestones_75_100/tmpby1d5anl/milestones/epoch_0002
+MILESTONE_SAVED completed_epochs=75 step=15030 path=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/checks/v007_19f/milestones_75_100/tmpz0t67759/milestones/epoch_0075
+Milestone snapshots enabled after completed epochs [75, 100]
+MILESTONE_SAVED completed_epochs=75 step=15030 path=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/checks/v007_19f/milestones_75_100/tmphqy8f0me/milestones/epoch_0075
+MILESTONE_SAVED completed_epochs=100 step=20030 path=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/checks/v007_19f/milestones_75_100/tmphqy8f0me/milestones/epoch_0100

@@ -1,0 +1,83 @@
+{
+  "config": {
+    "authorization": "User explicitly requested both full-video predictions with the frozen best pair and body-first tracking, accepting that identities may later be ignored. Raw predictions must remain independent and complete.",
+    "batch_size": 1,
+    "centered": "models/v007_19f/pauses/step_00021212/centered_best",
+    "centroid": "models/v007_19f/pauses/step_00021212/centroid_best",
+    "checkpoint_sha256": {
+      "centered": "3ae4e3fd048f2d01b76949fe63ec283c616394f6755e031380a08dec91eed1e2",
+      "centroid": "99ddf439f8d8b656b5e625ccca636fd7bb9e1dd5a51ada3941b2e4568c587e0f"
+    },
+    "chunk_frames": 40,
+    "fps_denominator": 1001,
+    "fps_numerator": 30000,
+    "frames_per_video": 28800,
+    "height": 4320,
+    "hop_work_seconds": 900,
+    "max_hops": 1000,
+    "max_instances": null,
+    "max_no_progress_hops": 3,
+    "nodes": [
+      "Shell",
+      "Shoulder",
+      "Elbow",
+      "Claw",
+      "Arm"
+    ],
+    "output_root": "predictions/v007_best_body_first_v001",
+    "peak_threshold": 0.2,
+    "raw_tracking_enabled": false,
+    "regional_inference_or_tracking_filtering": false,
+    "run_id": "v007_best_body_first_v001",
+    "tracker_config": "configs/tracking/body_first_v001.yaml",
+    "tracking_status": "experimental_not_ground_truth_validated",
+    "videos": {
+      "Crab_Cam_2_2": "crab_vids/Crab_Cam_2_2.mp4",
+      "Crab_Cam_2_3": "crab_vids/Crab_Cam_2_3.mp4"
+    },
+    "water_regions": "datasets/legacy_native_tracklets_v001/config/water_regions_effective_v002.json",
+    "width": 7680
+  },
+  "hashes": {
+    "configs/prediction/v007_best_body_first_v001.json": "a199c3242db91518ed50a2df87adca462fe6106b37ad3b82b8a2da185d907737",
+    "configs/tracking/body_first_v001.yaml": "ceac2f7f59d387cca49178b466f7200d8def8cd3827863460c180127cbb342d0",
+    "datasets/legacy_native_tracklets_v001/config/water_regions_effective_v002.json": "0bd75bb46fc4abdcbb066743e9e37c857fd28b7d763be8083d30cf1b5b2e3f87",
+    "models/v007_19f/pauses/step_00021212/centered_best/best.ckpt": "3ae4e3fd048f2d01b76949fe63ec283c616394f6755e031380a08dec91eed1e2",
+    "models/v007_19f/pauses/step_00021212/centered_best/snapshot.json": "b943965a3bb4b13a4641a96f21d9b82e8e3cc6cc8ad5d341e55b599134ed3b33",
+    "models/v007_19f/pauses/step_00021212/centered_best/training_config.yaml": "57d98fb511f109012dab8c9cfa35f4232c666aaa10efafcc435a5494850b3dc8",
+    "models/v007_19f/pauses/step_00021212/centroid_best/best.ckpt": "99ddf439f8d8b656b5e625ccca636fd7bb9e1dd5a51ada3941b2e4568c587e0f",
+    "models/v007_19f/pauses/step_00021212/centroid_best/snapshot.json": "2d60c361a3d4e64cc2b25f122298b83eeb52078fb233fe9b8e2cc00d5a50afdc",
+    "models/v007_19f/pauses/step_00021212/centroid_best/training_config.yaml": "54f785015e4c914fd7e34eaebf7fe45fbffeb7411d55e991057ef70ebd5a9a10",
+    "scripts/body_first_tracklets.py": "35d859cb43975dc589e3fd6cc9f1507bcbb99a31e8ec16546bde04bbbe743371",
+    "scripts/gputest_predict.py": "42e1c48fd69e645683b437f260e23ca16e0efef0eeaf54da5639b1ba8d729892",
+    "scripts/legacy_dataset/tracklets.py": "41a4a4b5bb565b712fb93a57ad5be216d726ab92543a7f7ce0447b100df290b0",
+    "scripts/pipeline_common.py": "a427da68a340550cc475c6cac9c37338a1713eb07258f056f701491daf7a3baf",
+    "scripts/prediction_finalize.py": "8e5fdd927efafca9bdca5605186fb2f1b8061db633e8dc4486207fc42bde610f",
+    "scripts/prediction_run.py": "e3bebb8061aed99ae782f6595d7062665e0e2b54e4473eb25a32b5a9b5edaa0d",
+    "tests/test_body_first_tracklets.py": "f1a9db386569fb7826bd306c780249155a584fa0750afe589c27a67d3f297ea8",
+    "tests/test_prediction_run.py": "1c24a917d2d73448e74106aed55dd92d5448bfa89f5a9c7f685e786544a8e5f1"
+  },
+  "versions": {
+    "h5py": "3.16.0",
+    "lightning": "2.6.5",
+    "numpy": "2.5.2",
+    "pandas": "3.0.5",
+    "pyarrow": "25.0.1",
+    "scipy": "1.17.1",
+    "sleap-io": "0.9.2",
+    "sleap-nn": "0.3.3",
+    "torch": "2.13.0"
+  },
+  "videos": {
+    "Crab_Cam_2_2": {
+      "bytes": 11451768931,
+      "mtime_ns": 1785036716000000000,
+      "path": "crab_vids/Crab_Cam_2_2.mp4"
+    },
+    "Crab_Cam_2_3": {
+      "bytes": 11420404147,
+      "mtime_ns": 1785036732000000000,
+      "path": "crab_vids/Crab_Cam_2_3.mp4"
+    }
+  }
+}

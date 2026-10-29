@@ -1,0 +1,25 @@
+test_chunk_boundary_is_not_a_gap (__main__.BodyFirstTests.test_chunk_boundary_is_not_a_gap) ... ok
+test_closed_track_does_not_reappear (__main__.BodyFirstTests.test_closed_track_does_not_reappear) ... ok
+test_deterministic_ids (__main__.BodyFirstTests.test_deterministic_ids) ... ok
+test_duplicates_are_not_arbitrarily_resolved (__main__.BodyFirstTests.test_duplicates_are_not_arbitrarily_resolved) ... ok
+test_empty_frame_ends_identity (__main__.BodyFirstTests.test_empty_frame_ends_identity) ... ok
+test_equal_alternatives_are_not_forced (__main__.BodyFirstTests.test_equal_alternatives_are_not_forced) ... ok
+test_far_candidate_is_not_forced (__main__.BodyFirstTests.test_far_candidate_is_not_forced) ... ok
+test_invalid_body_not_assigned (__main__.BodyFirstTests.test_invalid_body_not_assigned) ... ok
+test_low_confidence_body_not_assigned (__main__.BodyFirstTests.test_low_confidence_body_not_assigned) ... ok
+test_missing_frame_ends_identity (__main__.BodyFirstTests.test_missing_frame_ends_identity) ... ok
+test_missing_shoulder_preserves_body_identity (__main__.BodyFirstTests.test_missing_shoulder_preserves_body_identity) ... ok
+test_motion_cannot_exceed_cap (__main__.BodyFirstTests.test_motion_cannot_exceed_cap) ... ok
+test_nearby_but_clearly_distinguishable_neighbors (__main__.BodyFirstTests.test_nearby_but_clearly_distinguishable_neighbors) ... ok
+test_one_to_one_and_birth (__main__.BodyFirstTests.test_one_to_one_and_birth) ... ok
+test_raw_measurements_unchanged (__main__.BodyFirstTests.test_raw_measurements_unchanged) ... ok
+test_rejected_competitor_still_counts (__main__.BodyFirstTests.test_rejected_competitor_still_counts) ... ok
+test_repeated_frame_rejected (__main__.BodyFirstTests.test_repeated_frame_rejected) ... ok
+test_shuffled_detection_order (__main__.BodyFirstTests.test_shuffled_detection_order) ... ok
+test_unusable_shoulder_geometry_is_ignored (__main__.BodyFirstTests.test_unusable_shoulder_geometry_is_ignored) ... ok
+test_video_scoped_ids (__main__.BodyFirstTests.test_video_scoped_ids) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.020s
+
+OK

@@ -1,6 +1,10 @@
 data_config:
   train_labels_path:
+<<<<<<< HEAD
   - /scratch/gpfs/SHAEVITZ/kr3541/crab/danlabels.v007.slp
+=======
+  - /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/danlabels.v004.slp
+>>>>>>> my-code
   val_labels_path: null
   validation_fraction: 0.1
   use_same_data_for_val: true
@@ -58,20 +62,20 @@ data_config:
       mixup_p: 0.0
   skeletons:
   - nodes:
-    - name: Arm
     - name: Shell
     - name: Shoulder
     - name: Elbow
     - name: Claw
+    - name: Arm
     edges:
-    - source:
-        name: Arm
-      destination:
-        name: Shell
     - source:
         name: Shell
       destination:
         name: Shoulder
+    - source:
+        name: Shell
+      destination:
+        name: Arm
     - source:
         name: Shoulder
       destination:
@@ -106,12 +110,7 @@ model_config:
     centroid: null
     centered_instance:
       confmaps:
-        part_names:
-        - Arm
-        - Shell
-        - Shoulder
-        - Elbow
-        - Claw
+        part_names: null
         anchor_part: Shell
         sigma: 1.5
         output_stride: 4
@@ -122,16 +121,16 @@ model_config:
   total_params: 1644912
 trainer_config:
   train_data_loader:
-    batch_size: 5
-    num_workers: 4
+    batch_size: 1
+    num_workers: 0
     shuffle: true
   val_data_loader:
-    batch_size: 5
-    num_workers: 4
+    batch_size: 1
+    num_workers: 0
     shuffle: false
   model_ckpt:
     save_top_k: 1
-    save_last: false
+    save_last: true
   trainer_devices: 1
   trainer_device_indices: null
   trainer_accelerator: auto
@@ -142,11 +141,16 @@ trainer_config:
   train_steps_per_epoch: 200
   visualize_preds_during_training: false
   keep_viz: false
+<<<<<<< HEAD
   max_epochs: 100
   seed: null
+=======
+  max_epochs: 50
+  seed: 42
+>>>>>>> my-code
   use_wandb: false
   save_ckpt: true
-  ckpt_dir: /scratch/gpfs/SHAEVITZ/kr3541/crab/models
+  ckpt_dir: /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/models
   run_name: dan_centered_instance_v004
   resume_ckpt_path: null
   wandb:

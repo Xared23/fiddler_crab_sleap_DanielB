@@ -1,0 +1,42 @@
+algorithm_version: body_first_v001
+# One predeclared parameter set, not a sweep. All distances are native-image pixels.
+dataset_id: body_first_v001
+body_node: Shell
+shoulder_node: Shoulder
+body_score_min: 0.5
+shoulder_score_min: 0.2
+duplicate_shell_radius_px: 5.0
+body_shoulder_length_min_px: 10.0
+body_shoulder_length_max_px: 65.0
+max_body_displacement_px: 12.0
+max_prediction_error_px: 18.0
+motion_weight: 0.3
+velocity_update_weight: 0.5
+max_velocity_px_per_frame: 6.0
+shoulder_vector_weight: 0.15
+shoulder_vector_cost_cap_px: 12.0
+max_assignment_cost: 12.0
+unmatched_cost: 7.0
+minimum_alternative_margin: 2.0
+# Nearby low-confidence/rejected body detections still count as competitors,
+# but their existence alone does not veto a clearly better match.
+competitors_include_rejected_bodies: true
+require_shoulder_for_links: false
+no_gap_bridging: true
+no_reidentification: true
+limb_nodes_used_for_association: false
+water_used_for_association: false
+pilot:
+  clips:
+    - {video: Crab_Cam_2_2, start: 0, stop: 180, purpose: early_and_chunk_boundaries}
+    - {video: Crab_Cam_2_2, start: 4960, stop: 5140, purpose: dense_neighborhood}
+    - {video: Crab_Cam_2_2, start: 27760, stop: 27940, purpose: closest_pair_neighborhood}
+    - {video: Crab_Cam_2_3, start: 0, stop: 180, purpose: early_and_chunk_boundaries}
+    - {video: Crab_Cam_2_3, start: 22280, stop: 22460, purpose: dense_neighborhood}
+    - {video: Crab_Cam_2_3, start: 25840, stop: 26020, purpose: closest_pair_neighborhood}
+  minimum_singleton_observation_reduction_fraction: 0.5
+  minimum_30_frame_observation_coverage_gain: 0.10
+  max_review_examples_per_clip: 3
+  consecutive_review_frames: 18
+  # Numerical criteria are necessary, NOT sufficient: independent image review
+  # and synthetic identity/gap/ambiguity tests must also pass before production.

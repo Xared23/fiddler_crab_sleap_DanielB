@@ -1,0 +1,111 @@
+{
+  "artifacts": {
+    "Crab_Cam_2_2.frames_014250_014549.mp4": {
+      "bytes": 77624774,
+      "sha256": "72f931e1bd3e9e035fa4d1fe5f7817afdf31fa6b58e80dafed3e922af62a1929"
+    },
+    "Crab_Cam_2_2.frames_014250_014549.predictions.slp": {
+      "bytes": 1950684,
+      "sha256": "65607c9e78ed9f83b1fb2ea032fe4b4f9d27566a3bf7c25efa6be9c2b44015b6"
+    },
+    "Crab_Cam_2_2.frames_014250_014549.tracked.slp": {
+      "bytes": 2098055,
+      "sha256": "07279b6cabb082b8d09127bf9858ab01c59c0880f6794e822a99f149c5db4594"
+    },
+    "README.md": {
+      "bytes": 5286,
+      "sha256": "9636443413be33802e1bd6b9b6927671cc9c052f811ff58aee0e1f32252ef7fb"
+    },
+    "encoding.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "frame_map.csv": {
+      "bytes": 32263,
+      "sha256": "ac1da3357a0a37ad77f16fbd5a65755b85f813bbd2d7c032137f293e12a6704c"
+    },
+    "frames.parquet": {
+      "bytes": 6761,
+      "sha256": "1f15e7aa8ea86291cbade97a17b675b11da62be6181cf455afd43f88e072bc20"
+    },
+    "observations.parquet": {
+      "bytes": 4778126,
+      "sha256": "739c2daf087bd1967d53dcfd8d41653166d7d30b9cc713d5ba5203a41432e1ef"
+    }
+  },
+  "assigned_observations": 36519,
+  "build_job_id": "16416826",
+  "code_sha256": {
+    "scripts/publish_existing_crab_demo.py": "7a1cca7d5366629f0bedac02a0ff1cc4868a980bf7f511a79e81f64b18f73abd"
+  },
+  "experimental_tracklets_present": 1181,
+  "fps_denominator": 1001,
+  "fps_numerator": 30000,
+  "frames": 300,
+  "height": 4320,
+  "limitations": [
+    "Experimental identities are not ground truth.",
+    "Video is a lossy demo copy, not a pixel archive.",
+    "Source video full hash inherited from published dataset; current size/mtime checked.",
+    "Full-video source paths/ordinals in the dataframe are provenance, not bundled files."
+  ],
+  "observations": 36573,
+  "publication_job_id": "16446713",
+  "recovery_reason": "Extraction/data validation succeeded, but an inappropriate Git-metadata-unchanged guard blocked publication while the user configured their branch. Existing payloads revalidated; no re-encoding or prediction generation.",
+  "source_dataset_manifest_sha256": "9dcec268c1de2d366cb57dc101a245c4ec009baa8588f4897bcc1fe121359756",
+  "source_frame_start": 14250,
+  "source_frame_stop_exclusive": 14550,
+  "source_frames_sha256": "f699c9e1ecd5e7640b01fa3efeeb86e1e44dbc1a2f1c79ff8ea4ec39b2ff503c",
+  "source_inputs": {
+    "crab_vids/Crab_Cam_2_2.mp4": {
+      "bytes": 11451768931,
+      "mtime_ns": 1785036716000000000,
+      "path": "crab_vids/Crab_Cam_2_2.mp4",
+      "rehashed_now": false,
+      "sha256": "e8a3388f8957c0f22cd97ade47472137d19f81df5f4b2b141d18938b9bb6fd31"
+    },
+    "predictions/v007_best_body_first_v001/Crab_Cam_2_2/raw/Crab_Cam_2_2.predictions.slp": {
+      "bytes": 691906984,
+      "mtime_ns": 1791974244943200081,
+      "path": "predictions/v007_best_body_first_v001/Crab_Cam_2_2/raw/Crab_Cam_2_2.predictions.slp",
+      "rehashed_now": true,
+      "sha256": "8a71b7feee1a4f7fa7470e8bde15ae0db1137096530c0425dc1620e57a3e3e1f"
+    },
+    "predictions/v007_best_body_first_v001/Crab_Cam_2_2/tracklets/Crab_Cam_2_2.tracked.slp": {
+      "bytes": 702139208,
+      "mtime_ns": 1791974660270158802,
+      "path": "predictions/v007_best_body_first_v001/Crab_Cam_2_2/tracklets/Crab_Cam_2_2.tracked.slp",
+      "rehashed_now": true,
+      "sha256": "e58c6f1e884fd4e5cbc8af9f53684888398efe5fad586b4a2fcfd1f23c882d92"
+    }
+  },
+  "source_table_parts": [
+    {
+      "path": "datasets/v007_best_body_first_dataframe_v001/tables/observations/Crab_Cam_2_2/part-00018.parquet",
+      "sha256": "77164091acdaecbd18f269cb019dc3d80cd506b91dbe5ff7ee45525ab362737d"
+    }
+  ],
+  "source_video_id": "Crab_Cam_2_2",
+  "status": "validated_complete",
+  "unassigned_observations": 54,
+  "validation": {
+    "all_300_output_frames_decoded": true,
+    "all_8_build_tests_passed": true,
+    "all_pose_bytes_match_source": true,
+    "inference_or_tracking_rerun": false,
+    "no_git_commands_executed": true,
+    "original_dataframe_columns_identical": true,
+    "portable_basename_video_reference": true,
+    "source_slps_rehashed": true,
+    "video_reencoded_in_publication": false
+  },
+  "versions": {
+    "h5py": "3.16.0",
+    "numpy": "2.5.2",
+    "opencv-python": "5.0.0.93",
+    "pyarrow": "25.0.1",
+    "sleap-io": "0.9.2"
+  },
+  "video_encoding": "H.264 CRF 18, maxrate/bufsize 60M, veryfast, native 7680x4320, 30000/1001 fps; lossy pixels, unchanged coordinates",
+  "width": 7680
+}

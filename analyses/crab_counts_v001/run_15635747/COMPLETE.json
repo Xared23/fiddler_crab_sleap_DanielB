@@ -1,0 +1,61 @@
+{
+  "status": "complete",
+  "job_id": "15635747",
+  "code_cells_executed": 5,
+  "embedded_plots": 2,
+  "tests_and_data_validations_passed": true,
+  "notebook_sha256": "70ce62d45b37a97bf685b3782e47d8b558a68e2e853ada374715fe4a9e592c92",
+  "python": "3.13.13 (main, Jun  2 2026, 22:27:49) [Clang 22.1.3 ]",
+  "artifacts": [
+    {
+      "path": "crab_counts_over_time.executed.ipynb",
+      "bytes": 469971,
+      "sha256": "70ce62d45b37a97bf685b3782e47d8b558a68e2e853ada374715fe4a9e592c92"
+    },
+    {
+      "path": "figures/Crab_Cam_2_2_binned_counts.csv",
+      "bytes": 10031,
+      "sha256": "a4e434f0b69d52f35626b96943ed0228adba4f4f23367b3cb21a11b71afd66fd"
+    },
+    {
+      "path": "figures/Crab_Cam_2_3_binned_counts.csv",
+      "bytes": 10087,
+      "sha256": "c8d1472f2811eaabf4a9091ec11e3fe44d0d7b8f4876f8230a72262baeae1dc6"
+    },
+    {
+      "path": "figures/count_provenance.json",
+      "bytes": 577,
+      "sha256": "78fc15f2a7aeb357ecc85eef6dead4cf09910966b81bcf6c6d5bd38f2153fba2"
+    },
+    {
+      "path": "figures/count_selection_comparison.pdf",
+      "bytes": 25039,
+      "sha256": "c42ebd250cd4c44c481ec32637dfb09e767bbe8906cfd8239190e0be8c22c9f5"
+    },
+    {
+      "path": "figures/count_selection_comparison.png",
+      "bytes": 276768,
+      "sha256": "0e1b18cc8505d82bb7cfc6ffb652dfb24052cd9882aa02bdbd7b9c57cc9cf0b4"
+    },
+    {
+      "path": "figures/count_summary.csv",
+      "bytes": 309,
+      "sha256": "98c25e0a9f2755a6dafd5b08480a24ccdf0eb9077e850c0741f2c24ffe968cef"
+    },
+    {
+      "path": "figures/in_frame_crab_counts.pdf",
+      "bytes": 54540,
+      "sha256": "2fe517baed867f729df4d0e1b17187a122c2ba33da60e637117de166e6d85cb5"
+    },
+    {
+      "path": "figures/in_frame_crab_counts.png",
+      "bytes": 251417,
+      "sha256": "ab7173994a35b4eaa5dab7c28ecd8a1c446f61c7b3fc531bce3da0124c0e85ca"
+    },
+    {
+      "path": "notebook_input.ipynb",
+      "bytes": 12272,
+      "sha256": "47a5291f38a1398770d0e7a79ddf86e73294171f3615e9734a2871141131daf1"
+    }
+  ]
+}

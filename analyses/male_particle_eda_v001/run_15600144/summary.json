@@ -1,0 +1,152 @@
+{
+  "Crab_Cam_2_2": {
+    "raw_detections": 3673641,
+    "accepted_detections": 3661979,
+    "mean_counts": {
+      "raw": 127.55697916666666,
+      "finite_in_image": 127.510625,
+      "accepted": 127.15204861111111,
+      "land": 121.09458333333333,
+      "water": 6.057465277777778
+    },
+    "land_first_minute": 121.99666666666667,
+    "land_last_minute": 116.65222222222222,
+    "spatial": {
+      "all": {
+        "sampled_frames": 960,
+        "sampled_detections": 122184,
+        "nn_quantiles_px": [
+          69.94072465717296,
+          147.66376029760352,
+          303.52645505752105
+        ],
+        "fraction_nn_under_100": 0.2306357624566228,
+        "mixed_ratio_50_100": 0.622209028507372,
+        "mixed_ratio_100_200": 0.9585583673523503,
+        "sample_count_fano": 1.0207015648530084
+      },
+      "land": {
+        "sampled_frames": 960,
+        "sampled_detections": 116359,
+        "nn_quantiles_px": [
+          70.13482128743333,
+          148.89670608613085,
+          309.4284873289695
+        ],
+        "fraction_nn_under_100": 0.22610197750066605,
+        "mixed_ratio_50_100": 0.6114782788497611,
+        "mixed_ratio_100_200": 0.9542269550838423,
+        "sample_count_fano": 0.8737764071393991
+      }
+    },
+    "motion": {
+      "all": {
+        "n_observations": 3661979,
+        "n_segments": 106326,
+        "median_segment_frames": 2.0,
+        "max_segment_frames": 17051,
+        "singleton_fraction": 0.37790380527810696,
+        "one_frame_step_quantiles": [
+          0.12762387342580722,
+          1.487751320236261,
+          2.634488276415146,
+          11.992739311221769
+        ],
+        "fraction_steps_above_10px": 0.000167057921568837,
+        "sample_origins": 366328,
+        "fixed_origins": 195298
+      },
+      "land": {
+        "n_observations": 3487524,
+        "n_segments": 88677,
+        "median_segment_frames": 2.0,
+        "max_segment_frames": 17051,
+        "singleton_fraction": 0.3543872706564273,
+        "one_frame_step_quantiles": [
+          0.1250250314445128,
+          1.4750983431730804,
+          2.5827836322957216,
+          11.992739311221769
+        ],
+        "fraction_steps_above_10px": 0.0001597600598085174,
+        "sample_origins": 348853,
+        "fixed_origins": 190451
+      }
+    }
+  },
+  "Crab_Cam_2_3": {
+    "raw_detections": 4312189,
+    "accepted_detections": 4295087,
+    "mean_counts": {
+      "raw": 149.72878472222223,
+      "finite_in_image": 149.6425,
+      "accepted": 149.13496527777778,
+      "land": 141.23177083333334,
+      "water": 7.903194444444445
+    },
+    "land_first_minute": 125.27111111111111,
+    "land_last_minute": 137.85444444444445,
+    "spatial": {
+      "all": {
+        "sampled_frames": 960,
+        "sampled_detections": 143235,
+        "nn_quantiles_px": [
+          60.95847451439642,
+          147.53184723627126,
+          296.24709400593173
+        ],
+        "fraction_nn_under_100": 0.26884490522567805,
+        "mixed_ratio_50_100": 0.7157147873537911,
+        "mixed_ratio_100_200": 0.9504888984461077,
+        "sample_count_fano": 1.4888078376444305
+      },
+      "land": {
+        "sampled_frames": 960,
+        "sampled_detections": 135588,
+        "nn_quantiles_px": [
+          60.45556641709517,
+          147.87030867567344,
+          298.84261753396214
+        ],
+        "fraction_nn_under_100": 0.2682022007847302,
+        "mixed_ratio_50_100": 0.7016664087803535,
+        "mixed_ratio_100_200": 0.9440464686442365,
+        "sample_count_fano": 1.5362705401657961
+      }
+    },
+    "motion": {
+      "all": {
+        "n_observations": 4295087,
+        "n_segments": 154059,
+        "median_segment_frames": 2.0,
+        "max_segment_frames": 9777,
+        "singleton_fraction": 0.3642825151403034,
+        "one_frame_step_quantiles": [
+          0.16739769584833303,
+          1.7070974152746135,
+          3.669595990770801,
+          11.980596312200435
+        ],
+        "fraction_steps_above_10px": 0.00014368412867529513,
+        "sample_origins": 429736,
+        "fixed_origins": 189629
+      },
+      "land": {
+        "n_observations": 4067475,
+        "n_segments": 131576,
+        "median_segment_frames": 3.0,
+        "max_segment_frames": 9777,
+        "singleton_fraction": 0.34618015443545935,
+        "one_frame_step_quantiles": [
+          0.16340469001846838,
+          1.6951191400753396,
+          3.6340976320545564,
+          11.980596312200435
+        ],
+        "fraction_steps_above_10px": 0.00013770678566701026,
+        "sample_origins": 406918,
+        "fixed_origins": 184762
+      }
+    }
+  }
+}

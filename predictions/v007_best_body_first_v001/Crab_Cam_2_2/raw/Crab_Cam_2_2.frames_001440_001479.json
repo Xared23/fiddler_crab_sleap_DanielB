@@ -1,0 +1,9 @@
+{
+  "instances": 4942,
+  "job_id": "15527343",
+  "sha256": "fe078b7709fdbd89bcf4693bf3721d03ccf4c773fd79708eb8f32b5ed44aba84",
+  "signature": "f6bd189befe51761703e009169bdd9c5fd13ff0c180307ae10736eedf7fc27d5",
+  "start": 1440,
+  "stop": 1480,
+  "tracking_enabled": false
+}

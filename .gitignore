@@ -1,0 +1,34 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+remap_v004_logs/
+*.mp4
+.DS_Store
+
+# Generated artifacts; keep source code, configs and docs reviewable.
+logs/
+checks/**/training_smoke/
+checks/**/unit_tmp/
+models/**/*.ckpt
+
+# SLEAP labels/predictions and dataframe payloads, wherever generated.
+*.slp
+*.parquet
+
+# Local dataset artifacts (not the documentation under docs/datasets/).
+/datasets/
+
+# Local legacy payloads and incomplete demo builds must not be committed.
+/archive/
+/demo/.build_*/
+
+# Narrow exception: the bounded, self-contained collaborator demo.
+!/demo/crab_cam2_2_middle_300/Crab_Cam_2_2.frames_014250_014549.mp4
+!/demo/crab_cam2_2_middle_300/Crab_Cam_2_2.frames_014250_014549.predictions.slp
+!/demo/crab_cam2_2_middle_300/Crab_Cam_2_2.frames_014250_014549.tracked.slp
+!/demo/crab_cam2_2_middle_300/observations.parquet
+!/demo/crab_cam2_2_middle_300/frames.parquet

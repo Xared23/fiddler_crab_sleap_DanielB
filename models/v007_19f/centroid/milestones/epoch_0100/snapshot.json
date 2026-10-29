@@ -1,0 +1,23 @@
+{
+  "checkpoint_epoch_zero_based": 99,
+  "checkpoint_sha256": "60595d0ef50e867457c88d43731a36b5fb21f04ec0245ba02493266e12405dbe",
+  "completed_epochs": 100,
+  "global_step": 20275,
+  "kind": "epoch_end_weights_NOT_best_so_far",
+  "learning_rates": [
+    0.0001
+  ],
+  "note": "best.ckpt is the SLEAP inference filename, but contains this epoch's weights, not the validation-best weights from an earlier epoch. CSV copied inside the callback may not yet include this epoch; validation_loss above is captured directly.",
+  "schema_version": 1,
+  "slurm_job_id": "15256499",
+  "timing": {
+    "cumulative_fit_seconds_approx": 365659.12188995804,
+    "current_hop_fit_seconds": 631.1218899580126,
+    "definition": "Fit time includes validation/checkpoint overhead, excludes most startup and queue waits. Prior hop durations are rounded in the original logs. Wall time includes intervening queue waits; neither field is GPU kernel time.",
+    "previous_completed_hop_loop_seconds_approx": 365028.0,
+    "snapshot_utc": "2026-10-13T20:44:17.569408+00:00",
+    "wall_seconds_since_first_logged_setup": 406237.5768060684
+  },
+  "training_config_sha256": "54f785015e4c914fd7e34eaebf7fe45fbffeb7411d55e991057ef70ebd5a9a10",
+  "validation_loss": 5.5272761528613046e-05
+}

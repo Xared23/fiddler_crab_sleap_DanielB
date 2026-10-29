@@ -1,0 +1,12 @@
+test_alternating (__main__.KnownAnswerTests.test_alternating) ... ok
+test_constant (__main__.KnownAnswerTests.test_constant) ... ok
+test_gap_rejected (__main__.KnownAnswerTests.test_gap_rejected) ... ok
+test_hand_calculated_variances (__main__.KnownAnswerTests.test_hand_calculated_variances) ... ok
+test_invalid_counts_rejected (__main__.KnownAnswerTests.test_invalid_counts_rejected) ... ok
+test_linear_increase (__main__.KnownAnswerTests.test_linear_increase) ... ok
+test_offset_invariance (__main__.KnownAnswerTests.test_offset_invariance) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.115s
+
+OK

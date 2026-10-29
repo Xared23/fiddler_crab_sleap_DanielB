@@ -1,0 +1,21 @@
+{
+  "birth_threshold": 0.2,
+  "control_mean_abs_count_change": 1.91991991991992,
+  "control_mean_assigned": 127.753,
+  "control_mean_raw": 127.992,
+  "control_observation_median_per_id": 2.0,
+  "control_track_ids": 3528,
+  "filename": "Crab_Cam_2_2_261015_2124_b200_c050_g5.predictions.slp",
+  "frames": 1000,
+  "gap_links": 1839,
+  "identities_accuracy_validated": false,
+  "low_score_continuations": 6937,
+  "mean_abs_count_change": 1.8258258258258258,
+  "mean_assigned": 134.583,
+  "mean_retained": 134.929,
+  "measurement_roundtrip_passed": true,
+  "observation_median_per_id": 9.0,
+  "sha256": "9e05848de0e3c0bc1c594b2e8f38bba4815ac640e887b50f568f7ace0e1dc77d",
+  "track_ids": 1239,
+  "variance_abs_count_change": 2.2159096032969905
+}

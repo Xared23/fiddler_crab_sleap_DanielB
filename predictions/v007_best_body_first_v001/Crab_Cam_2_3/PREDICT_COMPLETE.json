@@ -1,0 +1,25 @@
+{
+  "identities_optional": true,
+  "identity_accuracy": "not_ground_truth_validated",
+  "job_id": "15527462",
+  "raw": {
+    "frames": 28800,
+    "instances": 4312189,
+    "sha256": "785a6bf1b95d82299c288ac30130f4b849d9a80244e6a35e72ada02755e5f0f0"
+  },
+  "signature": "f6bd189befe51761703e009169bdd9c5fd13ff0c180307ae10736eedf7fc27d5",
+  "tracklets": {
+    "accepted_for_tracking": 4295087,
+    "files": {
+      "Crab_Cam_2_3.tracked.slp": "585f1356393fd47825252728b5bf83d965866d46ad9d07f294762e05cd010ee6",
+      "observations.parquet": "cd294078665c73d14306164085ce766f73b15c2679cd8ac30afd79b0ed578245",
+      "tracklets.parquet": "a363253b75f57165560ac3bd81d9bb75dab83f074d7c0a7c369cefcd3ffd5bbc"
+    },
+    "observations": 4312189,
+    "parquet_readback_passed": true,
+    "raw_measurements_unchanged": true,
+    "scientific_identity_accuracy": "not_ground_truth_validated",
+    "tracklets": 154059,
+    "unassigned_observations": 17102
+  }
+}
