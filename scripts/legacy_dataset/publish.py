@@ -24,6 +24,7 @@ def main():
     targets = [DEST / 'tables', DEST / 'qc/postprocessing', DEST / 'manifest.json',
                DEST / 'config/water_regions_effective_v002.json']
     assert not any(p.exists() for p in targets), 'Refusing overwrite/ambiguous partial publication'
+    assert all((DEST / name).is_dir() for name in ['qc', 'config']), 'Run the audit report before publishing'
     fd = os.open(DEST / '.conversion.lock', os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     os.write(fd, os.environ['SLURM_JOB_ID'].encode())
     os.close(fd)

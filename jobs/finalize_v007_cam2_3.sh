@@ -1,8 +1,7 @@
 #!/bin/bash
 # Fixed downstream job for the submitted Cam 2_3 GPU run.
 #SBATCH --job-name=v007_finish_cam2_3
-#SBATCH --dependency=afterok:15527355
-#SBATCH --kill-on-invalid-dep=yes
+# Historical launch used: sbatch --dependency=afterok:15527355 (job finished; pass on the command line if needed).
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4

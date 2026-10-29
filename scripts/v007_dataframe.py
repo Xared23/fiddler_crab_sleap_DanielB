@@ -23,7 +23,7 @@ import sleap_io as sio
 
 from legacy_dataset.tracklets import water_membership
 
-ROOT = Path('/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap')
+ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / 'configs/datasets/v007_best_body_first_dataframe_v001.json'
 NODES = ['shell', 'shoulder', 'elbow', 'claw', 'arm']
 BASE_SCHEMA = pa.schema([

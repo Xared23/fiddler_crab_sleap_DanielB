@@ -22,7 +22,7 @@ TRACKER=yaml.safe_load((ROOT/'configs/tracking/body_first_v001.yaml').read_text(
 
 class ThresholdPredictionTests(unittest.TestCase):
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory(dir=os.environ['TMPDIR'])
+        self.temp=tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR'))
         self.directory=Path(self.temp.name)
         self.video_path=self.directory/'control.mp4'
         writer=cv2.VideoWriter(str(self.video_path),cv2.VideoWriter_fourcc(*'mp4v'),30.,(320,240))

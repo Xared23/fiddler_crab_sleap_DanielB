@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 
-ROOT = Path('/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap')
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import numpy as np
 import pandas as pd

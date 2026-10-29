@@ -2,8 +2,7 @@
 # Production: v007-only 17/2 split, fresh pose model, 58-minute gpu-test hops.
 #SBATCH --job-name=v007_centered
 # Launch gate for this production submission; only successful preflight releases it.
-#SBATCH --dependency=afterok:15256367
-#SBATCH --kill-on-invalid-dep=yes
+# Historical launch used: sbatch --dependency=afterok:15256367 (job finished; pass on the command line if needed).
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4

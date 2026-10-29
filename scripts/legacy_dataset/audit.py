@@ -24,7 +24,7 @@ import numpy as np
 import sleap_io as sio
 from sleap_io.io.slp import read_skeletons, read_metadata, read_provenance
 
-ROOT = Path('/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap')
+ROOT = Path(__file__).resolve().parents[2]
 DEST = ROOT / 'datasets/legacy_native_tracklets_v001'
 VIDEOS = ['Crab_Cam_2_2', 'Crab_Cam_2_3']
 NODES = ['Shell', 'Shoulder', 'Elbow', 'Claw', 'Arm']

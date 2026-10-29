@@ -13,7 +13,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import yaml
 
-ROOT = Path('/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap')
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts/legacy_dataset'))
 from tracklets import Frame, Tracker, water_membership
 from export import (Parts, SingleFile, OBS_SCHEMA, TRACK_SCHEMA, table_from_columns,

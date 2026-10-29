@@ -3,7 +3,7 @@
 # Raw 40-frame SLPs only here; finite dependent CPU jobs merge and add optional IDs.
 # Usage: sbatch predict_dan_native.sh --video crab_vids/Crab_Cam_2_2.mp4
 #SBATCH --job-name=v007_best_predict
-#SBATCH --dependency=afterok:15527306
+# Historical launch used: sbatch --dependency=afterok:15527306 (job finished; pass on the command line if needed).
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -14,7 +14,6 @@
 #SBATCH --signal=B:USR1@180
 #SBATCH --requeue
 #SBATCH --open-mode=append
-#SBATCH --kill-on-invalid-dep=yes
 #SBATCH --chdir=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap
 #SBATCH --output=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/logs/prediction_v007/%j.out
 #SBATCH --error=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/logs/prediction_v007/%j.err

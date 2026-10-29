@@ -24,7 +24,7 @@ import yaml
 
 from tracklets import Frame, Tracker, water_membership
 
-ROOT = Path('/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap')
+ROOT = Path(__file__).resolve().parents[2]
 DEST = ROOT / 'datasets/legacy_native_tracklets_v001'
 DATASET_ID = DEST.name
 
@@ -321,11 +321,12 @@ def render_review(video, video_info, captures, audit_result, destination, roi):
     palette = ['#00ff80', '#00cfff', '#ff80ff', '#ffff00', '#ffb050', '#b0a0ff']
     for start in starts:
         a, b = captures[start], captures[start + 1]
-        if start == audit_result['measurements']['closest_pair_frame']:
+        if (start == audit_result['measurements']['closest_pair_frame']
+                and audit_result['measurements'].get('closest_pair_center') is not None):
             center = audit_result['measurements']['closest_pair_center']
             selection = 'audit_global_closest_shell_pair'
         else:
-            candidates = np.flatnonzero(b['accepted'] & np.array([x == 'linked' for x in b['incoming']]))
+            candidates = np.flatnonzero(b['accepted'] & np.array([x == 'linked' for x in b['incoming']], dtype=bool))
             water_candidates = [i for i in candidates if b['water'][i] is True]
             if start in [39, 14400] and water_candidates:
                 selected = water_candidates[0]
@@ -534,7 +535,12 @@ def build():
         dump(work / 'qc/summary.json', summary)
         dump(work / 'qc/review_examples.json', review_examples)
         dump(work / 'qc/tests.json', tests)
-        versions = {name: metadata.version(name) for name in ['numpy', 'pandas', 'pyarrow', 'h5py', 'scipy', 'shapely', 'PyYAML', 'sleap-io', 'sleap-nn']}
+        versions = {}
+        for name in ['numpy', 'pandas', 'pyarrow', 'h5py', 'scipy', 'shapely', 'PyYAML', 'sleap-io', 'sleap-nn']:
+            try:
+                versions[name] = metadata.version(name)
+            except metadata.PackageNotFoundError:
+                versions[name] = None
         artifacts = [{'path': str(p.relative_to(work)), 'bytes': p.stat().st_size, 'sha256': checksum(p)}
                      for p in sorted(work.rglob('*')) if p.is_file()]
         manifest = {'dataset_id': DATASET_ID, 'algorithm_version': config['algorithm_version'],

@@ -580,6 +580,7 @@ class ChunkViewer:
             int, tuple[np.ndarray, float, float]
         ] = OrderedDict()
         self._capture = cv2.VideoCapture(self.video_path.as_posix())
+        self._next_decoded_frame = 0
         if not self._capture.isOpened():
             raise RuntimeError(f"Could not open source video: {self.video_path}")
         self.video_width = int(self._capture.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -628,8 +629,10 @@ class ChunkViewer:
         with self._video_lock:
             if self._capture is None:
                 raise RuntimeError("Video is closed")
-            self._capture.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+            if frame_idx != self._next_decoded_frame:
+                self._capture.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
             ok, image = self._capture.read()
+            self._next_decoded_frame = frame_idx + 1 if ok else -1
         if not ok or image is None:
             raise RuntimeError(f"Could not decode video frame {frame_idx}")
 
@@ -679,7 +682,10 @@ class ChunkViewer:
 
         for instance in visible_instances:
             coordinates = np.asarray(instance.numpy(), dtype=float)[:, :2]
-            point_scores = np.asarray(instance.points["score"], dtype=float)
+            if "score" in instance.points.dtype.names:
+                point_scores = np.asarray(instance.points["score"], dtype=float)
+            else:
+                point_scores = np.ones(len(coordinates))
             valid = np.isfinite(coordinates).all(axis=1)
             valid &= np.isfinite(point_scores)
             valid &= point_scores >= point_threshold

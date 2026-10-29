@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem-per-cpu=64G
+#SBATCH --mem=64G
 #SBATCH --gres=gpu:1
 #SBATCH --constraint=gpu80
 #SBATCH --time=00:15:00

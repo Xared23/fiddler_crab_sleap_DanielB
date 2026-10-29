@@ -7,7 +7,7 @@ import unittest
 import h5py
 import numpy as np
 
-ROOT = Path('/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap')
+ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('legacy_audit', ROOT / 'scripts/legacy_dataset/audit.py')
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
@@ -45,6 +45,7 @@ def observations(count):
 
 class AuditTests(unittest.TestCase):
     def test_empty_and_valid_payload_and_bad_range(self):
+        (ROOT / 'checks/legacy_dataset').mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=ROOT / 'checks/legacy_dataset') as td:
             path = Path(td) / 'synthetic.h5'
             inst, pts = observations(1)

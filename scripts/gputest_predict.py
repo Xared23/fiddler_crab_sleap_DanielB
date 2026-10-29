@@ -14,9 +14,10 @@ from typing import List, Optional
 
 from loguru import logger
 
+from pipeline_common import ROOT as PROJECT_ROOT
+
 EXIT_REQUEUE = 75
 
-PROJECT_ROOT = Path("/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap")
 CENTROID = PROJECT_ROOT / "models" / "dan_centroid_native"
 CENTERED = PROJECT_ROOT / "models" / "dan_centered_native"
 

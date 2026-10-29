@@ -13,7 +13,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 from shapely.geometry import Polygon
 
-ROOT = Path('/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap')
+ROOT = Path(__file__).resolve().parents[2]
 DEST = ROOT / 'datasets/legacy_native_tracklets_v001'
 
 

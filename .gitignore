@@ -19,8 +19,12 @@ models/**/*.ckpt
 *.slp
 *.parquet
 
-# Local dataset artifacts (not the documentation under docs/datasets/).
-/datasets/
+# Local dataset artifacts (not the documentation under docs/datasets/). The
+# legacy water-region config is pinned by configs/prediction/*.json, so keep it.
+/datasets/*
+!/datasets/legacy_native_tracklets_v001/
+/datasets/legacy_native_tracklets_v001/*
+!/datasets/legacy_native_tracklets_v001/config/
 
 # Local legacy payloads and incomplete demo builds must not be committed.
 /archive/

@@ -152,7 +152,7 @@ run_python_hop() {
     GOT_PREEMPT=1
     echo "${sig} forwarded to pid ${PY_PID} and children" >&2
     kill -s "${sig}" "${PY_PID}" 2>/dev/null || true
-    pkill -s "${sig}" -P "${PY_PID}" 2>/dev/null || true
+    pkill -"${sig}" -P "${PY_PID}" 2>/dev/null || true
   }
   trap 'forward_stop USR1' USR1
   trap 'forward_stop TERM' TERM

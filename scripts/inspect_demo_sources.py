@@ -10,7 +10,7 @@ import pyarrow.parquet as pq
 import imageio_ffmpeg
 import cv2
 
-ROOT = Path('/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap')
+ROOT = Path(__file__).resolve().parents[1]
 assert os.environ.get('SLURM_JOB_ID')
 os.chdir(ROOT)
 report = {'job_id': os.environ['SLURM_JOB_ID'], 'ffmpeg': imageio_ffmpeg.get_ffmpeg_exe(),
