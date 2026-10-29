@@ -2,6 +2,13 @@
 
 [Documentation index](README.md) · [Frozen best models](RESUME_V007_TRAINING.md)
 
+> **Archive-location update:** the old-data pilot evidence formerly under
+> `checks/body_first_v001/` now lives under
+> `archive/v004_legacy/checks/body_first_v001/`. Legacy prediction/data payloads
+> were likewise archived with their bytes/hashes unchanged. This historical
+> method/pilot note is not an instruction to rerun it. Active v007 outputs and
+> tracking source code remain unchanged; see [archive/demo notes](demo/PREPARATION.md).
+
 ## Request and current stage
 
 **Latest authorization supersedes the original scientific-review launch gate:**

@@ -2,9 +2,10 @@
 
 [Dataset notes](README.md) · [Documentation index](../../README.md)
 
-This note is centralized under `docs/`. Dataset-relative paths in backticks
-refer to `datasets/legacy_native_tracklets_v001/`, whose data and hashed audit
-artifacts remain in their original locations.
+This historical note is centralized under `docs/`. The v004 dataset and hashed
+audit artifacts have since been archived, unchanged, under
+`archive/v004_legacy/datasets/legacy_native_tracklets_v001/`. Dataset-relative
+paths below refer to that archived root. See [archive notes](../../demo/PREPARATION.md).
 
 **Subsequent user decisions:** body means the centered-model Shell position,
 the fixed water polygon is accepted for initial use, and the explicitly labeled

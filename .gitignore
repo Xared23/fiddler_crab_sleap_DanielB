@@ -21,3 +21,14 @@ models/**/*.ckpt
 
 # Local dataset artifacts (not the documentation under docs/datasets/).
 /datasets/
+
+# Local legacy payloads and incomplete demo builds must not be committed.
+/archive/
+/demo/.build_*/
+
+# Narrow exception: the bounded, self-contained collaborator demo.
+!/demo/crab_cam2_2_middle_300/Crab_Cam_2_2.frames_014250_014549.mp4
+!/demo/crab_cam2_2_middle_300/Crab_Cam_2_2.frames_014250_014549.predictions.slp
+!/demo/crab_cam2_2_middle_300/Crab_Cam_2_2.frames_014250_014549.tracked.slp
+!/demo/crab_cam2_2_middle_300/observations.parquet
+!/demo/crab_cam2_2_middle_300/frames.parquet

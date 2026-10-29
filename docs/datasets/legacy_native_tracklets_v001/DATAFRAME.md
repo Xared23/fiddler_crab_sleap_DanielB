@@ -2,6 +2,13 @@
 
 [Dataset overview](README.md) · [Documentation index](../../README.md)
 
+> **Historical v004 dataset; now archived.** The current location is
+> `archive/v004_legacy/datasets/legacy_native_tracklets_v001/` relative to the
+> project root. Prepend `archive/v004_legacy/` to moved legacy artifact paths
+> below (historical links retain the former layout). Use the
+> [v007 dataframe](../v007_best_body_first_dataframe_v001/README.md) for new work.
+> See [archive notes](../../demo/PREPARATION.md) for the metadata-only compatibility link.
+
 **Validated and published.** Build **15521792** and publication **15522072**
 both completed with exit 0. Require the
 [completion marker](../../../datasets/legacy_native_tracklets_v001/DATASET_COMPLETE.json)
@@ -170,7 +177,7 @@ import json
 from pathlib import Path
 import pandas as pd
 
-root = Path('/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/datasets/legacy_native_tracklets_v001')
+root = Path('/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/archive/v004_legacy/datasets/legacy_native_tracklets_v001')
 completion = json.loads((root / 'DATASET_COMPLETE.json').read_text())
 assert completion['status'] == 'validated_complete'
 

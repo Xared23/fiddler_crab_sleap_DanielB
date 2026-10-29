@@ -1,4 +1,0 @@
-VIDEO=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/crab_vids/Crab_Cam_2_2.mp4
-CHUNK_FRAMES=40
-MAX_HOPS=2000
-PEAK_THRESHOLD=0.2

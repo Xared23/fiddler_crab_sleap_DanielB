@@ -117,31 +117,41 @@ have been launched. See [milestone details](milestone_checkpoints.md) and the
 
 All execution, including Python inspection and tests, is through Slurm.
 
-## Predictions: historical outputs versus future new outputs
+## Current predictions, dataframe, and archived v004 outputs
 
-**No newly retrained prediction files exist yet.** The following are historical:
+**Both v007 full-video prediction runs and the standardized dataframe are
+validated and published.** The frozen validation-best centroid/centered pair
+under `models/v007_19f/pauses/step_00021212/` produced:
 
-- [`predictions/Crab_Cam_2_2/`](../predictions/Crab_Cam_2_2/)
-- [`predictions/Crab_Cam_2_3/`](../predictions/Crab_Cam_2_3/)
-- Old model pair: `models/dan_centroid_native/`, `models/dan_centered_native/`.
+- `predictions/v007_best_body_first_v001/<video>/raw/<video>.predictions.slp`:
+  all poses, independent of experimental identities.
+- `predictions/v007_best_body_first_v001/<video>/tracklets/<video>.tracked.slp`:
+  the same poses plus optional body-first tracklet IDs.
+- `datasets/v007_best_body_first_dataframe_v001/`: recommended standardized
+  all-detection dataframe, frame tables, nullable fields and provenance.
 
-Paused and milestone models can be evaluated before training finishes, with
-explicit checkpoint selection and a separate approved prediction job. For later
-full-video new-model outputs, the intended location is
-`predictions/v007_19f/<video>/`, not either old prediction directory. Inputs:
+See [prediction provenance](PREDICTION_V007_BEST.md) and
+[dataframe documentation](datasets/v007_best_body_first_dataframe_v001/README.md).
+Both videos cover all 28,800 original frames. Raw inputs remain at
 `crab_vids/Crab_Cam_2_2.mp4` and `crab_vids/Crab_Cam_2_3.mp4`.
+No training resume or scientific certification of identity accuracy is implied.
+Later bounded threshold/grace experiments are separate, not replacements for
+these full-video outputs.
 
-Next-stage requirements are recorded in the run config: 20-minute GPU prediction
-allocations, resumable untracked chunks, a separate finite CPU merge/tracklet/save
-stage, conservative tracklets without gap bridging, and independent identities
-for the two videos. This new inference/finalization worker is **not implemented
-or submitted yet**. Root-level legacy prediction scripts still use old models
-and must not be mistaken for the new workflow.
+At the user's request, **v004 model/prediction/derivative payloads are now
+archived** under `archive/v004_legacy/`, preserving their former relative paths
+and all bytes. This includes both old `predictions/Crab_Cam_2_*` directories,
+`models/dan_*`, the old dataframe, old-data pilot evidence and associated logs.
+The former legacy dataset root retains only a notice and a `config/` symlink
+for v007's pinned shared water-region provenance. Do not use it as an active
+dataframe. Historical scripts/configs remain for provenance, not as active
+entry points.
 
-Deliver tracked SLPs first. Overlay videos can be rendered later from those and
-the original video files. Old artifacts will be archived only after replacements
-are validated and the archive operation is approved. There is no `latest` link
-that falsely presents old results as new ones.
+A bounded collaborator demo is prepared under
+`demo/crab_cam2_2_middle_300/` (require its completion marker): original Cam 2_2
+frames 14250–14549, matching v007 SLPs and dataframe rows. The user authorized
+narrow `.gitignore` demo exceptions, now applied; no staging, commits, pushes
+or branch/remote changes have been made. See [archive/demo and Git preparation notes](demo/PREPARATION.md).
 
 ## Original-prediction dataset organization: separate agent task
 
@@ -165,6 +175,6 @@ results and user decisions; a completed audit is not a completed tracklet datase
 - [`docs/retraining_v007.md`](retraining_v007.md): original review and decisions.
 - `data/labels/v007_combined/audit.json`: earlier source inventory. Its arithmetic
   sum assumed disjoint files and is superseded by the v007-only 19-frame decision.
-- `danlabels.v004.slp`, historical root YAMLs/scripts, old models, logs and
-  predictions are retained unchanged. Do not use `remap_dan_video_v004.sh` for
-  the new run: that legacy script overwrites the old label file in place.
+- v004 labels/models/predictions/derived data/logs are preserved unchanged under
+  `archive/v004_legacy/`; historical root YAMLs/scripts remain in place. Do not
+  use `remap_dan_video_v004.sh` for the new run: it targets the old label file.

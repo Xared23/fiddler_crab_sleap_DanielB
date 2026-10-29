@@ -1,4 +1,0 @@
-2026-09-12 15:32:44.265 | INFO     | __main__:main:129 - Video Crab_Cam_2_3.mp4: 28800 frames; next=28800
-/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/sleap_io/io/slp.py:3918: UserWarning: Labels metadata JSON (354839 bytes) exceeded the 64000-byte HDF5 attribute limit; dropped top-level key(s) ['provenance'] from the 'metadata/json' attribute so the file could be saved. No data was lost: provenance is stored in the 'provenance_json' dataset and the other dropped keys are empty placeholders whose data is stored in separate datasets.
-  grp.attrs["json"] = _encode_metadata_attr(md)
-USR1 forwarded to pid 4191501 and children

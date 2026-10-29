@@ -5,6 +5,16 @@ The project-root and dataset-root README entry points are short navigation
 pointers, not duplicate copies of the notes. Dependency documentation and hidden
 agent/tool configuration are deliberately excluded from this reorganization.
 
+## Active data, archive, and collaborator demo
+
+- **[Current data inventory, v004 archive, 300-frame demo and Git diagnosis](demo/PREPARATION.md)**
+  — v004 payloads archived with unchanged hashes; v007 remains active. The
+  native-resolution Cam 2_2 sample uses original frames 14250–14549. Narrow
+  demo ignore exceptions are authorized/applied; no staging, commits, pushes
+  or branch/remote changes have been made.
+- [Demo bundle instructions](../demo/crab_cam2_2_middle_300/README.md)
+  — require the bundle's `DEMO_COMPLETE.json` before using generated payloads.
+
 ## Current training and available models
 
 - **[Paused training: model locations and exact resume procedure](RESUME_V007_TRAINING.md)**
@@ -55,9 +65,12 @@ agent/tool configuration are deliberately excluded from this reorganization.
 - [Original agent handoff / project primer](legacy_dataset_agent_handoff.md)
 - [Starting prompt for the dataset agent](legacy_dataset_agent_prompt.md)
 
-Dataset artifacts remain under `datasets/legacy_native_tracklets_v001/` at the
-project root. Moving the explanatory notes did not move or modify videos, SLPs,
-model checkpoints, data/config manifests, ROI decisions, or hashed audit evidence.
+The legacy dataset and its old model/prediction/evidence payloads have since
+been archived under `archive/v004_legacy/`, mirroring their former project paths.
+Historical notes below retain their original schema/provenance descriptions;
+prepend that archive prefix for moved artifacts. The original legacy dataset
+location now retains only a notice and shared-configuration compatibility link,
+not observations. v007 artifacts and raw videos were not moved or modified.
 
 ## Organization convention
 

@@ -2,6 +2,17 @@
 
 [Documentation index](../../README.md)
 
+> **ARCHIVED at the user's request.** This dataset is historical, not the active
+> male-crab dataframe. Its payload now lives at
+> `archive/v004_legacy/datasets/legacy_native_tracklets_v001/` relative to the
+> project root. Old models, predictions, logs and pilot evidence were relocated
+> under the same archive prefix. Historical paths/links below describe the
+> pre-archive layout; prepend `archive/v004_legacy/` for moved artifacts. Only
+> the shared `config/` metadata remains reachable via a compatibility link at
+> the old dataset location. Use the
+> [v007 dataframe](../v007_best_body_first_dataframe_v001/README.md) for new work;
+> see [archive verification and demo notes](../../demo/PREPARATION.md).
+
 This note is stored centrally in `docs/datasets/legacy_native_tracklets_v001/`.
 Code-formatted dataset-relative paths below still refer to
 `datasets/legacy_native_tracklets_v001/` under the project root; clickable links
