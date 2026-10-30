@@ -19,7 +19,7 @@ import sys
 import unittest
 
 # ----- numerics -----
-from hypothesis import given, settings, strategies as st
+from hypothesis import example, given, settings, strategies as st
 import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -41,7 +41,8 @@ from gap_bridging_fixtures import (DEFAULT_OFFSETS, FPS, NODES, SCHEMA, make_obs
 # HELPERS
 # ============================================================
 
-CFG = BridgeConfig()
+CFG = BridgeConfig(gate_model='sqrt')     # damped fill; the linear model fills undamped
+LINEAR = BridgeConfig(gate_model='linear')
 DEMO = ROOT / 'demo/crab_cam2_2_middle_300/observations.parquet'
 
 coord = st.floats(-1e4, 1e4, allow_nan=False, allow_infinity=False, allow_subnormal=False)
@@ -335,6 +336,20 @@ class DampedFillTests(unittest.TestCase):
         expected = (bridge.frames[:, None] / 30) * np.array([30.0, -60.0])
         np.testing.assert_allclose(bridge.positions, expected, rtol=0, atol=1e-9)
 
+    def test_regression_D002_linear_fill_not_damped(self):
+        """D-002: under gate_model='linear' the fill is the undamped (v001) Hermite."""
+        for dt in (2, 3, 4, 60):
+            a = motion_endpoint(0, (100.0, 100.0), (4.0, 3.0))
+            b = motion_endpoint(dt, (110.0, 95.0), (-3.0, 5.0))
+            bridge = fill_bridge(a, b, 't', 't/b001', LINEAR)
+            undamped = np.stack([hermite(a.pos, a.vel, b.pos, b.vel, dt, (f - a.frame) / dt)
+                                 for f in bridge.frames])
+            with self.subTest(dt=dt):
+                np.testing.assert_array_equal(bridge.positions, undamped)
+                if dt > CFG.prediction_horizon_frames:   # sqrt damps the same bridge
+                    damped = fill_bridge(a, b, 't', 't/b001', CFG).positions
+                    self.assertGreater(np.abs(damped - undamped).max(), 1e-3)
+
     def test_damped_tangents_validation(self):
         with self.assertRaises(ValueError):
             damped_tangents(np.zeros(2), np.zeros(2), np.ones(2), np.zeros(2), 0, 3)
@@ -463,7 +478,7 @@ class DampedFillProperties(unittest.TestCase):
     @settings(deadline=None, max_examples=200)
     @given(vec, vel, vec, vel, st.integers(2, 400), st.integers(1, 30))
     def test_damped_bound_any_gap(self, pa_, va, pb, vb, dt, horizon):
-        cfg = BridgeConfig(prediction_horizon_frames=horizon)
+        cfg = BridgeConfig(gate_model='sqrt', prediction_horizon_frames=horizon)
         a, b = motion_endpoint(100, pa_, va), motion_endpoint(100 + dt, pb, vb)
         bridge = fill_bridge(a, b, 't', 't/b001', cfg)
         self.assertEqual(len(bridge.frames), dt - 1)
@@ -473,6 +488,18 @@ class DampedFillProperties(unittest.TestCase):
         if dt <= horizon:
             undamped = np.stack([hermite(pa_, va, pb, vb, dt, (f - a.frame) / dt) for f in bridge.frames])
             np.testing.assert_array_equal(bridge.positions, undamped)
+
+    @settings(deadline=None, max_examples=100)
+    @example(np.array([100.0, 100.0]), np.array([4.0, 3.0]), np.array([110.0, 95.0]),
+             np.array([-3.0, 5.0]), 60, 3)
+    @given(vec, vel, vec, vel, st.integers(2, 400), st.integers(1, 30))
+    def test_linear_model_fill_is_undamped(self, pa_, va, pb, vb, dt, horizon):
+        cfg = BridgeConfig(gate_model='linear', prediction_horizon_frames=horizon)
+        a, b = motion_endpoint(100, pa_, va), motion_endpoint(100 + dt, pb, vb)
+        bridge = fill_bridge(a, b, 't', 't/b001', cfg)
+        undamped = np.stack([hermite(pa_, va, pb, vb, dt, (f - a.frame) / dt)
+                             for f in bridge.frames])
+        np.testing.assert_array_equal(bridge.positions, undamped)
 
     @settings(deadline=None)
     @given(vec, vel, vec, vel, st.integers(1, 400), st.integers(1, 30))

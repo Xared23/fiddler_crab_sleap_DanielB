@@ -7,10 +7,12 @@ Endpoint motion state and gap filling for tracklet bridging (WP-A).
 clipped velocity, heading and body-frame node offsets) from the accepted
 rows of an observation table. ``fill_bridge`` synthesises the missing
 frames between a linked END and START: cubic Hermite on the shell path
-(tangents damped towards the chord for gaps longer than the prediction
-horizon), shortest-arc interpolation of the heading and rigid placement of
-the remaining nodes; ``fill_confidence`` classifies a bridge by its length. ``synthetic_rows`` renders a bridge as observation rows
-with the caller's schema. Units: pixels, px/frame, int64 frames.
+(under the sqrt gate model, tangents damped towards the chord for gaps
+longer than the prediction horizon; undamped, as in v001, under linear),
+shortest-arc interpolation of the heading and rigid placement of the
+remaining nodes; ``fill_confidence`` classifies a bridge by its length.
+``synthetic_rows`` renders a bridge as observation rows with the caller's
+schema. Units: pixels, px/frame, int64 frames.
 
 Sam
 10/2026
@@ -399,8 +401,10 @@ def fill_bridge(a: Endpoint, b: Endpoint, trajectory_id: str, bridge_id: str,
     trajectory_id, bridge_id : str
         Identifiers carried on the bridge.
     cfg : BridgeConfig
-        ``prediction_horizon_frames`` damps the Hermite tangents (see
-        :func:`damped_tangents`); ``fill_confidence_gaps`` sets
+        Under ``gate_model == 'sqrt'``, ``prediction_horizon_frames`` damps
+        the Hermite tangents (see :func:`damped_tangents`); under
+        ``'linear'`` the tangents are the endpoint velocities, undamped, so
+        the fill is bit-identical to v001. ``fill_confidence_gaps`` sets
         ``Bridge.fill_confidence``.
 
     Returns
@@ -416,8 +420,10 @@ def fill_bridge(a: Endpoint, b: Endpoint, trajectory_id: str, bridge_id: str,
     if dt < 2:
         raise ValueError(f"bridge needs at least one missing frame, got dt={dt}")
     frames = np.arange(a.frame + 1, b.frame, dtype=np.int64)
-    if a.vel_known and b.vel_known:
+    if a.vel_known and b.vel_known and cfg.gate_model == 'sqrt':
         va, vb = damped_tangents(a.pos, a.vel, b.pos, b.vel, dt, cfg.prediction_horizon_frames)
+    elif a.vel_known and b.vel_known:
+        va, vb = np.asarray(a.vel, np.float64), np.asarray(b.vel, np.float64)   # v001 (linear)
     else:
         va = vb = (np.asarray(b.pos, float) - np.asarray(a.pos, float)) / dt
     offsets = _merge_offsets(np.asarray(a.offsets, float), np.asarray(b.offsets, float))

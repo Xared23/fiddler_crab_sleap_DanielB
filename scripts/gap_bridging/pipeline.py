@@ -132,7 +132,8 @@ def read_observations(files: list[Path]) -> pa.Table:
 
 
 def link_videos(endpoints: dict[str, tuple[Endpoint, Endpoint]], videos: list[str],
-                cfg: BridgeConfig) -> tuple[list[tuple[str, str]], pa.Table]:
+                cfg: BridgeConfig,
+                stats: dict[str, int] | None = None) -> tuple[list[tuple[str, str]], pa.Table]:
     """Run the candidate linker per video.
 
     Parameters
@@ -143,6 +144,9 @@ def link_videos(endpoints: dict[str, tuple[Endpoint, Endpoint]], videos: list[st
         Every video of the input (videos without tracklets yield no rows).
     cfg : BridgeConfig
         Linking parameters.
+    stats : dict, optional
+        Replaced in place by the totals over all videos of the linker's
+        ``{'enumerated', 'pruned_by_radius'}`` pair counts.
 
     Returns
     -------
@@ -158,10 +162,19 @@ def link_videos(endpoints: dict[str, tuple[Endpoint, Endpoint]], videos: list[st
         ends[end.video_id].append(end)
     links: list[tuple[str, str]] = []
     parts = []
+    totals = {'enumerated': 0, 'pruned_by_radius': 0}
     for video in videos:
-        video_links, decisions = candidates.link_tracklets(ends[video], starts[video], cfg)
+        video_stats: dict[str, int] = {}
+        video_links, decisions = candidates.link_tracklets(ends[video], starts[video], cfg,
+                                                           stats=video_stats)
+        assert video_stats['enumerated'] == len(decisions), "one audit row per enumerated pair"
+        for key in totals:
+            totals[key] += int(video_stats[key])
         links.extend(video_links)
         parts.append(tables.links_table(decisions, video))
+    if stats is not None:
+        stats.clear()
+        stats.update(totals)
     return links, tables.concat_links(parts)
 
 
@@ -251,8 +264,10 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
         Content of ``GAP_BRIDGING_COMPLETE.json``: ``config``, ``gate``
         (``gate_model`` and the active ``max_assignment_cost``,
         ``unmatched_cost`` and ``minimum_cost_margin`` on that model's cost
-        scale), ``input``, ``counts``, ``versions`` and ``outputs`` (sha256
-        and rows per file).
+        scale), ``input``, ``counts`` (including ``candidate_pairs``:
+        ``enumerated`` audit rows and ``pruned_by_radius`` pairs beyond the
+        sqrt prefilter radius), ``versions`` and ``outputs`` (sha256 and rows
+        per file).
 
     Raises
     ------
@@ -282,9 +297,11 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
                          "or vice versa")
     _progress('endpoints', started, f"{len(tracklet_ids)} tracklets")
 
-    links, links_table = link_videos(endpoints, videos, cfg)
+    pair_stats: dict[str, int] = {}
+    links, links_table = link_videos(endpoints, videos, cfg, stats=pair_stats)
     decision_counts = Counter(links_table['decision'].to_pylist())
     _progress('link', started, f"{len(links)} links from {links_table.num_rows} candidate pairs "
+              f"({pair_stats['pruned_by_radius']} beyond R_max not enumerated) "
               f"{dict(sorted(decision_counts.items()))}")
 
     trajectories = chains.build_trajectories(tracklet_ids, links, endpoints)
@@ -317,6 +334,7 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
         'n_interpolated': int(sum(traj['n_interpolated'])),
         'n_unassigned': int(observations['trajectory_id'].null_count),
         'decisions': {d: int(decision_counts.get(d, 0)) for d in DECISIONS},
+        'candidate_pairs': dict(pair_stats),
     }
     if counts['n_recovered'] != len(recovered) or counts['n_interpolated'] != synthetic.num_rows:
         raise RuntimeError("trajectory counts disagree with recovered/interpolated rows")

@@ -1,6 +1,7 @@
 """Tests for gap-bridging WP-D: end-to-end pipeline, CLI and invariants."""
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -33,6 +34,11 @@ CLI = ROOT / 'scripts/bridge_gaps.py'
 CFG = BridgeConfig()
 LINEAR = BridgeConfig(gate_model='linear')
 OUTPUTS = tables.OUTPUT_NAMES
+# v001 golden values of the linear model on the demo at max_gap 5 (D-003). The digests are
+# those of ``interpolated_digest`` and ``links_digest``; both equal the pre-gate-model
+# (3233ca6) outputs.
+GOLDEN_INTERPOLATED_SHA256 = 'd459e647ba5a01b980f89cfd52b6504101f331fe6c6a9b80a7d61fabcfb866db'
+GOLDEN_LINKS_SHA256 = '882625cadc8c56a806e4f27529750e97852c1d85f729db738aaf844af57d6f0c'
 
 
 # --------------------------------------------------------------------------- #
@@ -103,9 +109,59 @@ def assert_gap_columns(case: unittest.TestCase, obs: pa.Table, cfg: BridgeConfig
     return bridged.num_rows
 
 
+def _fmt6(value) -> str:
+    """Float rounded to 6 decimals (``nan`` for null or NaN)."""
+    return 'nan' if value is None or math.isnan(value) else f"{value:.6f}"
+
+
+def interpolated_digest(obs: pa.Table) -> str:
+    """SHA-256 of the interpolated rows' (frame, trajectory_id, body_x, body_y), 6 decimals.
+
+    Rows are sorted by (trajectory_id, frame); one line per row,
+    ``"<frame>\t<trajectory_id>\t<body_x>\t<body_y>\n"``.
+    """
+    rows = obs.filter(pc.equal(obs['source'], 'interpolated')).select(
+        ['frame', 'trajectory_id', 'body_x', 'body_y']).to_pylist()
+    rows.sort(key=lambda r: (r['trajectory_id'], r['frame']))
+    text = ''.join(f"{r['frame']}\t{r['trajectory_id']}\t"
+                   f"{_fmt6(r['body_x'])}\t{_fmt6(r['body_y'])}\n" for r in rows)
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def links_digest(links: pa.Table) -> str:
+    """SHA-256 of the audit table without ``stage`` (floats to 6 decimals), in row order."""
+    names = ('video_id', 'tracklet_a', 'tracklet_b', 'gap_frames', 'cost', 'runner_up_cost',
+             'decision', 'reason', 'n_chain_ignored')
+    lines = []
+    for row in links.select(list(names)).to_pylist():
+        lines.append('\t'.join(_fmt6(row[n]) if n in ('cost', 'runner_up_cost') else str(row[n])
+                               for n in names))
+    return hashlib.sha256(('\n'.join(lines) + '\n').encode()).hexdigest()
+
+
 # --------------------------------------------------------------------------- #
 # Demo clip
 # --------------------------------------------------------------------------- #
+@unittest.skipUnless(DEMO.exists(), 'demo parquet not present')
+class LinearGoldenTests(unittest.TestCase):
+    """``gate_model='linear'`` reproduces v001 on the demo (D-002, D-003)."""
+
+    def test_regression_D003_linear_demo_golden(self):
+        cfg = BridgeConfig(gate_model='linear', max_gap=5)
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = pipeline.run(DEMO, Path(tmp) / 'linear', cfg)
+            obs, traj, links, _ = read_outputs(Path(tmp) / 'linear')
+        counts = marker['counts']
+        self.assertEqual((counts['links'], counts['trajectories']), (654, 527))
+        self.assertEqual(counts['decisions'], {'linked': 654, 'refused_margin': 10,
+                                               'refused_assignment': 146, 'refused_gate': 18494})
+        self.assertEqual((counts['n_recovered'], counts['n_interpolated']), (15, 1323))
+        self.assertEqual(counts['candidate_pairs'], {'enumerated': 19304, 'pruned_by_radius': 0})
+        self.assertEqual(traj.num_rows, 527)
+        self.assertEqual(interpolated_digest(obs), GOLDEN_INTERPOLATED_SHA256)
+        self.assertEqual(links_digest(links), GOLDEN_LINKS_SHA256)
+
+
 @unittest.skipUnless(DEMO.exists(), 'demo parquet not present')
 class DemoRunTests(unittest.TestCase):
     """Full pipeline on the 300-frame demo clip."""
@@ -166,6 +222,8 @@ class DemoRunTests(unittest.TestCase):
                          {k: v for k, v in counts['decisions'].items() if v})
         self.assertEqual(set(counts['decisions']), set(DECISIONS))
         self.assertEqual(counts['decisions']['linked'], counts['links'])
+        self.assertEqual(counts['candidate_pairs']['enumerated'], self.links.num_rows)
+        self.assertGreater(counts['candidate_pairs']['pruned_by_radius'], 0)   # sqrt prunes
         sources = {d['values']: d['counts']
                    for d in pc.value_counts(self.obs['source']).to_pylist()}
         self.assertEqual(sources.get('interpolated', 0), counts['n_interpolated'])
@@ -229,13 +287,21 @@ class SyntheticSceneTests(unittest.TestCase):
         counts = self.marker['counts']
         self.assertEqual(counts['trajectories'], 3)
         self.assertEqual(counts['links'], 5)
-        # Only cross-crab pairs are enumerated besides the true links, and they fail the gate.
+        # Besides the true links only cross-crab pairs (hundreds of px apart) are in the time
+        # window: linear audits them as displacement failures, sqrt prunes them beyond R_max.
         self.assertEqual(counts['decisions']['refused_margin'], 0)
         self.assertEqual(counts['decisions']['refused_assignment'], 0)
         linked = self.links.filter(pc.equal(self.links['decision'], 'linked'))
         self.assertEqual(sorted(linked['gap_frames'].to_pylist()), [1, 2, 3, 4, 5])
         refused = self.links.filter(pc.equal(self.links['decision'], 'refused_gate'))
-        self.assertEqual(set(refused['reason'].to_pylist()), {'displacement'})
+        pairs = counts['candidate_pairs']
+        self.assertEqual(pairs['enumerated'], self.links.num_rows)
+        if self.CONFIG.gate_model == 'linear':
+            self.assertEqual(set(refused['reason'].to_pylist()), {'displacement'})
+            self.assertEqual(pairs['pruned_by_radius'], 0)
+        else:
+            self.assertEqual(refused.num_rows, 0)
+            self.assertGreater(pairs['pruned_by_radius'], 0)
         for crab_id, crab in self.crabs.items():
             traj = self.traj.filter(pc.equal(self.traj['trajectory_id'],
                                              self.trajectory_of_crab(crab_id))).to_pylist()[0]
@@ -378,9 +444,38 @@ class CliTests(unittest.TestCase):
             self.assertEqual(forced.returncode, 0, forced.stderr)
             marker = json.loads((out / tables.COMPLETE_NAME).read_text())
             self.assertEqual(marker['config']['max_gap'], 0)
-            self.assertEqual(marker['config']['minimum_cost_margin'], 2.5)
+            self.assertEqual(marker['config']['minimum_cost_margin_sqrt'], 2.5)  # sqrt config
+            self.assertEqual(marker['gate']['minimum_cost_margin'], 2.5)
             self.assertEqual(marker['config']['recovery_radius_px'], 3.0)
             self.assertEqual(marker['counts']['links'], 0)
+
+    def test_regression_D005_margin_sets_active_model(self):
+        """D-005: --margin sets the margin of the active gate model."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_parquet(scene_table(), Path(tmp))
+            linear_yaml = Path(tmp) / 'linear.yaml'
+            linear_yaml.write_text('gate_model: linear\n')
+            cases = (('sqrt', ROOT / 'configs/tracking/gap_bridging_v001.yaml',
+                      'minimum_cost_margin_sqrt', 'minimum_cost_margin', 0.25, 4.0),
+                     ('linear', linear_yaml, 'minimum_cost_margin', 'minimum_cost_margin_sqrt',
+                      4.0, 0.25))
+            for model, config, active, other, default, other_default in cases:
+                markers = {}
+                for margin in (None, '0.5'):
+                    out = Path(tmp) / f'{model}_{margin}'
+                    extra = ['--margin', margin] if margin else []
+                    result = self.run_cli('--observations', str(path), '--out', str(out),
+                                          '--config', str(config), *extra)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    markers[margin] = json.loads((out / tables.COMPLETE_NAME).read_text())
+                with self.subTest(model=model):
+                    self.assertEqual(markers[None]['gate']['minimum_cost_margin'], default)
+                    self.assertEqual(markers['0.5']['gate'],
+                                     dict(markers[None]['gate'], minimum_cost_margin=0.5))
+                    self.assertEqual(markers['0.5']['config'][active], 0.5)
+                    self.assertEqual(markers['0.5']['config'][other], other_default)
+            help_text = ' '.join(self.run_cli('run', '--help').stdout.split())
+            self.assertIn("active gate model's cost scale", help_text)
 
     def test_missing_input_fails(self):
         with tempfile.TemporaryDirectory() as tmp:

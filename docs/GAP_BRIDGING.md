@@ -39,8 +39,10 @@ Steps 2 to 5 below describe the v001 **linear** gate model
 (`gate_model: linear`). The default is now the **sqrt** gate model, which
 replaces the gates, the cost and the thresholds of steps 2 to 5 and keeps the
 assignment, margin veto and chain-aware runner-up unchanged; see
-[Gate model v002](#gate-model-v002). Step 7 gained tangent damping for gaps
-longer than `prediction_horizon_frames`; see [Damped fill](#damped-fill).
+[Gate model v002](#gate-model-v002). Under the sqrt model only, step 7 damps
+the tangents for gaps longer than `prediction_horizon_frames`; see
+[Damped fill](#damped-fill). With `gate_model: linear` every step, the fill
+included, is the v001 method, and the outputs reproduce v001 exactly.
 
 1. **Endpoints.** The method reads only accepted rows that carry a
    `tracklet_id`. For each tracklet it computes the following at the START and at
@@ -85,7 +87,10 @@ longer than `prediction_horizon_frames`; see [Damped fill](#damped-fill).
    the same optimum with bounded memory.
 5. **Margin veto.** An assigned pair is refused (`refused_margin`) when another
    gated pair in its row or column costs less than `cost + 4`. Neither side is
-   then linked, and the pair is not retried.
+   then linked, and the pair is not retried. Under staged linking (sqrt model),
+   both endpoints of a vetoed pair also stay unlinked at every later stage: a
+   later pair that touches one of them and passes the gates is
+   `refused_assignment` with reason `endpoint vetoed at stage s`.
 
    Competitors that are reachable along the chain are not counted. For an
    assigned pair (a, b):
@@ -118,9 +123,10 @@ longer than `prediction_horizon_frames`; see [Damped fill](#damped-fill).
 
    This is the cubic Hermite curve, which reproduces constant-velocity motion
    exactly. If either endpoint has an unknown velocity, both tangents are set to
-   the chord velocity, which makes the fill linear. For `dt` above
-   `prediction_horizon_frames` the tangents are damped towards the chord
-   ([Damped fill](#damped-fill)).
+   the chord velocity, which makes the fill linear. Under the sqrt gate model,
+   for `dt` above `prediction_horizon_frames` the tangents are damped towards
+   the chord ([Damped fill](#damped-fill)); under the linear model they are
+   never damped.
 8. **Recovery.** At each bridged frame, the method takes the closest rejected row
    to `p(f)` that is within 8 px and meets these conditions:
    - `accepted_for_tracking == False`.
@@ -149,8 +155,10 @@ defaults are used; they are identical to this file. The rows below are the v001
 parameters; the gate-model parameters are listed under
 [Gate model v002](#gate-model-v002). Under the default sqrt model the
 px-scale thresholds `max_assignment_cost`, `unmatched_cost` and
-`minimum_cost_margin` (and so `--margin`) are not used; their `*_sqrt`
-counterparts are.
+`minimum_cost_margin` are not used; their `*_sqrt` counterparts are. The CLI
+`--margin` sets the margin of the active gate model: `minimum_cost_margin`
+under linear, `minimum_cost_margin_sqrt` under sqrt. The marker's `gate` block
+records the value in force.
 
 | Parameter | Default | Meaning |
 |---|---:|---|
@@ -164,7 +172,7 @@ counterparts are.
 | `shoulder_vector_cost_cap_px` | 12.0 | Cap on the Shoulder-vector change |
 | `max_assignment_cost` | 12.0 | Pairs above this cost are not assignable |
 | `unmatched_cost` | 7.0 | Cost of leaving an end or start unmatched |
-| `minimum_cost_margin` | 4.0 | Veto when the runner-up is within this (CLI `--margin`) |
+| `minimum_cost_margin` | 4.0 | Veto when the runner-up is within this (CLI `--margin` under linear) |
 | `recovery_radius_px` | 8.0 | Radius for adopting a rejected detection (CLI `--recovery-radius`) |
 | `recoverable_reasons` | 5 reasons (see method, step 8) | Rejection reasons eligible for recovery |
 | `fps` | 30000/1001 | Sets `time_s = frame / fps` on interpolated rows when the input has `time_s` |
@@ -214,7 +222,9 @@ and its `rejection_reason`. Only the five new columns mark it as adopted.
 (list<string>, in time order). Every trajectory is contiguous:
 `end_frame − start_frame + 1 = n_observed + n_recovered + n_interpolated`.
 
-**`links.parquet`**. One audit row per candidate pair, with these columns:
+**`links.parquet`**. One audit row per candidate pair, with these columns
+(under the sqrt model, pairs beyond the prefilter radius `R_max` are not
+candidates and have no row; see [Gate model v002](#gate-model-v002)):
 `video_id`, `tracklet_a`, `tracklet_b`, `gap_frames`, `cost` (NaN when a motion
 gate failed), `runner_up_cost` (NaN when there is no competitor), `decision`,
 `reason`, `n_chain_ignored` and `stage`. `stage` (int64) is the 1-based
@@ -233,8 +243,10 @@ sum it directly; there is no need to parse `reason`.
   also lists the `files` with their hashes, and `sha256` is the hash of the
   sorted listing `"<relpath>\t<sha256>\n"`.
 - `counts`: `videos`, `tracklets`, `links`, `trajectories`, `bridges`,
-  `n_observed`, `n_recovered`, `n_interpolated`, `n_unassigned` and
-  `decisions`.
+  `n_observed`, `n_recovered`, `n_interpolated`, `n_unassigned`,
+  `decisions` and `candidate_pairs` (`enumerated`: pairs with an audit row;
+  `pruned_by_radius`: pairs inside the time window but beyond `R_max`, which
+  were not enumerated; always 0 under linear).
 - `versions`: the numpy, scipy and pyarrow versions.
 - `outputs`: the `sha256` and `rows` of each parquet.
 
@@ -308,14 +320,41 @@ sbatch --time=01:00:00 --mem=48G --cpus-per-task=4 --wrap \
 ```
 
 The full dataframe has 7,985,830 rows, about 220 times the demo. The memory and
-time requests above are estimates and have not been measured.
+time requests above are estimates and have not been measured on the full data.
+
+Memory of the link step (estimated by tiling the demo endpoints 16 times in
+time, 18,896 tracklets, and scaling to about 260,000 tracklets with 0–15 %
+higher endpoint density). With the sqrt prefilter, only pairs within `R_max`
+become Python objects and audit rows:
+
+| `max_gap` | 5 | 10 | 15 | 30 | 45 | 60 |
+|---|---:|---:|---:|---:|---:|---:|
+| audit rows, demo | 824 | 1,280 | 1,674 | 2,716 | 3,622 | 4,421 |
+| audit rows, 16× tiled | 13,409 | 20,975 | 27,504 | 45,706 | 62,467 | 77,876 |
+| audit rows, full data (est.) | 0.18–0.21 M | 0.29–0.33 M | 0.38–0.44 M | 0.63–0.72 M | 0.86–0.99 M | 1.07–1.23 M |
+| link-step memory, full data (est.) | ≤ 0.2 GB | ≤ 0.3 GB | ≤ 0.4 GB | ≤ 0.7 GB | ≤ 1.0 GB | ≤ 1.2 GB |
+
+The memory row assumes at most 1 kB per audit row; `tracemalloc` peaks on the
+tiled input were 510–850 B per row, including the links table. Without the
+prefilter, the same 16× input at `max_gap` 60 enumerated 4.45 M pairs (22 s,
+2.25 GB of RSS growth), against 77,876 rows and 1.3 s with it, and the
+full data would have needed about 45–55 M pairs and 25–32 GB for the link step
+alone. The link step is therefore no longer the memory driver at any horizon.
+The observation table is: 31 MB in memory on the demo, about 7 GB on the full
+data, and the demo pipeline peaks at 3–5 times the table size above the
+interpreter baseline. The 48 GB request is sized for that and is unchanged.
+A sweep runs its horizons and hold-outs one after another in one process.
 
 ## Demo results
 
 These numbers come from the v001 config (`gap_bridging_v001.yaml` with
 `gate_model: linear`, i.e. the v001 default before the sqrt gate model) applied to
 `demo/crab_cam2_2_middle_300/observations.parquet`; the linear model reproduces
-them exactly. The current default (sqrt, `max_gap` 5) is the first row of the
+them exactly, interpolated coordinates included (the original columns of the
+output equal those of a run of the pre-gate-model code, 3233ca6, at `max_gap` 5
+and 30). `tests/test_gap_bridging_pipeline.py::LinearGoldenTests` pins the counts
+below and the SHA-256 of the interpolated rows and of the audit table. The
+current default (sqrt, `max_gap` 5) is the first row of the
 [sweep table](#horizon-sweep-results).
 Input: 36,573 rows, 300 frames,
 `Crab_Cam_2_2` frames 14250–14549. Input sha256
@@ -408,6 +447,25 @@ linear gate.
 (1.5), where `err` is the mean forward/backward prediction error with each
 velocity extrapolated over `min(dt, h)` frames, not the full `dt`.
 
+**Prefilter.** Because `r` and `min(dt, h)` do not decrease with `dt`, no pair
+of a run can pass the displacement gate beyond
+
+```text
+R_max = r(max_gap + 1) + v_max · min(max_gap + 1, h)
+```
+
+where `v_max` is `max_velocity_px_per_frame` (6 px/frame), or the fastest
+known endpoint speed if that is higher (only possible for endpoints built
+outside the pipeline). With the defaults, `R_max` is 29.4 px at `max_gap` 5, 36.6 at 15,
+44.0 at 30 and 54.4 at 60. Candidate pairs are enumerated per START frame
+(the ENDs 2 to `max_gap + 1` frames earlier, one vectorised distance block),
+and pairs with body distance above `R_max` are dropped before any per-pair
+work. They get no `links.parquet` row and are counted in the marker's
+`counts.candidate_pairs.pruned_by_radius`. Every dropped pair would have been
+`refused_gate` with reason `displacement`, so links, costs and every other
+audit row are unchanged. The linear model does not prune: its v001 audit table
+keeps a `displacement` row for every pair in the time window.
+
 **Cost** (dimensionless, a fraction of the radius):
 
 ```text
@@ -434,26 +492,33 @@ the sqrt model, linking therefore runs in stages of increasing gap: with
 `max_gap` is always the last stage), stage 1 assigns gaps 1–5, stage 2 gaps
 6–15, and so on. Each stage solves the assignment and margin veto over its own
 candidates whose END and START are both still free, fixes its links, and
-removes the matched endpoints before the next stage. Gates and costs do not
+removes the matched endpoints before the next stage. The END and START of a
+pair refused by the margin veto are removed as well, so a vetoed endpoint is
+not linkable at a later stage (the veto means "ambiguous; leave unlinked"). Without
+this rule, a later stage computed the runner-up only over its own candidates,
+so the earlier ambiguous alternatives were forgotten and a farther long-gap
+candidate could link with "no competitor". Gates and costs do not
 depend on the stage; chain reachability is still taken over all motion-gated
 pairs up to `max_gap`. A gate-passing pair whose endpoint was linked in an
 earlier stage is `refused_assignment` with reason `endpoint linked at stage s`
-and that link's cost as runner-up. The `stage` column of `links.parquet` gives
-each pair's 1-based stage. The linear model has a single stage.
+and that link's cost as runner-up. If instead an endpoint was vetoed at an
+earlier stage, the reason is `endpoint vetoed at stage s` and the runner-up is
+the vetoed pair's cost. The `stage` column of `links.parquet` gives each pair's
+1-based stage. The linear model has a single stage.
 
 | Parameter | Default | Meaning |
 |---|---:|---|
-| `gate_model` | `sqrt` | `sqrt` (v002) or `linear` (v001, reproduces earlier results exactly) |
+| `gate_model` | `sqrt` | `sqrt` (v002) or `linear` (v001; reproduces earlier results exactly, fill included, pinned by a golden test) |
 | `radius_r0_px` | 0.00 | Fitted intercept `r0` (px) |
 | `radius_k_px` | 3.73 | Fitted `sqrt(dt)` coefficient `k` (px) |
 | `radius_safety` | 1.25 | Multiplies the fitted radius |
 | `radius_min_px` | 6.0 | Floor on `r(dt)` |
 | `prediction_error_ratio` | 1.5 | Prediction gate `err <= ratio · R` |
-| `prediction_horizon_frames` | 3 | Extrapolation cap `h`; also the fill damping horizon `H` |
+| `prediction_horizon_frames` | 3 | Extrapolation cap `h`; also the fill damping horizon `H` (sqrt only) |
 | `gap_penalty` | 0.06 | Cost factor `(1 + p)^(gap − 1)` |
 | `max_assignment_cost_sqrt` | 1.0 | Pairs above are not assignable |
 | `unmatched_cost_sqrt` | 0.6 | Cost of leaving an end or start unmatched |
-| `minimum_cost_margin_sqrt` | 0.25 | Veto when the runner-up is within this |
+| `minimum_cost_margin_sqrt` | 0.25 | Veto when the runner-up is within this (CLI `--margin` under sqrt) |
 | `fill_confidence_gaps` | [5, 15] | `high` ≤ 5 < `medium` ≤ 15 < `low` |
 | `link_stages` | [5, 15, 30, 45] | Upper gap of each linking stage (sqrt only); stages ≥ `max_gap` dropped, `max_gap` is the last stage |
 
@@ -481,9 +546,9 @@ config overlay that `--config` accepts.
 
 ## Damped fill
 
-For a bridge with `dt > H` (`H = prediction_horizon_frames`), the Hermite
-tangents (method, step 7) are pulled towards the chord velocity
-`c = (p_b − p_a) / dt`:
+Under the sqrt gate model, for a bridge with `dt > H`
+(`H = prediction_horizon_frames`), the Hermite tangents (method, step 7) are
+pulled towards the chord velocity `c = (p_b − p_a) / dt`:
 
 ```text
 λ = min(1, H / dt)
@@ -501,7 +566,11 @@ uniform-time chord is bounded by
 
 independent of the gap length (for `H = 3`, `(4/9) · (|v_a − c| + |v_b − c|)`
 px, e.g. 5.3 px when both tangents deviate from the chord by 6 px/frame), so a
-long fill never overshoots by the endpoint speed times the gap length. The linear fallback (unknown velocity) is unchanged.
+long fill never overshoots by the endpoint speed times the gap length. The
+chord fallback (unknown velocity) is unchanged. Under `gate_model: linear` the
+tangents are never damped, so the fill is the v001 fill bit for bit at every
+`dt`. Damping both models made linear runs differ from v001 by up to 1.2 px
+at `max_gap` 5 and 27.8 px at 30.
 
 ## Gap length and fill confidence columns
 
@@ -579,7 +648,8 @@ Outputs under `--out`:
   next to a file input; `--bridges-from` picks the horizon (default the
   largest).
 
-The full sweep with hold-out on the demo takes 45 s on a login node.
+The full sweep with hold-out on the demo takes 40 s on a login node (3.0 GB
+peak RSS, most of it from rendering the bridge figures).
 
 ### Horizon sweep results
 
@@ -587,26 +657,35 @@ Demo clip, default config (sqrt gate, demo fit, staged linking
 `link_stages = [5, 15, 30, 45]`), `--per-gap 8 --seed 0` (`logs/gap_sweep/`,
 not committed):
 
-| `max_gap` | links | trajectories | mean L | median L | p90 L | 1-frame units | frames in units ≥ 30 | recovered | interpolated (high / medium / low) | refused_margin | refused_assignment | hold-out planted | precision | recall |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|
-| 5 | 638 | 543 | 69.6 | 13 | 300 | 116 | 0.933 | 19 | 1,273 (1,273 / 0 / 0) | 1 | 118 | 32 | 1.000 | 1.000 |
-| 10 | 739 | 442 | 87.3 | 21 | 300 | 82 | 0.952 | 19 | 2,041 (1,273 / 768 / 0) | 1 | 422 | 40 | 1.000 | 1.000 |
-| **15** | **781** | **400** | **97.8** | **28** | **300** | **71** | **0.959** | **19** | **2,576 (1,273 / 1,303 / 0)** | **1** | **711** | **48** | **1.000** | **1.000** |
-| 30 | 827 | 354 | 113.3 | 52 | 300 | 63 | 0.974 | 19 | 3,566 (1,273 / 1,303 / 990) | 1 | 1,522 | 64 | 1.000 | 0.969 |
-| 45 | 843 | 338 | 120.4 | 61 | 300 | 59 | 0.978 | 21 | 4,158 (1,273 / 1,303 / 1,582) | 1 | 2,163 | 72 | 1.000 | 0.944 |
-| 60 | 849 | 332 | 123.5 | 63.5 | 300 | 56 | 0.979 | 21 | 4,461 (1,273 / 1,303 / 1,885) | 1 | 2,467 | 80 | 1.000 | 0.863 |
+| `max_gap` | links | trajectories | mean L | median L | p90 L | 1-frame units | frames in units ≥ 30 | recovered | interpolated (high / medium / low) | refused_margin | refused_assignment | refused_gate | hold-out planted | precision | recall |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|
+| 5 | 638 | 543 | 69.6 | 13 | 300 | 116 | 0.933 | 19 | 1,273 (1,273 / 0 / 0) | 1 | 118 | 67 | 32 | 1.000 | 1.000 |
+| 10 | 739 | 442 | 87.3 | 21 | 300 | 82 | 0.952 | 19 | 2,041 (1,273 / 768 / 0) | 1 | 422 | 118 | 40 | 1.000 | 1.000 |
+| **15** | **781** | **400** | **97.8** | **28** | **300** | **71** | **0.959** | **19** | **2,576 (1,273 / 1,303 / 0)** | **1** | **711** | **181** | **48** | **1.000** | **1.000** |
+| 30 | 827 | 354 | 113.3 | 52 | 300 | 63 | 0.974 | 19 | 3,566 (1,273 / 1,303 / 990) | 1 | 1,522 | 366 | 64 | 1.000 | 0.969 |
+| 45 | 843 | 338 | 120.4 | 61 | 300 | 59 | 0.978 | 21 | 4,158 (1,273 / 1,303 / 1,582) | 1 | 2,163 | 615 | 72 | 1.000 | 0.944 |
+| 60 | 849 | 332 | 123.5 | 63.5 | 300 | 56 | 0.979 | 21 | 4,461 (1,273 / 1,303 / 1,885) | 1 | 2,467 | 1,104 | 80 | 1.000 | 0.863 |
 
-`refused_gate` is 18,547 / 36,653 / 54,626 / 106,378 / 154,617 / 198,570 at
-the six horizons (a gate result does not depend on the horizon or stage). For
-comparison, the v001 linear gate at `max_gap` 5 gives 654 links and 527
-trajectories ([Demo results](#demo-results)).
+`refused_gate` counts only the pairs inside the prefilter radius `R_max`
+([Gate model v002](#gate-model-v002)). Of these, the `displacement` and
+`max_cost` failures are 63/4, 105/13, 148/33, 183/183, 212/403 and 255/849.
+Another 18,480 / 36,535 / 54,445 / 106,012 / 154,002 / 197,466 pairs lie beyond
+`R_max`. They are not enumerated and appear only in the marker's
+`counts.candidate_pairs.pruned_by_radius`. Before the prefilter, `refused_gate`
+was 18,547 / 36,653 / 54,626 / 106,378 / 154,617 / 198,570. Links,
+trajectories, every other decision count and the hold-out are unchanged by the
+prefilter and by persisting margin vetoes across stages. For comparison, the
+v001 linear gate at `max_gap` 5 gives 654 links and 527 trajectories
+([Demo results](#demo-results)).
 
 With staged linking, a horizon only adds links: the 638 links at gaps 1–5 are
 the same at every horizon, and the high-confidence fill count stays at 1,273.
 Links by gap at `max_gap` 60: 638 at gaps 1–5, 101 at 6–10, 42 at 11–15, 46 at
 16–30, 16 at 31–45, 6 at 46–60; per stage 638 / 143 / 46 / 16 / 6. Links that
 ignored at least one chain-reachable competitor: 198 at `max_gap` 5, 202 at
-15, 203 at 30 and 60. Before staged linking (one assignment over all gaps)
+15, 30 and 60. The one stage-1 veto removes its endpoints from later stages,
+so a competitor that used to count as chain-ignored for one stage-3 link is no
+longer in that stage (it was 203 at 30 and 60 before vetoes persisted). Before staged linking (one assignment over all gaps)
 the same sweep gave 755 links at `max_gap` 15 and 803 at 60, lost up to 50
 short-gap links to longer competitors that were then margin-vetoed
 (`refused_margin` 48 at `max_gap` 30, now 1), and the chain-ignored count grew

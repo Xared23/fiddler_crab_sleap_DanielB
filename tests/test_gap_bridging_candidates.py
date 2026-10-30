@@ -9,7 +9,9 @@ radius, gap penalty and capped prediction horizon of the ``sqrt`` model; the
 linear model is checked field by field against the pre-change cost code.
 Hypothesis property tests, run under both gate models, check one-to-one links,
 the one-audit-row-per-candidate invariant, the margin rule, invariance under
-relabeling and permutation, and time-reversal symmetry.
+relabeling and permutation, and time-reversal symmetry. Under sqrt, pairs
+beyond the prefilter radius ``R_max`` get no audit row; the remaining rows and
+the links equal those of an unpruned run.
 
 Sam
 10/2026
@@ -32,7 +34,7 @@ from unittest import mock
 import numpy as np
 
 # ----- testing -----
-from hypothesis import given, settings, strategies as st
+from hypothesis import example, given, settings, strategies as st
 
 # ----- local modules -----
 ROOT = Path(__file__).resolve().parents[1]
@@ -75,12 +77,37 @@ def enumerated(ends: List[Endpoint], starts: List[Endpoint], max_gap: int) -> Se
             if 1 <= b.frame - a.frame - 1 <= max_gap and a.tracklet_id != b.tracklet_id}
 
 
+def prefilter_radius(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConfig) -> float:
+    """
+    Independent R_max: ``inf`` under linear; under sqrt
+    ``r(max_gap+1) + v * min(max_gap+1, h)`` with ``v`` the larger of the speed
+    cap and the fastest known endpoint speed.
+    """
+    if cfg.gate_model == 'linear':
+        return math.inf
+    speeds = [float(np.hypot(*p.vel)) for p in ends + starts if p.vel_known]
+    v = max([cfg.max_velocity_px_per_frame] + speeds)
+    dt = cfg.max_gap + 1
+    return float(cfg.gate_radius(dt)) + v * min(dt, cfg.prediction_horizon_frames)
+
+
+def audited(ends: List[Endpoint], starts: List[Endpoint],
+            cfg: BridgeConfig) -> Set[Tuple[str, str]]:
+    """Brute-force audited pairs: ``enumerated`` pairs whose body distance is <= R_max."""
+    r_max = prefilter_radius(ends, starts, cfg)
+    pos = {('e', a.tracklet_id): a.pos for a in ends}
+    pos.update({('s', b.tracklet_id): b.pos for b in starts})
+    return {(a, b) for a, b in enumerated(ends, starts, cfg.max_gap)
+            if float(np.hypot(*(pos[('s', b)] - pos[('e', a)]))) <= r_max}
+
+
 def by_pair(decisions) -> dict:
     """Index decisions by (tracklet_a, tracklet_b)."""
     return {(d.tracklet_a, d.tracklet_b): d for d in decisions}
 
 
 EXCLUDED = 'endpoint linked at stage '
+VETOED = 'endpoint vetoed at stage '
 
 
 def chain_free_runner_up(decisions, a: str, b: str) -> float:
@@ -89,13 +116,15 @@ def chain_free_runner_up(decisions, a: str, b: str) -> float:
 
     Motion-gated pairs are those with a finite cost (over all stages). Competitors
     are motion-gated pairs of the same stage as (a, b) whose END and START were
-    not linked at an earlier stage. A row competitor (a, c) is dropped when (b, c)
-    is motion-gated; a column competitor (d, b) is dropped when (d, a) is motion-gated.
+    not linked or margin-vetoed at an earlier stage. A row competitor (a, c) is
+    dropped when (b, c) is motion-gated; a column competitor (d, b) is dropped when
+    (d, a) is motion-gated.
     """
     gated = {(d.tracklet_a, d.tracklet_b) for d in decisions if math.isfinite(d.cost)}
     stage = {(d.tracklet_a, d.tracklet_b): d.stage for d in decisions}[(a, b)]
-    end_at = {d.tracklet_a: d.stage for d in decisions if d.decision == 'linked'}
-    start_at = {d.tracklet_b: d.stage for d in decisions if d.decision == 'linked'}
+    taken = ('linked', 'refused_margin')
+    end_at = {d.tracklet_a: d.stage for d in decisions if d.decision in taken}
+    start_at = {d.tracklet_b: d.stage for d in decisions if d.decision in taken}
     values = [d.cost for d in decisions
               if math.isfinite(d.cost) and d.stage == stage
               and end_at.get(d.tracklet_a, stage) >= stage
@@ -642,7 +671,13 @@ class SqrtGateModelTests(unittest.TestCase):
         # (ii) The cap bounds the directed extension: a crab that keeps walking 60 px is
         # outside R = r(10) + 18 with h = 3, but inside both gates with h = 10.
         walk = ep('b', 10 + dt, (60., 0.), (6., 0.))
-        self.assertEqual(link_tracklets([a], [walk], cfg)[1][0].reason, 'displacement')
+        stats: dict = {}
+        self.assertEqual(link_tracklets([a], [walk], cfg, stats=stats), ([], []))  # beyond R_max
+        self.assertEqual(stats, {'enumerated': 0, 'pruned_by_radius': 1})
+        # 45 px is still outside R(10) = 32.7 but inside R_max(60) = r(61) + 18 = 54.4: a row.
+        nearer = replace(walk, pos=np.array([45., 0.]))
+        self.assertEqual(link_tracklets([a], [nearer], replace(cfg, max_gap=60))[1][0].reason,
+                         'displacement')
         self.assertNotIn(link_tracklets([a], [walk], uncapped)[1][0].reason,
                          ('displacement', 'prediction_error'))
         # Linear extrapolates over the full dt (err 50) and its gates are 120 and 180 px.
@@ -827,6 +862,56 @@ class StagedLinkingTests(unittest.TestCase):
         _, decisions = link_tracklets(ends, starts, replace(CFG, max_gap=30))
         self.assertEqual({d.stage for d in decisions}, {1})
 
+    def veto_scene(self, spacing: float = 1.5, c_gap: int = 9, c_dist: float = 3.0):
+        """A ends at f10; B, B2 start at f12 at (0, +-spacing); C starts c_gap frames on."""
+        a = ep('A', 10, (0., 0.), vel_known=False)
+        b, b2 = ep('B', 12, (0., spacing), vel_known=False), ep('B2', 12, (0., -spacing),
+                                                                vel_known=False)
+        b_end, b2_end = ep('B', 200, (0., spacing)), ep('B2', 200, (0., -spacing))
+        c = ep('C', 11 + c_gap, (c_dist, 0.), vel_known=False)
+        return [a, b_end, b2_end], [b, b2, c]
+
+    def test_regression_D001_vetoed_endpoint_not_relinked(self):
+        """D-001: A's stage-1 veto (two equal gap-1 successors) holds at stage 2."""
+        ends, starts = self.veto_scene()
+        links5, dec5 = link_tracklets(ends, starts, replace(SQRT, max_gap=5))
+        self.assertEqual(links5, [])
+        self.assertEqual([d.decision for d in dec5 if d.decision == 'refused_margin'],
+                         ['refused_margin'])
+        links, decisions = link_tracklets(ends, starts, replace(SQRT, max_gap=15))
+        self.assertEqual(links, [])                                    # was [('A', 'C')]
+        d = by_pair(decisions)
+        vetoed = next(x for x in decisions if x.decision == 'refused_margin')
+        self.assertEqual((vetoed.tracklet_a, vetoed.stage), ('A', 1))
+        self.assertEqual(vetoed.cost, vetoed.runner_up_cost)            # margin 0
+        self.assertEqual((d[('A', 'C')].stage, d[('A', 'C')].gap_frames), (2, 9))
+        self.assertEqual(d[('A', 'C')].decision, 'refused_assignment')
+        self.assertEqual(d[('A', 'C')].reason, 'endpoint vetoed at stage 1')
+        self.assertEqual(d[('A', 'C')].runner_up_cost, vetoed.cost)
+        self.assertLessEqual(d[('A', 'C')].cost, 1.0)                   # passes every gate
+        # Edge: a gate-failing later pair keeps its plain refused_gate label.
+        far = replace(starts[2], pos=np.array([0.99 * radius(SQRT, 10), 0.]))
+        _, far_dec = link_tracklets(ends, starts[:2] + [far], replace(SQRT, max_gap=15))
+        far_row = by_pair(far_dec)[('A', 'C')]
+        self.assertEqual((far_row.decision, far_row.reason), ('refused_gate', 'max_cost'))
+        # Linear has one stage, so the scene is unaffected there.
+        self.assertEqual(link_tracklets(ends, starts, replace(CFG, max_gap=15))[0], [])
+
+    @settings(deadline=None, max_examples=100)
+    @example(spacing=1.5, c_gap=9, c_dist=3.0, max_gap=15)
+    @given(st.floats(0.0, 4.0), st.integers(6, 30), st.floats(0.0, 8.0), st.integers(6, 30))
+    def test_vetoed_endpoint_never_linked(self, spacing, c_gap, c_dist, max_gap):
+        """Symmetric gap-1 successors veto A at stage 1; no later candidate links A."""
+        ends, starts = self.veto_scene(spacing, c_gap, c_dist)
+        links, decisions = link_tracklets(ends, starts, replace(SQRT, max_gap=max_gap))
+        self.assertNotIn('A', {a for a, _ in links})
+        for d in decisions:
+            if d.tracklet_a == 'A' and d.stage >= 2:
+                self.assertIn(d.decision, ('refused_assignment', 'refused_gate'))
+                if d.decision == 'refused_assignment':
+                    self.assertEqual(d.reason, 'endpoint vetoed at stage 1')
+
+
     @settings(deadline=None, max_examples=150)
     @given(scenes(), st.integers(5, 30))
     def test_first_stage_links_do_not_depend_on_max_gap(self, scene, max_gap):
@@ -848,6 +933,62 @@ class StagedLinkingTests(unittest.TestCase):
         gap = {(d.tracklet_a, d.tracklet_b): d.gap_frames for d in dec30}
         self.assertEqual(len(set(links5) - {p for p in links30 if gap[p] <= 5}), 0)  # measured 0
         self.assertGreater(len(links30), len(links5))
+
+
+class RadiusPrefilterTests(unittest.TestCase):
+    """Under sqrt, pairs beyond R_max are not enumerated; nothing the gates keep is lost."""
+
+    def test_regression_D004_far_pairs_not_enumerated(self):
+        """D-004: a pair beyond R_max has no audit row and is counted as pruned."""
+        cfg = replace(SQRT, max_gap=5)
+        r_max = float(cfg.gate_radius(6)) + 6.0 * 3                     # 29.42 px
+        a = ep('a', 10, (0., 0.), vel_known=False)
+        at = ep('at', 12, (r_max, 0.), vel_known=False)                  # on the bound: kept
+        beyond = ep('beyond', 12, (0., r_max * (1 + 1e-9)), vel_known=False)
+        stats: dict = {'stale': 1}
+        _, decisions = link_tracklets([a], [at, beyond], cfg, stats=stats)
+        self.assertEqual([(d.tracklet_b, d.decision, d.reason) for d in decisions],
+                         [('at', 'refused_gate', 'displacement')])
+        self.assertEqual(stats, {'enumerated': 1, 'pruned_by_radius': 1})
+        # Linear never prunes: both pairs keep their v001 refused_gate rows.
+        _, lin = link_tracklets([a], [at, beyond], replace(CFG, max_gap=5), stats=stats)
+        self.assertEqual(len(lin), 2)
+        self.assertEqual(stats, {'enumerated': 2, 'pruned_by_radius': 0})
+
+    def test_fast_endpoint_widens_bound(self):
+        # An endpoint faster than the speed cap still links: R_max uses the larger speed.
+        cfg = replace(SQRT, max_gap=5)
+        a = ep('a', 10, (0., 0.), (12., 0.))
+        b = ep('b', 16, (40., 0.), (12., 0.))          # R = r(6) + 36 = 47.4; capped R_max 29.4
+        self.assertEqual(link_tracklets([a], [b], cfg)[0], [('a', 'b')])
+
+    def test_empty_inputs_fill_stats(self):
+        stats: dict = {}
+        self.assertEqual(link_tracklets([], [], SQRT, stats=stats), ([], []))
+        self.assertEqual(stats, {'enumerated': 0, 'pruned_by_radius': 0})
+
+    @settings(deadline=None, max_examples=150)
+    @given(scenes(), st.integers(1, 30), st.sampled_from(sorted(MODELS)),
+           st.sampled_from([(5, 15, 30, 45), (1, 2, 3), (30,)]))
+    def test_prefilter_matches_unpruned_run(self, scene, max_gap, model, link_stages):
+        ends, starts = scene
+        cfg = replace(MODELS[model], max_gap=max_gap, link_stages=link_stages)
+        stats: dict = {}
+        links, decisions = link_tracklets(ends, starts, cfg, stats=stats)
+        with mock.patch.object(candidates, '_prune_radius', lambda *args: math.inf):
+            ref_links, ref_decisions = link_tracklets(ends, starts, cfg)
+        self.assertEqual(links, ref_links)
+        ref = by_pair(ref_decisions)
+        kept = audited(ends, starts, cfg)
+        self.assertEqual(set(by_pair(decisions)), kept)
+        self.assertEqual(stats, {'enumerated': len(decisions),
+                                 'pruned_by_radius': len(ref_decisions) - len(decisions)})
+        for d in decisions:
+            self.assertTrue(same_decision(d, ref[(d.tracklet_a, d.tracklet_b)]), d)
+        for key in set(ref) - kept:
+            self.assertEqual((ref[key].decision, ref[key].reason), ('refused_gate', 'displacement'))
+        if model == 'linear':
+            self.assertEqual(stats['pruned_by_radius'], 0)
 
 
 # ============================================================
@@ -872,13 +1013,19 @@ class CandidatePropertyTests(unittest.TestCase):
         scale = cfg.cost_thresholds()
         stages = candidates._stages(cfg)
         links, decisions = link_tracklets(ends, starts, cfg)
-        linked_at = {}
+        linked_at, vetoed_at = {}, {}
         for d in decisions:
             if d.decision == 'linked':
                 linked_at[('end', d.tracklet_a)] = linked_at[('start', d.tracklet_b)] = d
+            elif d.decision == 'refused_margin':
+                self.assertNotIn(('end', d.tracklet_a), vetoed_at)     # vetoed at most once
+                self.assertNotIn(('start', d.tracklet_b), vetoed_at)
+                vetoed_at[('end', d.tracklet_a)] = vetoed_at[('start', d.tracklet_b)] = d
+        # A margin-vetoed endpoint is never linked at any stage.
+        self.assertFalse(set(linked_at) & set(vetoed_at))
         pairs = [(d.tracklet_a, d.tracklet_b) for d in decisions]
         self.assertEqual(len(pairs), len(set(pairs)))
-        self.assertEqual(set(pairs), enumerated(ends, starts, max_gap))
+        self.assertEqual(set(pairs), audited(ends, starts, cfg))
         self.assertEqual(len({a for a, _ in links}), len(links))
         self.assertEqual(len({b for _, b in links}), len(links))
         self.assertEqual(links, [p for p, d in zip(pairs, decisions) if d.decision == 'linked'])
@@ -896,10 +1043,20 @@ class CandidatePropertyTests(unittest.TestCase):
                 self.assertTrue(earlier)
                 self.assertEqual(int(d.reason[len(EXCLUDED):]), min(x.stage for x in earlier))
                 self.assertEqual(d.runner_up_cost, min(x.cost for x in earlier))
+            elif d.reason.startswith(VETOED):
+                # No endpoint linked earlier, but one was margin-vetoed at an earlier stage.
+                self.assertEqual(d.decision, 'refused_assignment')
+                earlier = [x for x in (vetoed_at.get(('end', d.tracklet_a)),
+                                       vetoed_at.get(('start', d.tracklet_b)))
+                           if x is not None and x.stage < d.stage]
+                self.assertTrue(earlier)
+                self.assertEqual(int(d.reason[len(VETOED):]), min(x.stage for x in earlier))
+                self.assertEqual(d.runner_up_cost, min(x.cost for x in earlier))
             elif d.decision == 'refused_assignment':
-                # Not excluded: neither endpoint was linked at an earlier stage.
+                # Not excluded: neither endpoint was linked or vetoed at an earlier stage.
                 for key in (('end', d.tracklet_a), ('start', d.tracklet_b)):
                     self.assertFalse(key in linked_at and linked_at[key].stage < d.stage)
+                    self.assertFalse(key in vetoed_at and vetoed_at[key].stage < d.stage)
             if d.decision in ('linked', 'refused_margin'):
                 expected = chain_free_runner_up(decisions, d.tracklet_a, d.tracklet_b)
                 np.testing.assert_allclose(d.runner_up_cost, expected, rtol=1e-12)

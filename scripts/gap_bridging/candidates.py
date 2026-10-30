@@ -4,7 +4,9 @@
 Gated one-to-one linking of tracklet END endpoints to tracklet START endpoints.
 
 For one video, every (END a, START b) pair separated by ``1 <= gap <= max_gap``
-missing frames is a candidate. Candidates pass a displacement gate and a
+missing frames is a candidate; under the sqrt model, pairs whose body distance
+exceeds the largest radius any gate could reach (``_prune_radius``) are dropped
+before any per-pair work and only counted. Candidates pass a displacement gate and a
 prediction-error gate, receive a cost, and are assigned one-to-one with a
 Hungarian solve over an ``(m+n) x (m+n)`` matrix that mirrors
 ``body_first_tracklets.association`` (non-candidate cells ``1e9``, dummy
@@ -23,7 +25,8 @@ dimensionless, with a ``(1 + gap_penalty)^(gap-1)`` gap penalty. The thresholds
 ``max_assignment_cost``, ``unmatched_cost`` and ``minimum_cost_margin`` come
 from ``cfg.cost_thresholds()`` (the ``*_sqrt`` fields under sqrt). Under sqrt,
 linking is staged by gap (``cfg.link_stages``, shortest first) so a short-gap
-link is fixed before longer gaps compete for its endpoints.
+link is fixed before longer gaps compete for its endpoints; an endpoint whose
+assigned pair is margin-vetoed at one stage is not linkable at later stages.
 
 The assignment is solved per connected component of the assignable-pair graph;
 non-candidate cells are never chosen at the optimum, so this equals the global
@@ -82,10 +85,50 @@ def _check_inputs(ends: List[Endpoint], starts: List[Endpoint]) -> None:
             raise ValueError(f"duplicate tracklet_id among {side}")
 
 
-def _enumerate_pairs(ends: List[Endpoint], starts: List[Endpoint],
-                     max_gap: int) -> Tuple[np.ndarray, np.ndarray]:
+def _prune_radius(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConfig) -> float:
+    """
+    Body distance beyond which no pair can pass the displacement gate.
+
+    Sqrt: ``R_max = r(max_gap + 1) + v * min(max_gap + 1, h)`` with
+    ``v = max(max_velocity_px_per_frame, fastest known endpoint speed)``
+    (pipeline endpoints are clipped to the cap, so ``v`` is the cap), which
+    bounds the extended radius ``R`` of every enumerable pair because ``r`` and
+    ``min(dt, h)`` are non-decreasing in ``dt``. Linear: ``inf``; the v001 audit
+    table keeps a row for every pair in the time window.
+
+    Parameters
+    ----------
+    ends, starts : list of Endpoint
+        Endpoints of one video.
+    cfg : BridgeConfig
+        Gate model, ``max_gap``, radius parameters, speed cap and horizon.
+
+    Returns
+    -------
+    float
+        ``R_max`` in px (``inf`` under linear).
+    """
+    if cfg.gate_model == 'linear':
+        return math.inf
+    assert cfg.gate_model == 'sqrt', f"unknown gate_model {cfg.gate_model!r}"
+    speeds = [float(np.linalg.norm(np.asarray(p.vel, dtype=float)))
+              for p in list(ends) + list(starts) if p.vel_known]
+    v_max = max([float(cfg.max_velocity_px_per_frame)] + [v for v in speeds if math.isfinite(v)])
+    dt = int(cfg.max_gap) + 1
+    r_max = float(cfg.gate_radius(dt)) + v_max * min(dt, int(cfg.prediction_horizon_frames))
+    assert r_max >= 0.0, "prefilter radius must be non-negative"
+    return r_max
+
+
+def _enumerate_pairs(ends: List[Endpoint], starts: List[Endpoint], max_gap: int,
+                     r_max: float = math.inf) -> Tuple[np.ndarray, np.ndarray, int]:
     """
     Enumerate candidate (end, start) index pairs in deterministic order.
+
+    Works per START frame: the ENDs ``2 .. max_gap + 1`` frames earlier form a
+    contiguous slice of the sorted ends, and their distances to that frame's
+    STARTs are one vectorised block. Pairs farther apart than ``r_max`` are
+    counted but not returned.
 
     Parameters
     ----------
@@ -93,28 +136,47 @@ def _enumerate_pairs(ends: List[Endpoint], starts: List[Endpoint],
         Already sorted by (frame, tracklet_id).
     max_gap : int
         Largest number of missing frames, ``>= 1``.
+    r_max : float
+        Keep only pairs with body distance ``<= r_max`` (``inf`` keeps all).
 
     Returns
     -------
-    (I, J) : tuple of int64 arrays
-        Indices into ``ends`` and ``starts``; ends in order, then start frame
-        ascending, then start tracklet_id.
+    (I, J, n_pruned) : tuple
+        Int64 indices into ``ends`` and ``starts`` (ends in order, then start
+        frame ascending, then start tracklet_id) and the number of
+        time-window pairs dropped for distance.
     """
     assert max_gap >= 1, "max_gap must be >= 1 for enumeration"
-    by_frame: Dict[int, List[int]] = defaultdict(list)
-    for j, start in enumerate(starts):
-        by_frame[int(start.frame)].append(j)
-    rows: List[int] = []
-    cols: List[int] = []
-    for i, end in enumerate(ends):
-        e = int(end.frame)
-        for s in range(e + 2, e + 2 + max_gap):
-            for j in by_frame.get(s, ()):
-                if starts[j].tracklet_id != end.tracklet_id:
-                    rows.append(i)
-                    cols.append(j)
-    assert len(rows) == len(cols)
-    return np.asarray(rows, dtype=np.int64), np.asarray(cols, dtype=np.int64)
+    assert not math.isnan(r_max) and r_max >= 0.0, "r_max must be a non-negative number"
+    end_frames = np.array([int(e.frame) for e in ends], dtype=np.int64)
+    start_frames = np.array([int(s.frame) for s in starts], dtype=np.int64)
+    end_pos = np.array([np.asarray(e.pos, dtype=float) for e in ends]).reshape(-1, 2)
+    start_pos = np.array([np.asarray(s.pos, dtype=float) for s in starts]).reshape(-1, 2)
+    end_ids = np.array([e.tracklet_id for e in ends], dtype=object)
+    start_ids = np.array([s.tracklet_id for s in starts], dtype=object)
+    frames, first = np.unique(start_frames, return_index=True)
+    bounds = np.append(first, len(starts))
+    rows: List[np.ndarray] = []
+    cols: List[np.ndarray] = []
+    n_window = 0
+    for f, lo, hi in zip(frames, bounds[:-1], bounds[1:]):
+        a = int(np.searchsorted(end_frames, f - 1 - max_gap, side='left'))
+        b = int(np.searchsorted(end_frames, f - 2, side='right'))
+        if a >= b:
+            continue
+        keep = end_ids[a:b, None] != start_ids[None, lo:hi]
+        n_window += int(keep.sum())
+        if math.isfinite(r_max):
+            dist = np.linalg.norm(start_pos[None, lo:hi] - end_pos[a:b, None], axis=2)
+            keep &= dist <= r_max
+        r, c = np.nonzero(keep)
+        rows.append(r.astype(np.int64) + a)
+        cols.append(c.astype(np.int64) + int(lo))
+    I = np.concatenate(rows) if rows else np.zeros(0, dtype=np.int64)
+    J = np.concatenate(cols) if cols else np.zeros(0, dtype=np.int64)
+    order = np.lexsort((J, I))
+    assert len(I) == len(J) <= n_window
+    return I[order], J[order], n_window - len(I)
 
 
 # ============================================================
@@ -525,33 +587,60 @@ def _stages(cfg: BridgeConfig) -> Tuple[int, ...]:
 
 
 def _excluded_label(k: int, cost: np.ndarray, gate: np.ndarray, rows: np.ndarray,
-                    cols: np.ndarray, done_end: Dict[int, Tuple[int, float]],
-                    done_start: Dict[int, Tuple[int, float]]) -> Tuple[str, float, float, str, int]:
-    """Label of a pair whose END or START was linked at an earlier stage."""
+                    cols: np.ndarray, done: Tuple[Dict[int, Tuple[int, float]], ...],
+                    vetoed: Tuple[Dict[int, Tuple[int, float]], ...]
+                    ) -> Tuple[str, float, float, str, int]:
+    """
+    Label of a pair whose END or START was linked or margin-vetoed at an earlier stage.
+
+    Parameters
+    ----------
+    k : int
+        Pair index.
+    cost, gate, rows, cols : np.ndarray
+        Per-pair costs, first failing gates and end/start indices.
+    done, vetoed : tuple of two dict
+        ``(by end index, by start index) -> (stage, cost)`` of the earlier
+        links and of the earlier ``refused_margin`` pairs.
+
+    Returns
+    -------
+    tuple
+        ``refused_gate`` when a gate fails; otherwise ``refused_assignment``
+        with reason ``endpoint linked at stage s`` (that link's cost as the
+        runner-up), or, when no endpoint was linked, ``endpoint vetoed at stage
+        s`` (the vetoed pair's cost as the runner-up).
+    """
     c = float(cost[k])
     if gate[k] == GATE_MAX_COST:
         return 'refused_gate', c, math.nan, GATE_MAX_COST, 0
     if gate[k] != '':
         return 'refused_gate', math.nan, math.nan, str(gate[k]), 0
-    earlier = [x for x in (done_end.get(int(rows[k])), done_start.get(int(cols[k])))
-               if x is not None]
-    assert earlier, "excluded pair must touch an endpoint linked earlier"
-    stage = min(s for s, _ in earlier)
-    ru = min(v for _, v in earlier)
-    return 'refused_assignment', c, ru, f"endpoint linked at stage {stage}", 0
+    for label, (by_end, by_start) in (('linked', done), ('vetoed', vetoed)):
+        earlier = [x for x in (by_end.get(int(rows[k])), by_start.get(int(cols[k])))
+                   if x is not None]
+        if earlier:
+            stage = min(s for s, _ in earlier)
+            ru = min(v for _, v in earlier)
+            return 'refused_assignment', c, ru, f"endpoint {label} at stage {stage}", 0
+    raise AssertionError("excluded pair must touch an endpoint linked or vetoed earlier")
 
 
-def link_tracklets(ends: List[Endpoint], starts: List[Endpoint],
-                   cfg: BridgeConfig) -> Tuple[List[Tuple[str, str]], List[LinkDecision]]:
+def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConfig,
+                   stats: Optional[Dict[str, int]] = None
+                   ) -> Tuple[List[Tuple[str, str]], List[LinkDecision]]:
     """
     Link tracklet ENDs to STARTs of one video across 1..max_gap missing frames.
 
     Linking runs in stages of increasing gap (``_stages``): stage k assigns the
     pairs with ``stage_{k-1} < gap <= stage_k`` whose END and START are both
-    still unlinked, fixes its links, and removes the matched endpoints before
-    stage k+1. Gates and costs are per pair and stage-independent; runner-ups
-    are taken over the stage's own candidates, and chain reachability over all
-    motion-gated pairs up to ``max_gap``. The linear model has a single stage.
+    still free, fixes its links, and removes the matched endpoints before
+    stage k+1. An assigned pair refused by the margin veto removes its END and
+    START too: the veto means "ambiguous, leave unlinked", so neither endpoint
+    is retried at a later stage. Gates and costs are per pair and
+    stage-independent; runner-ups are taken over the stage's own candidates,
+    and chain reachability over all motion-gated pairs up to ``max_gap``. The
+    linear model has a single stage.
 
     Parameters
     ----------
@@ -563,6 +652,11 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint],
         Gate model, gates, cost weights and ``link_stages``. The unmatched cost
         and margin are taken from ``cfg.cost_thresholds()`` (the px-scale
         values under the linear model, the ``*_sqrt`` values under sqrt).
+    stats : dict, optional
+        Replaced in place by ``{'enumerated': n, 'pruned_by_radius': m}``:
+        ``n`` pairs received an audit row, ``m`` pairs inside the time window
+        were dropped for body distance ``> R_max`` (``_prune_radius``; always
+        0 under linear).
 
     Returns
     -------
@@ -570,10 +664,13 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint],
         One-to-one accepted links, in enumeration order.
     decisions : list of LinkDecision
         One row per enumerated pair (ends sorted by (frame, tracklet_id), then
-        starts by (frame, tracklet_id)); ``stage`` is the 1-based stage whose
-        gap range holds the pair. A gate-passing pair whose END or START was
-        linked at an earlier stage is ``refused_assignment`` with reason
-        ``endpoint linked at stage s`` and that link's cost as runner-up.
+        starts by (frame, tracklet_id)); pairs beyond ``R_max`` have no row.
+        ``stage`` is the 1-based stage whose gap range holds the pair. A
+        gate-passing pair whose END or START was linked at an earlier stage is
+        ``refused_assignment`` with reason ``endpoint linked at stage s`` and
+        that link's cost as runner-up; if instead an endpoint was margin-vetoed
+        at an earlier stage, the reason is ``endpoint vetoed at stage s`` and
+        the runner-up is the vetoed pair's cost.
 
     Raises
     ------
@@ -583,11 +680,17 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint],
     if ends is None or starts is None or cfg is None:
         raise ValueError("ends, starts and cfg are required")
     _check_inputs(ends, starts)
+    if stats is not None:
+        stats.clear()
+        stats.update(enumerated=0, pruned_by_radius=0)
     if cfg.max_gap == 0 or not ends or not starts:
         return [], []
     ends = sorted(ends, key=_sort_key)
     starts = sorted(starts, key=_sort_key)
-    rows, cols = _enumerate_pairs(ends, starts, cfg.max_gap)
+    rows, cols, n_pruned = _enumerate_pairs(ends, starts, cfg.max_gap,
+                                            _prune_radius(ends, starts, cfg))
+    if stats is not None:
+        stats.update(enumerated=int(rows.size), pruned_by_radius=int(n_pruned))
     if rows.size == 0:
         return [], []
     scale = cfg.cost_thresholds()
@@ -601,12 +704,16 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint],
     labels: List[Tuple[str, float, float, str, int]] = [None] * len(rows)  # type: ignore
     done_end: Dict[int, Tuple[int, float]] = {}
     done_start: Dict[int, Tuple[int, float]] = {}
+    vetoed_end: Dict[int, Tuple[int, float]] = {}
+    vetoed_start: Dict[int, Tuple[int, float]] = {}
     for stage in range(1, len(stages) + 1):
         in_stage = stage_of == stage
         free = np.array([int(r) not in done_end and int(c) not in done_start
+                         and int(r) not in vetoed_end and int(c) not in vetoed_start
                          for r, c in zip(rows, cols)], dtype=bool)
         for k in np.flatnonzero(in_stage & ~free):
-            labels[k] = _excluded_label(int(k), cost, gate, rows, cols, done_end, done_start)
+            labels[k] = _excluded_label(int(k), cost, gate, rows, cols, (done_end, done_start),
+                                        (vetoed_end, vetoed_start))
         idx = np.flatnonzero(in_stage & free)
         if idx.size == 0:
             continue
@@ -619,6 +726,8 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint],
             labels[k] = label
             if label[0] == 'linked':
                 done_end[int(rows[k])] = done_start[int(cols[k])] = (stage, float(cost[k]))
+            elif label[0] == 'refused_margin':
+                vetoed_end[int(rows[k])] = vetoed_start[int(cols[k])] = (stage, float(cost[k]))
     assert all(label is not None for label in labels)
     links: List[Tuple[str, str]] = []
     decisions: List[LinkDecision] = []

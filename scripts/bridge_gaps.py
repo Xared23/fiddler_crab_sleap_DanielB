@@ -304,7 +304,9 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument('--max-gap', type=int, default=None,
                      help='maximum number of missing frames to bridge (0 disables linking)')
     run.add_argument('--margin', type=float, default=None,
-                     help='minimum cost margin to the runner-up (linear model, px-equivalent)')
+                     help='minimum cost margin to the runner-up, on the active gate model\'s '
+                          'cost scale: minimum_cost_margin (px/frame) under linear, '
+                          'minimum_cost_margin_sqrt (fraction of R) under sqrt')
     run.add_argument('--recovery-radius', type=float, default=None,
                      help='radius (px) for adopting a rejected detection')
     run.add_argument('--force', action='store_true', help='overwrite existing outputs')
@@ -338,6 +340,20 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def with_margin(cfg: BridgeConfig, margin: float | None) -> BridgeConfig:
+    """Set the active gate model's runner-up margin (``--margin``); None leaves cfg unchanged.
+
+    Linear: ``minimum_cost_margin`` (px/frame); sqrt: ``minimum_cost_margin_sqrt``
+    (dimensionless). Raises ValueError for a negative margin.
+    """
+    if margin is None:
+        return cfg
+    field = 'minimum_cost_margin' if cfg.gate_model == 'linear' else 'minimum_cost_margin_sqrt'
+    updated = replace(cfg, **{field: float(margin)})
+    assert updated.cost_thresholds()['minimum_cost_margin'] == float(margin)
+    return updated
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse arguments; without a subcommand the v001 ``run`` flags are assumed."""
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -357,8 +373,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         if args.command == 'run':
-            cfg = load_config(args.config, max_gap=args.max_gap, minimum_cost_margin=args.margin,
-                              recovery_radius_px=args.recovery_radius)
+            cfg = with_margin(load_config(args.config, max_gap=args.max_gap,
+                                          recovery_radius_px=args.recovery_radius), args.margin)
             marker = pipeline.run(args.observations, args.out, cfg, force=args.force)
             print(json.dumps(marker, indent=2, sort_keys=True), flush=True)
         elif args.command == 'fit':
