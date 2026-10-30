@@ -35,3 +35,23 @@ fill_confidence_gaps: [5, 15]
 # Staged linking (sqrt): link gaps in (0, 5], then (5, 15], ... up to max_gap, removing
 # matched endpoints after each stage. Stages above max_gap are dropped.
 link_stages: [5, 15, 30, 45]
+# v003: tail recovery (continuation-only relaxation of the Shell-score gate at trajectory ends)
+tail_recovery: true
+tail_radius_px: 8.0
+tail_max_frames: 15
+tail_reasons: [low_body_score]
+tail_exclusion_px: 5.0
+# v003: spurious-identity filter (flag only): real frames < min_identity_frames AND median
+# instance_score < min_identity_score -> trajectory_status 'spurious'
+min_identity_frames: 2
+min_identity_score: 0.6
+# v003: appearance cues (sqrt model): carapace size and claw side as soft cost terms;
+# a confident claw-side mismatch refuses the pair (refused_gate 'claw_side')
+appearance_cues: true
+size_scale_px: 3.0
+size_noise_px: 1.0
+size_cost_cap: 3.0
+size_weight: 0.1
+claw_side_weight: 0.15
+claw_side_confidence: 0.9
+claw_side_min_frames: 5

@@ -47,6 +47,24 @@ class BridgeConfig:
     unmatched_cost_sqrt: float = 0.6
     minimum_cost_margin_sqrt: float = 0.25
     fill_confidence_gaps: tuple[int, int] = (5, 15)   # gap <= 5 high, <= 15 medium, else low
+    # --- v003: tail recovery (continuation-only relaxation of the Shell-score gate) ---
+    tail_recovery: bool = True
+    tail_radius_px: float = 8.0
+    tail_max_frames: int = 15
+    tail_reasons: tuple[str, ...] = ('low_body_score',)
+    tail_exclusion_px: float = 5.0            # tracker's duplicate_shell_radius_px
+    # --- v003: spurious-identity filter (flag only; nothing is deleted) ---
+    min_identity_frames: int = 2              # real frames (observed/recovered/recovered_tail) below this ...
+    min_identity_score: float = 0.6           # ... AND median instance_score below this -> 'spurious'
+    # --- v003: appearance cues (sqrt model only) ---
+    appearance_cues: bool = True
+    size_scale_px: float = 3.0                # size term = |dL| / sqrt(scale^2 + noise^2/n_a + noise^2/n_b)
+    size_noise_px: float = 1.0
+    size_cost_cap: float = 3.0
+    size_weight: float = 0.1
+    claw_side_weight: float = 0.15            # side term = max(0, -side_a * side_b)
+    claw_side_confidence: float = 0.9         # veto when both |side| >= this ...
+    claw_side_min_frames: int = 5             # ... over at least this many valid frames, opposite signs
     # Staged linking (sqrt only): gaps (prev, stage] are linked stage by stage, shortest first;
     # stages above max_gap are dropped and max_gap is always the last stage.
     link_stages: tuple[int, ...] = (5, 15, 30, 45)
@@ -71,6 +89,12 @@ class BridgeConfig:
             raise ValueError("invalid gate-model parameters")
         if not (0 < self.fill_confidence_gaps[0] <= self.fill_confidence_gaps[1]):
             raise ValueError("fill_confidence_gaps must be increasing and positive")
+        if (self.tail_radius_px < 0 or self.tail_max_frames < 0 or self.tail_exclusion_px < 0
+                or self.min_identity_frames < 1 or not 0 <= self.min_identity_score <= 1):
+            raise ValueError("invalid tail-recovery or identity-filter parameters")
+        if (self.size_scale_px <= 0 or self.size_noise_px < 0 or self.size_cost_cap < 0 or self.size_weight < 0
+                or self.claw_side_weight < 0 or not 0 < self.claw_side_confidence <= 1 or self.claw_side_min_frames < 1):
+            raise ValueError("invalid appearance-cue parameters")
         stages = tuple(self.link_stages)
         if not stages or any(int(s) != s or s < 1 for s in stages) or any(
                 b <= a for a, b in zip(stages, stages[1:])):
@@ -115,7 +139,7 @@ def load_config(path: Path | None = None, **overrides) -> BridgeConfig:
             raise ValueError(f"Unknown config keys: {sorted(unknown)}")
         values.update(loaded)
     values.update({k: v for k, v in overrides.items() if v is not None})
-    for key in ("recoverable_reasons", "fill_confidence_gaps", "link_stages"):
+    for key in ("recoverable_reasons", "fill_confidence_gaps", "link_stages", "tail_reasons"):
         if key in values:
             values[key] = tuple(values[key])
     return replace(BridgeConfig(), **values)

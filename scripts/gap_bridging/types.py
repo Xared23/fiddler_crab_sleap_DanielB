@@ -14,7 +14,7 @@ NODES = ('shell', 'shoulder', 'elbow', 'claw', 'arm')
 SHELL, SHOULDER = 0, 1
 
 DECISIONS = ('linked', 'refused_margin', 'refused_gate', 'refused_assignment')
-SOURCES = ('observed', 'recovered', 'interpolated')
+SOURCES = ('observed', 'recovered', 'recovered_tail', 'interpolated')
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,11 @@ class Endpoint:
     vel_known: bool        # n_frames >= 2
     heading: float         # atan2(shoulder - shell) at the endpoint (nearest valid frame in window); NaN if none
     offsets: np.ndarray    # (5,2) body-frame node offsets rotated by -heading; NaN rows unknown; shell row zeros
+    # Appearance cues (v003): whole-tracklet statistics, identical on START and END.
+    size_px: float = float('nan')   # median Shell-Shoulder length (px); NaN if no valid frame
+    size_n: int = 0                 # frames contributing to size_px
+    claw_side: float = 0.0          # mean sign of (shoulder-shell) x (claw-shell), in [-1, 1]; 0 if unknown
+    claw_side_n: int = 0            # frames contributing to claw_side
 
 
 @dataclass(frozen=True)
@@ -43,6 +48,8 @@ class LinkDecision:
     reason: str
     n_chain_ignored: int = 0  # chain-reachable competitors excluded from the runner-up (linked/refused_margin)
     stage: int = 0            # 1-based linking stage whose gap range holds gap_frames (linear: 1)
+    size_term: float = float('nan')   # appearance size term added to the cost (sqrt model; NaN if cues off)
+    side_term: float = float('nan')   # appearance claw-side term added to the cost (sqrt model; NaN if cues off)
 
 
 @dataclass(frozen=True)

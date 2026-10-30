@@ -30,13 +30,14 @@ TRAJECTORY_SCHEMA = pa.schema([
     ('trajectory_id', pa.string()), ('video_id', pa.string()),
     ('start_frame', pa.int64()), ('end_frame', pa.int64()),
     ('n_observed', pa.int64()), ('n_recovered', pa.int64()), ('n_interpolated', pa.int64()),
+    ('n_recovered_tail', pa.int64()),
     ('n_tracklets', pa.int64()), ('member_tracklet_ids', pa.list_(pa.string())),
 ])
 LINKS_SCHEMA = pa.schema([
     ('video_id', pa.string()), ('tracklet_a', pa.string()), ('tracklet_b', pa.string()),
     ('gap_frames', pa.int64()), ('cost', pa.float64()), ('runner_up_cost', pa.float64()),
     ('decision', pa.string()), ('reason', pa.string()), ('n_chain_ignored', pa.int64()),
-    ('stage', pa.int64()),
+    ('stage', pa.int64()), ('size_term', pa.float64()), ('side_term', pa.float64()),
 ])
 OUTPUT_NAMES = ('observations.parquet', 'trajectories.parquet', 'links.parquet')
 COMPLETE_NAME = 'GAP_BRIDGING_COMPLETE.json'
@@ -274,7 +275,7 @@ def links_table(decisions: list[LinkDecision], video_id: str) -> pa.Table:
         raise ValueError(f"unknown decisions: {sorted(bad)}")
     for name in ('gap_frames', 'n_chain_ignored', 'stage'):
         columns[name] = [int(v) for v in columns[name]]
-    for name in ('cost', 'runner_up_cost'):
+    for name in ('cost', 'runner_up_cost', 'size_term', 'side_term'):
         columns[name] = [float(v) for v in columns[name]]
     return pa.Table.from_pydict(columns, schema=LINKS_SCHEMA)
 
