@@ -29,8 +29,9 @@ class BridgeConfig:
     fps: float = 30000 / 1001
     # --- gate model (v002) ---------------------------------------------------
     # "sqrt": r(dt) = max(radius_min_px, radius_safety * (radius_r0_px + radius_k_px * sqrt(dt)))
-    #         with dt = frames between the linked END and START; costs are dimensionless
-    #         (distance / r) with a multiplicative gap penalty (1 + gap_penalty) ** (dt - 1).
+    #         with dt = frames between the linked END and START. Gates and the dimensionless
+    #         cost use the extended radius R = r(dt) + max(|v_a|, |v_b|) * min(dt, horizon);
+    #         cost *= (1 + gap_penalty) ** (gap - 1), gap = dt - 1.
     # "linear": the v001 behaviour (12 * dt displacement gate, per-frame px costs).
     gate_model: str = "sqrt"
     radius_r0_px: float = 0.00                   # demo fit (nnls, p99 net displacement, dt 1..60)
@@ -39,7 +40,12 @@ class BridgeConfig:
     radius_min_px: float = 6.0                # floor so adjacent-frame jitter is always inside
     prediction_error_ratio: float = 1.5       # prediction gate = ratio * r(dt)
     prediction_horizon_frames: int = 3        # velocity extrapolated for min(dt, horizon) frames; also damps long fills
-    gap_penalty: float = 0.024                # (1 + gap_penalty) ** (dt - 1); 30 frames ~ 2x
+    gap_penalty: float = 0.06                 # cost *= (1 + gap_penalty) ** (gap - 1); at equal pixel
+                                              # distance a 1-frame gap beats a 30-frame gap (5.4 > r(31)/r(2))
+    # Thresholds on the sqrt model's dimensionless cost (fractions of the extended radius).
+    max_assignment_cost_sqrt: float = 1.0
+    unmatched_cost_sqrt: float = 0.6
+    minimum_cost_margin_sqrt: float = 0.25
     fill_confidence_gaps: tuple[int, int] = (5, 15)   # gap <= 5 high, <= 15 medium, else low
 
     def __post_init__(self) -> None:
@@ -56,7 +62,9 @@ class BridgeConfig:
             raise ValueError("gate_model must be 'sqrt' or 'linear'")
         if (self.radius_r0_px < 0 or self.radius_k_px < 0 or self.radius_safety <= 0
                 or self.radius_min_px < 0 or self.prediction_error_ratio <= 0
-                or self.prediction_horizon_frames < 1 or self.gap_penalty < 0):
+                or self.prediction_horizon_frames < 1 or self.gap_penalty < 0
+                or self.max_assignment_cost_sqrt < 0 or self.unmatched_cost_sqrt < 0
+                or self.minimum_cost_margin_sqrt < 0):
             raise ValueError("invalid gate-model parameters")
         if not (0 < self.fill_confidence_gaps[0] <= self.fill_confidence_gaps[1]):
             raise ValueError("fill_confidence_gaps must be increasing and positive")
@@ -70,18 +78,20 @@ class BridgeConfig:
         return np.maximum(self.radius_min_px,
                           self.radius_safety * (self.radius_r0_px + self.radius_k_px * np.sqrt(dt)))
 
-    def cost_scale_defaults(self) -> dict:
-        """Cost thresholds appropriate to the gate model's cost scale.
+    def cost_thresholds(self) -> dict:
+        """Assignment thresholds on the active gate model's cost scale.
 
-        The linear model keeps the configured px/frame values. The sqrt model's
-        costs are fractions of r(dt), so the configured thresholds are only used
-        when they were set explicitly for that scale; the defaults returned here
-        are (max_assignment_cost, unmatched_cost, minimum_cost_margin) = (1.0, 0.6, 0.25).
+        Linear: the px/frame values (max_assignment_cost, unmatched_cost,
+        minimum_cost_margin). Sqrt: the dimensionless *_sqrt values.
         """
         if self.gate_model == "linear":
             return {"max_assignment_cost": self.max_assignment_cost, "unmatched_cost": self.unmatched_cost,
                     "minimum_cost_margin": self.minimum_cost_margin}
-        return {"max_assignment_cost": 1.0, "unmatched_cost": 0.6, "minimum_cost_margin": 0.25}
+        return {"max_assignment_cost": self.max_assignment_cost_sqrt,
+                "unmatched_cost": self.unmatched_cost_sqrt,
+                "minimum_cost_margin": self.minimum_cost_margin_sqrt}
+
+    cost_scale_defaults = cost_thresholds  # name used by the WP-A brief
 
     def to_dict(self) -> dict:
         return {f.name: (list(getattr(self, f.name)) if isinstance(getattr(self, f.name), tuple)

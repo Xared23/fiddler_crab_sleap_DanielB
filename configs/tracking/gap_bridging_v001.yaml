@@ -26,5 +26,8 @@ radius_safety: 1.25
 radius_min_px: 6.0
 prediction_error_ratio: 1.5
 prediction_horizon_frames: 3
-gap_penalty: 0.024
+gap_penalty: 0.06
+max_assignment_cost_sqrt: 1.0
+unmatched_cost_sqrt: 0.6
+minimum_cost_margin_sqrt: 0.25
 fill_confidence_gaps: [5, 15]
