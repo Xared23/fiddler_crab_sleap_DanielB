@@ -217,7 +217,9 @@ and its `rejection_reason`. Only the five new columns mark it as adopted.
 **`links.parquet`**. One audit row per candidate pair, with these columns:
 `video_id`, `tracklet_a`, `tracklet_b`, `gap_frames`, `cost` (NaN when a motion
 gate failed), `runner_up_cost` (NaN when there is no competitor), `decision`,
-`reason` and `n_chain_ignored`. `n_chain_ignored` (int64) is the number of
+`reason`, `n_chain_ignored` and `stage`. `stage` (int64) is the 1-based
+linking stage whose gap range holds the pair (always 1 under the linear model;
+see [staged linking](#gate-model-v002)). `n_chain_ignored` (int64) is the number of
 chain-reachable competitors left out of the runner-up (method, step 5). It is
 set on `linked` and `refused_margin` rows and is 0 on all other rows. Filter or
 sum it directly; there is no need to parse `reason`.
@@ -423,6 +425,22 @@ at equal pixel distance a short gap wins.
 `minimum_cost_margin_sqrt = 0.25`. Assignment, margin veto, chain-aware
 runner-up and the audit labels are those of the method above.
 
+**Staged linking.** A single assignment over all gaps up to `max_gap` let a
+cheaper long-gap candidate take an endpoint whose true partner was a few frames
+away; the margin veto then refused the long pair, and the short link was never
+made (on the demo, up to 50 short-gap links were lost at long horizons). Under
+the sqrt model, linking therefore runs in stages of increasing gap: with
+`link_stages = [5, 15, 30, 45]` (stages at or above `max_gap` are dropped and
+`max_gap` is always the last stage), stage 1 assigns gaps 1–5, stage 2 gaps
+6–15, and so on. Each stage solves the assignment and margin veto over its own
+candidates whose END and START are both still free, fixes its links, and
+removes the matched endpoints before the next stage. Gates and costs do not
+depend on the stage; chain reachability is still taken over all motion-gated
+pairs up to `max_gap`. A gate-passing pair whose endpoint was linked in an
+earlier stage is `refused_assignment` with reason `endpoint linked at stage s`
+and that link's cost as runner-up. The `stage` column of `links.parquet` gives
+each pair's 1-based stage. The linear model has a single stage.
+
 | Parameter | Default | Meaning |
 |---|---:|---|
 | `gate_model` | `sqrt` | `sqrt` (v002) or `linear` (v001, reproduces earlier results exactly) |
@@ -437,6 +455,7 @@ runner-up and the audit labels are those of the method above.
 | `unmatched_cost_sqrt` | 0.6 | Cost of leaving an end or start unmatched |
 | `minimum_cost_margin_sqrt` | 0.25 | Veto when the runner-up is within this |
 | `fill_confidence_gaps` | [5, 15] | `high` ≤ 5 < `medium` ≤ 15 < `low` |
+| `link_stages` | [5, 15, 30, 45] | Upper gap of each linking stage (sqrt only); stages ≥ `max_gap` dropped, `max_gap` is the last stage |
 
 **Fit.** `bridge_gaps.py fit` (`scripts/gap_bridging/fit.py`) takes every
 unbroken accepted tracklet (consecutive, unique frames), pools the net shell
@@ -564,23 +583,34 @@ The full sweep with hold-out on the demo takes 45 s on a login node.
 
 ### Horizon sweep results
 
-Demo clip, default config (sqrt gate, demo fit), `--per-gap 8 --seed 0`
-(`logs/gap_sweep/`, not committed):
+Demo clip, default config (sqrt gate, demo fit, staged linking
+`link_stages = [5, 15, 30, 45]`), `--per-gap 8 --seed 0` (`logs/gap_sweep/`,
+not committed):
 
 | `max_gap` | links | trajectories | mean L | median L | p90 L | 1-frame units | frames in units ≥ 30 | recovered | interpolated (high / medium / low) | refused_margin | refused_assignment | hold-out planted | precision | recall |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|
 | 5 | 638 | 543 | 69.6 | 13 | 300 | 116 | 0.933 | 19 | 1,273 (1,273 / 0 / 0) | 1 | 118 | 32 | 1.000 | 1.000 |
-| 10 | 715 | 466 | 82.7 | 18 | 300 | 86 | 0.949 | 19 | 2,006 (1,229 / 777 / 0) | 23 | 424 | 40 | 1.000 | 1.000 |
-| **15** | **755** | **426** | **91.7** | **24.5** | **300** | **78** | **0.956** | **19** | **2,535 (1,217 / 1,318 / 0)** | **24** | **714** | **48** | **1.000** | **1.000** |
-| 30 | 776 | 405 | 98.7 | 28 | 300 | 77 | 0.965 | 19 | 3,439 (1,159 / 1,290 / 990) | 48 | 1,526 | 64 | 1.000 | 0.969 |
-| 45 | 796 | 385 | 105.4 | 32 | 300 | 73 | 0.969 | 21 | 4,042 (1,170 / 1,290 / 1,582) | 44 | 2,167 | 72 | 1.000 | 0.944 |
-| 60 | 803 | 378 | 108.2 | 35 | 300 | 69 | 0.970 | 21 | 4,349 (1,174 / 1,290 / 1,885) | 43 | 2,471 | 80 | 1.000 | 0.863 |
+| 10 | 739 | 442 | 87.3 | 21 | 300 | 82 | 0.952 | 19 | 2,041 (1,273 / 768 / 0) | 1 | 422 | 40 | 1.000 | 1.000 |
+| **15** | **781** | **400** | **97.8** | **28** | **300** | **71** | **0.959** | **19** | **2,576 (1,273 / 1,303 / 0)** | **1** | **711** | **48** | **1.000** | **1.000** |
+| 30 | 827 | 354 | 113.3 | 52 | 300 | 63 | 0.974 | 19 | 3,566 (1,273 / 1,303 / 990) | 1 | 1,522 | 64 | 1.000 | 0.969 |
+| 45 | 843 | 338 | 120.4 | 61 | 300 | 59 | 0.978 | 21 | 4,158 (1,273 / 1,303 / 1,582) | 1 | 2,163 | 72 | 1.000 | 0.944 |
+| 60 | 849 | 332 | 123.5 | 63.5 | 300 | 56 | 0.979 | 21 | 4,461 (1,273 / 1,303 / 1,885) | 1 | 2,467 | 80 | 1.000 | 0.863 |
 
-For comparison, the v001 linear gate at `max_gap` 5 gives 654 links and 527
-trajectories ([Demo results](#demo-results)). Links by gap at `max_gap` 60:
-593 at gaps 1–5, 101 at 6–10, 41 at 11–15, 46 at 16–30, 22 at 31–60. Links
-that ignored at least one chain-reachable competitor: 198 at `max_gap` 5, 568
-at 15, 687 at 30, 763 at 60.
+`refused_gate` is 18,547 / 36,653 / 54,626 / 106,378 / 154,617 / 198,570 at
+the six horizons (a gate result does not depend on the horizon or stage). For
+comparison, the v001 linear gate at `max_gap` 5 gives 654 links and 527
+trajectories ([Demo results](#demo-results)).
+
+With staged linking, a horizon only adds links: the 638 links at gaps 1–5 are
+the same at every horizon, and the high-confidence fill count stays at 1,273.
+Links by gap at `max_gap` 60: 638 at gaps 1–5, 101 at 6–10, 42 at 11–15, 46 at
+16–30, 16 at 31–45, 6 at 46–60; per stage 638 / 143 / 46 / 16 / 6. Links that
+ignored at least one chain-reachable competitor: 198 at `max_gap` 5, 202 at
+15, 203 at 30 and 60. Before staged linking (one assignment over all gaps)
+the same sweep gave 755 links at `max_gap` 15 and 803 at 60, lost up to 50
+short-gap links to longer competitors that were then margin-vetoed
+(`refused_margin` 48 at `max_gap` 30, now 1), and the chain-ignored count grew
+to 763.
 
 Hold-out per planted gap (seed 0, 8 plants each). Precision is 1.000 for every
 gap at every horizon (no false link); recall:
@@ -591,52 +621,69 @@ gap at every horizon (no false link); recall:
 
 Because seed 0 alone shows no false link anywhere, it cannot separate the
 horizons. Four more seeds (1–4, same settings, `logs/gap_sweep_seeds/`) were
-pooled with seed 0, 40 plants per gap and horizon:
+pooled with seed 0, 40 plants per gap and horizon; the values are the same at
+every horizon that covers the gap:
 
 | planted gap | 1–10 | 15 | 20 | 30 | 45 | 60 |
 |---|---:|---:|---:|---:|---:|---:|
 | recall | 1.000 | 0.975 | 0.850 | 0.750 | 0.675 | 0.375 |
 | precision | 1.000 | 1.000 | 1.000 | 0.968 (1 false link) | 1.000 | 1.000 |
 
-Pooled overall per horizon (precision / recall): 5: 1.000 / 1.000 (160
-plants); 10: 1.000 / 1.000 (200); 15: 1.000 / 0.996 (240); 30: 0.997 / 0.947
-(320); 45: 0.997 / 0.917 (360); 60: 0.997 / 0.863 (400). The one false link
-(seed 1, gap 30) is another tracklet that ended 21 frames before the planted
-right half and was linked to it at cost 0.93, while the true pair cost 1.22
-and failed `max_cost` (not inspected in the video: a neighbour or a duplicate
-detection of the same crab).
+| `max_gap` | plants | pooled precision | pooled recall |
+|---:|---:|---:|---:|
+| 5 | 160 | 1.000 | 1.000 |
+| 10 | 200 | 1.000 | 1.000 |
+| 15 | 240 | 1.000 | 0.996 |
+| 30 | 320 | 0.997 | 0.947 |
+| 45 | 360 | 0.997 | 0.917 |
+| 60 | 400 | 0.997 | 0.863 |
+
+The pooled hold-out counts per gap are identical to those measured before
+staged linking, so the planted pairs were not among the short-gap links that
+the single assignment had lost. The one false link (seed 1, gap 30) is another tracklet that ended
+21 frames before the planted right half and was linked to it in stage 3 at
+cost 0.93, while the true pair (also stage 3) cost 1.22 and failed `max_cost`
+(not inspected in the video: a neighbour or a duplicate detection of the same
+crab).
 
 Figures: `logs/gap_sweep/figures/sweep.pdf`, `holdout.pdf`,
 `radius_fit.pdf` and `bridges_max_gap_60_p1.png` … `_p4.png`. In the 20
 rendered bridges (gaps 10–40, inspected by eye at crop scale), the crab is
-visible and stationary throughout the gap in every row, often at a burrow mouth or half inside it, and the
-interpolated shell stays on it: the long losses on the demo are detector misses
-on still crabs, not crabs walking away.
+visible and stationary throughout the gap in every row, often at a burrow
+mouth or half inside it, and the interpolated shell stays on it: the long
+losses on the demo are detector misses on still crabs, not crabs walking away.
 
 ### Recommended default
 
-**`max_gap = 15`** (0.5 s). The rule was: the highest horizon whose overall
-hold-out precision is at least 0.95 and whose precision does not decline at the
-longest planted gaps. On seed 0 alone every horizon passes (precision 1.000
-throughout), which only shows that 8 plants per gap cannot resolve the
-question. With the five seeds pooled, precision first drops below 1 at a
-planted gap of 30 (0.968), so every horizon ≥ 30 shows a decline at its
-longest gaps; 15 is the highest horizon with precision 1.000 at every planted
-gap (240 plants, recall 0.996). It is also the knee of the sweep: going from 5
-to 15 adds 117 links (+18%) and raises the median trajectory length from 13 to
-24.5 frames, while going from 15 to 60 adds only 48 links but 1,885
-low-confidence interpolated rows, and hold-out recall at gap 60 is 0.375. It
-keeps fills inside the `high`/`medium` classes and well below the 1–2 s at
-which burrow retreats begin. The YAML default stays at 5 until this is
-confirmed on the full dataset (rerun `fit`, then the sweep with `--holdout`).
+**`max_gap = 15`** (0.5 s), unchanged by staged linking. The rule: the
+highest horizon whose pooled hold-out precision is at least 0.95 and whose
+precision does not decline at the longest planted gaps. On seed 0 alone every
+horizon passes (precision 1.000 throughout), which only shows that 8 plants
+per gap cannot resolve the question. With the five seeds pooled, precision
+first drops below 1 at a planted gap of 30 (0.968), so every horizon ≥ 30
+shows a decline at its longest gaps; 15 is the highest horizon with precision
+1.000 at every planted gap (240 plants, recall 0.996). Because the hold-out is
+unchanged, so is the decision.
+
+What staged linking did change is the price of stopping at 15: going from 5
+to 15 now adds 143 links (+22%) and raises the median trajectory length from
+13 to 28 frames, and going from 15 to 30 adds 46 links and raises the median
+to 52 frames (before: +21 links, median 24.5 → 28), at the cost of 990
+low-confidence interpolated rows and the first hold-out false link. Beyond 30
+the gain is small (+22 links from 30 to 60) and hold-out recall at gap 60 is
+0.375. 15 keeps every fill in the `high`/`medium` classes and well below the
+1–2 s at which burrow retreats begin; 30 is the candidate to re-test on the
+full dataset, where the hold-out has enough plants to measure precision at
+gaps 20–30. The YAML default stays at 5 until this is confirmed there (rerun
+`fit`, then the sweep with `--holdout`).
 
 ### Residual risks
 
 - **Burrow clusters.** Neighbouring crabs at adjacent burrows sit within a few
-  radii of each other. The only hold-out false link was of this kind. The
-  chain-aware runner-up rule ignores more competitors as the horizon grows (198
-  links at 5, 568 at 15, 763 at 60), so a real ambiguity can go unvetoed more
-  often at long horizons.
+  radii of each other; the only hold-out false link may be of this kind. The
+  chain-aware runner-up rule leaves some competitors out of the margin veto
+  (about 200 links at every horizon with staged linking), so a real ambiguity
+  can go unvetoed.
 - **Crabs that keep walking beyond the horizon.** The sqrt radius admits at
   most `h = 3` frames of directed motion; a crab that walks steadily through a
   long loss is refused (missed, not mislinked). Hold-out plants are mostly
