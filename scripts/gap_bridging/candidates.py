@@ -28,6 +28,13 @@ linking is staged by gap (``cfg.link_stages``, shortest first) so a short-gap
 link is fixed before longer gaps compete for its endpoints; an endpoint whose
 assigned pair is margin-vetoed at one stage is not linkable at later stages.
 
+Appearance cues (sqrt only, ``cfg.appearance_cues``): the whole-tracklet
+carapace size and claw side on each Endpoint add
+``size_weight * size_term + claw_side_weight * side_term`` to the cost
+(``_cue_terms``), and a confident claw-side mismatch refuses the pair with
+gate ``claw_side`` (after the motion gates, before ``max_cost``); such a pair
+is neither assignable nor chain-reachable. The linear model ignores the cues.
+
 The assignment is solved per connected component of the assignable-pair graph;
 non-candidate cells are never chosen at the optimum, so this equals the global
 ``(m+n) x (m+n)`` solve while keeping memory proportional to component size.
@@ -63,6 +70,7 @@ BIG = 1e9
 GATE_DISPLACEMENT = 'displacement'
 GATE_PREDICTION = 'prediction_error'
 GATE_MAX_COST = 'max_cost'
+GATE_CLAW_SIDE = 'claw_side'
 
 
 # ============================================================
@@ -252,10 +260,12 @@ def _pair_geometry(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarra
 
 
 def _gate_labels(cost: np.ndarray, disp_ok: np.ndarray, err_ok: np.ndarray,
-                 max_cost: float) -> np.ndarray:
-    """First failing gate per pair: displacement, then prediction error, then max cost."""
+                 max_cost: float, side_veto: Optional[np.ndarray] = None) -> np.ndarray:
+    """First failing gate per pair: displacement, prediction error, claw side, max cost."""
     gate = np.full(len(cost), '', dtype=object)
     gate[~(np.isfinite(cost) & (cost <= max_cost))] = GATE_MAX_COST
+    if side_veto is not None:
+        gate[np.asarray(side_veto, dtype=bool)] = GATE_CLAW_SIDE
     gate[~err_ok] = GATE_PREDICTION
     gate[~disp_ok] = GATE_DISPLACEMENT
     return gate
@@ -315,6 +325,70 @@ def _sqrt_extended_radius(cfg: BridgeConfig, dt: np.ndarray, speed: np.ndarray) 
     return out
 
 
+def _cue_terms(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
+               cols: np.ndarray, cfg: BridgeConfig) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Appearance cue terms of each candidate pair (END ``a = ends[rows]``, START ``b = starts[cols]``).
+
+    With carapace sizes ``L`` over ``n`` frames and mean claw sides ``s`` over
+    ``n_s`` frames (``Endpoint.size_px/size_n/claw_side/claw_side_n``):
+
+    * ``size_term = min(size_cost_cap, |L_a - L_b| / sqrt(size_scale_px^2
+      + (size_noise_px^2/n_a + size_noise_px^2/n_b)))``, 0 unless both ``n > 0``;
+    * ``side_term = max(0, -s_a s_b)``, 0 unless both ``n_s > 0``;
+    * ``side_veto`` iff both ``|s| >= claw_side_confidence``, both
+      ``n_s >= claw_side_min_frames`` and ``s_a s_b < 0``.
+
+    All three are symmetric under exchanging the cue values of a and b.
+
+    Parameters
+    ----------
+    ends, starts : list of Endpoint
+        Sorted endpoints.
+    rows, cols : np.ndarray
+        Candidate indices from ``_enumerate_pairs``.
+    cfg : BridgeConfig
+        ``size_*`` and ``claw_side_*`` parameters.
+
+    Returns
+    -------
+    (size_term, side_term, side_veto) : tuple of np.ndarray
+        Float terms in ``[0, size_cost_cap]`` and ``[0, 1]`` and a bool veto mask.
+    """
+    def cues(points: List[Endpoint], idx: np.ndarray) -> Tuple[np.ndarray, ...]:
+        size = np.array([float(p.size_px) for p in points], dtype=float).reshape(-1)[idx]
+        size_n = np.array([int(p.size_n) for p in points], dtype=np.int64).reshape(-1)[idx]
+        side = np.array([float(p.claw_side) for p in points], dtype=float).reshape(-1)[idx]
+        side_n = np.array([int(p.claw_side_n) for p in points], dtype=np.int64).reshape(-1)[idx]
+        return size, size_n, side, side_n
+
+    la, na, sa, nsa = cues(ends, rows)
+    lb, nb, sb, nsb = cues(starts, cols)
+    sized = (na > 0) & (nb > 0) & np.isfinite(la) & np.isfinite(lb)
+    noise2 = float(cfg.size_noise_px) ** 2
+    with np.errstate(divide='ignore', invalid='ignore'):
+        spread = np.sqrt(float(cfg.size_scale_px) ** 2 + (noise2 / na + noise2 / nb))
+        z = np.abs(la - lb) / spread
+    size_term = np.where(sized, np.minimum(float(cfg.size_cost_cap), np.nan_to_num(z, nan=0.0)), 0.0)
+    sided = (nsa > 0) & (nsb > 0)
+    product = sa * sb
+    side_term = np.where(sided, np.maximum(0.0, -product), 0.0)
+    conf, need = float(cfg.claw_side_confidence), int(cfg.claw_side_min_frames)
+    side_veto = ((np.abs(sa) >= conf) & (np.abs(sb) >= conf) & (nsa >= need) & (nsb >= need)
+                 & (product < 0))
+    assert size_term.shape == side_term.shape == side_veto.shape == rows.shape
+    return size_term, side_term, side_veto
+
+
+def _cue_columns(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
+                 cols: np.ndarray, cfg: BridgeConfig) -> Tuple[np.ndarray, np.ndarray]:
+    """``(size_term, side_term)`` for the audit rows; NaN under linear or with cues off."""
+    if cfg.gate_model != 'sqrt' or not cfg.appearance_cues:
+        return np.full(len(rows), np.nan), np.full(len(rows), np.nan)
+    size_term, side_term, _ = _cue_terms(ends, starts, rows, cols, cfg)
+    return size_term, side_term
+
+
 def _pair_costs_sqrt(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
                      cols: np.ndarray, cfg: BridgeConfig) -> Tuple[np.ndarray, ...]:
     """
@@ -325,8 +399,11 @@ def _pair_costs_sqrt(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndar
     ``dist <= R`` and ``err <= prediction_error_ratio * R`` (velocities
     extrapolated over ``min(dt, h)`` frames); cost
     ``[(1-w) dist + w err] / R * (1 + gap_penalty)^(dt-2) + w_s min(|du|, cap)/cap``,
-    so a 1-frame gap (``dt = 2``) carries no penalty; ``max_cost`` gate at
-    ``cfg.cost_thresholds()['max_assignment_cost']``.
+    so a 1-frame gap (``dt = 2``) carries no penalty; with
+    ``cfg.appearance_cues`` the cost gains
+    ``size_weight * size_term + claw_side_weight * side_term`` and a
+    ``side_veto`` pair fails the ``claw_side`` gate (``_cue_terms``);
+    ``max_cost`` gate at ``cfg.cost_thresholds()['max_assignment_cost']``.
 
     Returns
     -------
@@ -347,10 +424,14 @@ def _pair_costs_sqrt(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndar
         motion = ((1 - w) * dist + w * err) / radius * penalty
         shape = shoulder / cap if cap > 0 else np.zeros_like(shoulder)
     cost = motion + cfg.shoulder_vector_weight * shape
+    side_veto = None
+    if cfg.appearance_cues:
+        size_term, side_term, side_veto = _cue_terms(ends, starts, rows, cols, cfg)
+        cost = cost + cfg.size_weight * size_term + cfg.claw_side_weight * side_term
     disp_ok = dist <= radius
     err_ok = err <= cfg.prediction_error_ratio * radius
     max_cost = cfg.cost_thresholds()['max_assignment_cost']
-    return dt, cost, _gate_labels(cost, disp_ok, err_ok, max_cost)
+    return dt, cost, _gate_labels(cost, disp_ok, err_ok, max_cost, side_veto)
 
 
 def _pair_costs(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
@@ -372,7 +453,9 @@ def _pair_costs(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
     (dt, cost, gate) : tuple of np.ndarray
         ``dt`` int64; ``cost`` float64 (finite whenever both motion gates pass);
         ``gate`` object array holding '' (passed all gates), 'displacement',
-        'prediction_error' or 'max_cost'. ``cost`` is px per frame under the
+        'prediction_error', 'claw_side' (sqrt with cues only) or 'max_cost'.
+        A 'claw_side' pair keeps its finite cost here; its audit row reports
+        NaN. ``cost`` is px per frame under the
         linear model and a fraction of the extended radius under the sqrt model.
     """
     if cfg.gate_model == 'linear':
@@ -499,7 +582,7 @@ def _fmt(x: float) -> str:
 
 def _motion_gated(rows: np.ndarray, cols: np.ndarray, gate: np.ndarray,
                   ids: Tuple[np.ndarray, np.ndarray]) -> Set[Tuple[str, str]]:
-    """(end_id, start_id) pairs that pass both motion gates (``''`` or ``max_cost``)."""
+    """(end_id, start_id) pairs passing the motion gates and the claw-side veto (``''`` or ``max_cost``)."""
     motion_ok = (gate == '') | (gate == GATE_MAX_COST)
     end_ids, start_ids = ids
     return {(end_ids[r], start_ids[c]) for r, c in zip(rows[motion_ok], cols[motion_ok])}
@@ -639,8 +722,8 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConf
     START too: the veto means "ambiguous, leave unlinked", so neither endpoint
     is retried at a later stage. Gates and costs are per pair and
     stage-independent; runner-ups are taken over the stage's own candidates,
-    and chain reachability over all motion-gated pairs up to ``max_gap``. The
-    linear model has a single stage.
+    and chain reachability over all motion-gated pairs up to ``max_gap``
+    (claw-side-vetoed pairs excluded). The linear model has a single stage.
 
     Parameters
     ----------
@@ -670,7 +753,10 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConf
         ``refused_assignment`` with reason ``endpoint linked at stage s`` and
         that link's cost as runner-up; if instead an endpoint was margin-vetoed
         at an earlier stage, the reason is ``endpoint vetoed at stage s`` and
-        the runner-up is the vetoed pair's cost.
+        the runner-up is the vetoed pair's cost. A pair refused by the
+        claw-side veto is ``refused_gate`` with reason ``claw_side`` and NaN
+        cost. ``size_term``/``side_term`` hold the cue terms added to the
+        cost (NaN under linear or with ``appearance_cues`` off).
 
     Raises
     ------
@@ -695,6 +781,7 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConf
         return [], []
     scale = cfg.cost_thresholds()
     dt, cost, gate = _pair_costs(ends, starts, rows, cols, cfg)
+    size_term, side_term = _cue_columns(ends, starts, rows, cols, cfg)
     ids = (np.array([e.tracklet_id for e in ends], dtype=object),
            np.array([b.tracklet_id for b in starts], dtype=object))
     gated = _motion_gated(rows, cols, gate, ids)
@@ -734,7 +821,7 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConf
     for k, (decision, c, ru, reason, n_chain) in enumerate(labels):
         a, b = ends[rows[k]].tracklet_id, starts[cols[k]].tracklet_id
         decisions.append(LinkDecision(a, b, int(dt[k]) - 1, c, ru, decision, reason, int(n_chain),
-                                      int(stage_of[k])))
+                                      int(stage_of[k]), float(size_term[k]), float(side_term[k])))
         if decision == 'linked':
             links.append((a, b))
     assert len({a for a, _ in links}) == len({b for _, b in links}) == len(links)

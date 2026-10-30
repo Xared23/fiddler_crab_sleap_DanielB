@@ -5,7 +5,8 @@ Endpoint motion state and gap filling for tracklet bridging (WP-A).
 
 ``endpoints`` summarises every tracklet's START and END (shell position,
 clipped velocity, heading and body-frame node offsets) from the accepted
-rows of an observation table. ``fill_bridge`` synthesises the missing
+rows of an observation table, together with whole-tracklet appearance cues
+(``tracklet_cues``: median Shell-Shoulder length and mean claw side). ``fill_bridge`` synthesises the missing
 frames between a linked END and START: cubic Hermite on the shell path
 (under the sqrt gate model, tangents damped towards the chord for gaps
 longer than the prediction horizon; undamped, as in v001, under linear),
@@ -41,6 +42,7 @@ from gap_bridging.types import NODES, SHELL, SHOULDER, Bridge, Endpoint
 # ============================================================
 
 N_NODES = len(NODES)
+CLAW = NODES.index('claw')
 # Shell->Shoulder lengths (px) accepted as a heading measurement.
 MIN_SHOULDER_LENGTH_PX = 10.0
 MAX_SHOULDER_LENGTH_PX = 65.0
@@ -185,6 +187,75 @@ def _window_state(first: np.ndarray, step: int, k: np.ndarray, window: int,
     return out_heading, mean
 
 
+def tracklet_cues(xy: np.ndarray, valid: np.ndarray, starts: np.ndarray,
+                  ends: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Whole-tracklet appearance cues: carapace size and claw side.
+
+    A row measures the size when Shell and Shoulder are valid and the
+    Shell-Shoulder length ``|u|``, ``u = shoulder - shell``, lies in
+    [``MIN_SHOULDER_LENGTH_PX``, ``MAX_SHOULDER_LENGTH_PX``]; it measures the
+    claw side when, in addition, the Claw is valid and
+    ``sign(u_x w_y - u_y w_x)``, ``w = claw - shell``, is non-zero (image
+    coordinates, y down; invariant under rotation, flipped by reflection).
+
+    Parameters
+    ----------
+    xy : np.ndarray
+        (n,5,2) node coordinates of the accepted rows, grouped by tracklet.
+    valid : np.ndarray
+        (n,5) node validity.
+    starts, ends : np.ndarray
+        (m,) first and last row index (inclusive) of each tracklet; the
+        segments must tile ``0 .. n-1`` in order.
+
+    Returns
+    -------
+    (size, size_n, side, side_n) : tuple of np.ndarray
+        ``size`` (m,) median ``|u|`` in px over the size rows (NaN when there
+        are none), ``size_n`` (m,) int64 their count, ``side`` (m,) mean sign
+        over the claw-side rows in [-1, 1] (0 when there are none) and
+        ``side_n`` (m,) int64 their count.
+    """
+    starts = np.asarray(starts, dtype=np.int64)
+    ends = np.asarray(ends, dtype=np.int64)
+    n, m = len(xy), len(starts)
+    if xy.shape != (n, N_NODES, 2) or valid.shape != (n, N_NODES) or ends.shape != (m,):
+        raise ValueError(f"inconsistent shapes xy {xy.shape}, valid {valid.shape}, "
+                         f"starts {starts.shape}, ends {ends.shape}")
+    if m == 0:
+        if n:
+            raise ValueError("rows without tracklets")
+        empty = np.zeros(0, dtype=np.int64)
+        return np.zeros(0), empty, np.zeros(0), empty.copy()
+    if starts[0] != 0 or ends[-1] != n - 1 or np.any(ends < starts) or np.any(starts[1:] != ends[:-1] + 1):
+        raise ValueError("tracklet segments must tile the rows in order")
+    u = xy[:, SHOULDER] - xy[:, SHELL]
+    w = xy[:, CLAW] - xy[:, SHELL]
+    length = np.hypot(u[:, 0], u[:, 1])
+    with np.errstate(invalid='ignore'):
+        sized = (valid[:, SHELL] & valid[:, SHOULDER]
+                 & (length >= MIN_SHOULDER_LENGTH_PX) & (length <= MAX_SHOULDER_LENGTH_PX))
+        sign = np.where(sized & valid[:, CLAW], np.sign(u[:, 0] * w[:, 1] - u[:, 1] * w[:, 0]), 0.0)
+    sign = np.nan_to_num(sign, nan=0.0)
+    sided = sign != 0
+    size_n = np.add.reduceat(sized.astype(np.int64), starts)
+    side_n = np.add.reduceat(sided.astype(np.int64), starts)
+    side_sum = np.add.reduceat(sign, starts)
+    side = np.where(side_n > 0, side_sum / np.maximum(side_n, 1), 0.0)
+    # Median per tracklet: sort the size rows by (tracklet, length), take the middle pair.
+    code = np.repeat(np.arange(m, dtype=np.int64), ends - starts + 1)[sized]
+    lengths = length[sized]
+    ordered = lengths[np.lexsort((lengths, code))]
+    first = np.cumsum(size_n) - size_n
+    has = size_n > 0
+    lo = np.where(has, first + (size_n - 1) // 2, 0)
+    hi = np.where(has, first + size_n // 2, 0)
+    size = np.full(m, np.nan)
+    size[has] = 0.5 * (ordered[lo[has]] + ordered[hi[has]])
+    assert np.all(np.abs(side) <= 1.0) and np.all(side_n <= size_n)
+    return size, size_n, side, side_n
+
+
 def _clip_speed(vel: np.ndarray, vmax: float) -> np.ndarray:
     """Scale each (m,2) velocity row down to speed ``vmax`` when faster."""
     speed = np.hypot(vel[:, 0], vel[:, 1])
@@ -208,7 +279,9 @@ def endpoints(obs: pa.Table, cfg: BridgeConfig) -> dict[str, tuple[Endpoint, End
     Returns
     -------
     dict
-        ``tracklet_id -> (start, end)`` endpoints.
+        ``tracklet_id -> (start, end)`` endpoints; both carry the same
+        whole-tracklet cues (``size_px``, ``size_n``, ``claw_side``,
+        ``claw_side_n``) from :func:`tracklet_cues`.
 
     Raises
     ------
@@ -238,10 +311,13 @@ def endpoints(obs: pa.Table, cfg: BridgeConfig) -> dict[str, tuple[Endpoint, End
     vel_end = _clip_speed(vel_end, cfg.max_velocity_px_per_frame)
     h_start, o_start = _window_state(starts, 1, k, cfg.velocity_window, heading, offsets)
     h_end, o_end = _window_state(ends, -1, k, cfg.velocity_window, heading, offsets)
+    size, size_n, side, side_n = tracklet_cues(xy, valid, starts, ends)
     result: dict[str, tuple[Endpoint, Endpoint]] = {}
     for i in range(len(starts)):
         tid, video = names[codes[starts[i]]], str(videos[starts[i]])
-        common = dict(tracklet_id=tid, video_id=video, n_frames=int(n[i]), vel_known=bool(known[i]))
+        common = dict(tracklet_id=tid, video_id=video, n_frames=int(n[i]), vel_known=bool(known[i]),
+                      size_px=float(size[i]), size_n=int(size_n[i]),
+                      claw_side=float(side[i]), claw_side_n=int(side_n[i]))
         result[tid] = (
             Endpoint(frame=int(frames[starts[i]]), pos=pos[starts[i]].copy(), vel=vel_start[i],
                      heading=float(h_start[i]), offsets=o_start[i], **common),
