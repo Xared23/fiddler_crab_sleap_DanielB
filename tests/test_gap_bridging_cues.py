@@ -104,7 +104,10 @@ def expected_terms(a: Endpoint, b: Endpoint, cfg: BridgeConfig) -> Tuple[float, 
         spread = math.sqrt(cfg.size_scale_px ** 2 + cfg.size_noise_px ** 2 / a.size_n
                            + cfg.size_noise_px ** 2 / b.size_n)
         size = min(cfg.size_cost_cap, abs(a.size_px - b.size_px) / spread)
-    side = max(0.0, -a.claw_side * b.claw_side) if a.claw_side_n > 0 and b.claw_side_n > 0 else 0.0
+    k = cfg.claw_side_min_frames
+    weight = min(1.0, a.claw_side_n / k) * min(1.0, b.claw_side_n / k)
+    side = (max(0.0, -a.claw_side * b.claw_side) * weight
+            if a.claw_side_n > 0 and b.claw_side_n > 0 else 0.0)
     veto = (abs(a.claw_side) >= cfg.claw_side_confidence and abs(b.claw_side) >= cfg.claw_side_confidence
             and a.claw_side_n >= cfg.claw_side_min_frames and b.claw_side_n >= cfg.claw_side_min_frames
             and a.claw_side * b.claw_side < 0)
@@ -268,13 +271,18 @@ class CueTermPropertyTests(unittest.TestCase):
         self.assertEqual((size, side, veto), swapped)
         exp_size, exp_side, exp_veto = expected_terms(a, b, CUES)
         self.assertAlmostEqual(size, exp_size, places=12)
-        self.assertEqual((side, veto), (exp_side, exp_veto))
+        self.assertAlmostEqual(side, exp_side, places=12)
+        self.assertEqual(veto, exp_veto)
         self.assertTrue(0.0 <= size <= CUES.size_cost_cap)
         self.assertTrue(0.0 <= side <= 1.0)
+        unweighted = max(0.0, -x['side'] * y['side'])
+        self.assertLessEqual(side, unweighted)
         if x['size_n'] == 0 or y['size_n'] == 0:
             self.assertEqual(size, 0.0)
         if x['side_n'] == 0 or y['side_n'] == 0:
             self.assertEqual((side, veto), (0.0, False))
+        if min(x['side_n'], y['side_n']) >= CUES.claw_side_min_frames:
+            self.assertEqual(side, unweighted)       # full weight once both sides are confident
 
     def test_example_values(self):
         a = with_cues(ep('A', 10, (0., 0.)), size=20.0, size_n=4, side=1.0, side_n=10)
@@ -285,6 +293,10 @@ class CueTermPropertyTests(unittest.TestCase):
         self.assertEqual(pair_terms(a, replace(b, claw_side_n=4), CUES)[2], False)     # too few frames
         self.assertEqual(pair_terms(a, replace(b, claw_side=-0.89), CUES)[2], False)   # not confident
         self.assertEqual(pair_terms(a, replace(b, claw_side=0.95), CUES), (size, 0.0, False))
+        one = pair_terms(a, replace(b, claw_side=-1.0, claw_side_n=1), CUES)    # 1 frame: weight 1/5
+        self.assertEqual((one[1], one[2]), (0.2, False))
+        two = pair_terms(replace(a, claw_side_n=2), replace(b, claw_side=-1.0, claw_side_n=3), CUES)
+        self.assertAlmostEqual(two[1], 0.4 * 0.6)
         far = with_cues(b, size=60.0, size_n=50, side=-0.95, side_n=5)
         self.assertEqual(pair_terms(a, far, CUES)[0], CUES.size_cost_cap)
 
@@ -333,8 +345,9 @@ class CueLinkingTests(unittest.TestCase):
         size, side, _ = expected_terms(a, b, CUES)
         self.assertEqual(d_on.decision, 'linked')
         self.assertAlmostEqual(d_on.size_term, size)
-        self.assertEqual(d_on.side_term, 0.25)
-        self.assertAlmostEqual(d_on.cost, d_off.cost + 0.1 * size + 0.15 * 0.25, places=12)
+        self.assertAlmostEqual(d_on.side_term, side)
+        self.assertAlmostEqual(side, 0.25 * 0.6 * 0.6)        # 3 claw frames each: weight (3/5)^2
+        self.assertAlmostEqual(d_on.cost, d_off.cost + 0.1 * size + 0.15 * side, places=12)
         self.assertTrue(math.isnan(d_off.size_term) and math.isnan(d_off.side_term))
 
     def test_size_term_breaks_a_tie(self):
@@ -389,7 +402,7 @@ class CueLinkingPropertyTests(unittest.TestCase):
             a, b = end_of[d.tracklet_a], start_of[d.tracklet_b]
             size, side, veto = expected_terms(a, b, cfg)
             self.assertAlmostEqual(d.size_term, size, places=12)
-            self.assertEqual(d.side_term, side)
+            self.assertAlmostEqual(d.side_term, side, places=12)
             motion_ok = off[(d.tracklet_a, d.tracklet_b)].reason not in MOTION_GATES
             self.assertEqual(d.reason == 'claw_side', veto and motion_ok, d)
             if veto:

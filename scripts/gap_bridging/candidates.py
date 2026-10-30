@@ -335,7 +335,10 @@ def _cue_terms(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
 
     * ``size_term = min(size_cost_cap, |L_a - L_b| / sqrt(size_scale_px^2
       + (size_noise_px^2/n_a + size_noise_px^2/n_b)))``, 0 unless both ``n > 0``;
-    * ``side_term = max(0, -s_a s_b)``, 0 unless both ``n_s > 0``;
+    * ``side_term = max(0, -s_a s_b) * (min(1, n_s,a/k) * min(1, n_s,b/k))`` with
+      ``k = claw_side_min_frames``, 0 unless both ``n_s > 0``; the confidence
+      factor keeps a few-frame side estimate from carrying the full weight and
+      is 1 once both sides have ``n_s >= k``;
     * ``side_veto`` iff both ``|s| >= claw_side_confidence``, both
       ``n_s >= claw_side_min_frames`` and ``s_a s_b < 0``.
 
@@ -370,10 +373,11 @@ def _cue_terms(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
         spread = np.sqrt(float(cfg.size_scale_px) ** 2 + (noise2 / na + noise2 / nb))
         z = np.abs(la - lb) / spread
     size_term = np.where(sized, np.minimum(float(cfg.size_cost_cap), np.nan_to_num(z, nan=0.0)), 0.0)
+    conf, need = float(cfg.claw_side_confidence), int(cfg.claw_side_min_frames)
     sided = (nsa > 0) & (nsb > 0)
     product = sa * sb
-    side_term = np.where(sided, np.maximum(0.0, -product), 0.0)
-    conf, need = float(cfg.claw_side_confidence), int(cfg.claw_side_min_frames)
+    weight = np.minimum(1.0, nsa / need) * np.minimum(1.0, nsb / need)   # commutative: exactly symmetric
+    side_term = np.where(sided, np.maximum(0.0, -product) * weight, 0.0)
     side_veto = ((np.abs(sa) >= conf) & (np.abs(sb) >= conf) & (nsa >= need) & (nsb >= need)
                  & (product < 0))
     assert size_term.shape == side_term.shape == side_veto.shape == rows.shape
