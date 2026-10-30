@@ -14,3 +14,17 @@ minimum_cost_margin: 4.0
 recovery_radius_px: 8.0
 recoverable_reasons: [low_body_score, missing_position, outside_image, invisible, duplicate_candidate]
 fps: 29.97002997002997
+# Gate model (v002). sqrt: r(dt) = max(radius_min_px, radius_safety * (r0 + k * sqrt(dt))),
+# dt = frames between linked endpoints; costs are dist / r(dt) with a gap penalty.
+# r0, k: non-negative least squares to the 99th-percentile net displacement of unbroken
+# demo tracklets over dt = 1..60 (fit 2026-10-30; rerun `bridge_gaps.py fit` per dataset).
+# linear: the v001 gate (12 px per frame) for reproducing earlier results.
+gate_model: sqrt
+radius_r0_px: 0.00
+radius_k_px: 3.73
+radius_safety: 1.25
+radius_min_px: 6.0
+prediction_error_ratio: 1.5
+prediction_horizon_frames: 3
+gap_penalty: 0.024
+fill_confidence_gaps: [5, 15]
