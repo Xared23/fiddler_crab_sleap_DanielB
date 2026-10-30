@@ -7,9 +7,12 @@ End-to-end gap bridging of body-first tracklets (WP-D).
 ``1..max_gap`` missing frames (per video), chains the links into
 trajectories, fills every bridged frame with a recovered rejected detection
 or an interpolated pose (recovered and interpolated rows carry the bridge's
-``gap_frames`` and ``fill_confidence``), checks the global invariants and writes
-``observations.parquet``, ``trajectories.parquet``, ``links.parquet`` and the
-``GAP_BRIDGING_COMPLETE.json`` marker. The input is never modified.
+``gap_frames`` and ``fill_confidence``), extends each trajectory at its ends
+with rejected detections (tail recovery, v003), flags spurious one-frame
+identities (``trajectory_status``, v003; flag only), checks the global
+invariants and writes ``observations.parquet``, ``trajectories.parquet``,
+``links.parquet`` and the ``GAP_BRIDGING_COMPLETE.json`` marker. The input is
+never modified.
 
 Sam
 10/2026
@@ -35,7 +38,7 @@ import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 # ----- local modules -----
-from gap_bridging import candidates, chains, geometry, recover, tables
+from gap_bridging import candidates, chains, geometry, identity, recover, tables, tails
 from gap_bridging.config import BridgeConfig
 from gap_bridging.types import DECISIONS, Bridge, Endpoint
 from pipeline_common import sha256
@@ -203,9 +206,13 @@ def check_invariants(tracklet_ids: list[str], trajectories: dict[str, list[str]]
 
     Checks: every tracklet is in exactly one trajectory; ``n_trajectories ==
     n_tracklets - n_links``; output rows == input rows + interpolated rows;
-    every trajectory's frames are contiguous and unique
-    (``end - start + 1 == n_observed + n_recovered + n_interpolated`` and no
-    (trajectory_id, frame) appears twice).
+    every trajectory's frames are contiguous and unique (``end - start + 1 ==
+    n_observed + n_recovered + n_interpolated + n_recovered_tail`` and no
+    (trajectory_id, frame) appears twice); every ``recovered_tail`` row lies
+    outside the span of its trajectory's other rows (the chained tracklets and
+    their bridges) and inside the trajectory table's span; when present,
+    ``trajectory_status`` is set on exactly the assigned rows and on every
+    trajectory, and agrees between the two tables.
     """
     members = [m for ms in trajectories.values() for m in ms]
     if len(members) != len(set(members)) or set(members) != set(tracklet_ids):
@@ -222,7 +229,8 @@ def check_invariants(tracklet_ids: list[str], trajectories: dict[str, list[str]]
     t = trajectory_table.to_pydict()
     span = np.asarray(t['end_frame'], np.int64) - np.asarray(t['start_frame'], np.int64) + 1
     filled = (np.asarray(t['n_observed'], np.int64) + np.asarray(t['n_recovered'], np.int64)
-              + np.asarray(t['n_interpolated'], np.int64))
+              + np.asarray(t['n_interpolated'], np.int64)
+              + np.asarray(t['n_recovered_tail'], np.int64))
     bad = np.flatnonzero(span != filled)
     if bad.size:
         raise RuntimeError(f"{bad.size} trajectories are not contiguous, "
@@ -232,6 +240,43 @@ def check_invariants(tracklet_ids: list[str], trajectories: dict[str, list[str]]
     unique = assigned.group_by(['trajectory_id', 'frame']).aggregate([]).num_rows
     if unique != assigned.num_rows:
         raise RuntimeError(f"{assigned.num_rows - unique} duplicate (trajectory_id, frame) rows")
+
+    is_tail = pc.fill_null(pc.equal(observations['source'], 'recovered_tail'), False)
+    if pc.any(is_tail).as_py():
+        tail = observations.select(['trajectory_id', 'frame']).filter(is_tail).to_pydict()
+        core = observations.select(['trajectory_id', 'frame']).filter(
+            pc.and_(pc.is_valid(observations['trajectory_id']), pc.invert(is_tail)))
+        core = core.group_by('trajectory_id').aggregate([('frame', 'min'), ('frame', 'max')])
+        core_span = dict(zip(core['trajectory_id'].to_pylist(),
+                             zip(core['frame_min'].to_pylist(), core['frame_max'].to_pylist())))
+        table_span = dict(zip(t['trajectory_id'], zip(t['start_frame'], t['end_frame'])))
+        for traj, frame in zip(tail['trajectory_id'], tail['frame']):
+            lo, hi = core_span[traj]
+            if lo <= frame <= hi:
+                raise RuntimeError(f"tail row of {traj} at frame {frame} lies inside its "
+                                   f"tracklets' span {lo}..{hi}")
+            start, end = table_span[traj]
+            if not start <= frame <= end:
+                raise RuntimeError(f"tail row of {traj} at frame {frame} lies outside the "
+                                   f"trajectory span {start}..{end}")
+
+    status_name = tables.STATUS_FIELD.name
+    if status_name in observations.schema.names or status_name in trajectory_table.schema.names:
+        if not (status_name in observations.schema.names
+                and status_name in trajectory_table.schema.names):
+            raise RuntimeError("trajectory_status is on one output table only")
+        mismatch = pc.sum(pc.xor(pc.is_valid(observations['trajectory_id']),
+                                 pc.is_valid(observations[status_name]))).as_py() or 0
+        if mismatch or trajectory_table[status_name].null_count:
+            raise RuntimeError("trajectory_status is not set on exactly the assigned rows")
+        by_traj = dict(zip(t['trajectory_id'], t[status_name]))
+        pairs = observations.select(['trajectory_id', status_name]).filter(
+            pc.is_valid(observations['trajectory_id'])).group_by(
+            ['trajectory_id', status_name]).aggregate([]).to_pydict()
+        if (len(pairs['trajectory_id']) != len(by_traj)
+                or any(by_traj.get(k) != v for k, v in zip(pairs['trajectory_id'],
+                                                            pairs[status_name]))):
+            raise RuntimeError("trajectory_status differs between observations and trajectories")
 
 
 # ============================================================
@@ -266,8 +311,11 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
         ``unmatched_cost`` and ``minimum_cost_margin`` on that model's cost
         scale), ``input``, ``counts`` (including ``candidate_pairs``:
         ``enumerated`` audit rows and ``pruned_by_radius`` pairs beyond the
-        sqrt prefilter radius), ``versions`` and ``outputs`` (sha256 and rows
-        per file).
+        sqrt prefilter radius; ``n_recovered_tail`` tail detections;
+        ``spurious_trajectories``; ``identity_starts`` and
+        ``identity_starts_identity_only``, trajectories starting after their
+        video's first frame, all and identities only), ``versions`` and
+        ``outputs`` (sha256 and rows per file).
 
     Raises
     ------
@@ -315,16 +363,36 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
     _progress('fill', started, f"{len(bridges)} bridges over {n_gap_frames} frames, "
               f"{len(recovered)} recovered detections")
 
+    tail_rows: dict = {}
+    if cfg.tail_recovery:
+        tail_rows = tails.recover_tails(
+            obs, trajectories, endpoints, used=set(recovered.values()),
+            radius_px=cfg.tail_radius_px, max_frames=cfg.tail_max_frames,
+            reasons=cfg.tail_reasons, exclusion_px=cfg.tail_exclusion_px,
+            horizon=cfg.prediction_horizon_frames)
+    tail_bridge_of = tails.tail_bridge_of(tail_rows, trajectories, endpoints)
+    tail_info = tails.tail_info(tail_rows, trajectories, endpoints, cfg)
+    _progress('tails', started, f"{len(tail_rows)} tail detections on {len(tail_info)} tails"
+              + ("" if cfg.tail_recovery else " (disabled)"))
+
     fps = cfg.fps if 'time_s' in obs.schema.names else None
     pairs = [(b, geometry.synthetic_rows(b, obs.schema, fps=fps)) for b in bridges]
     synthetic = tables.synthetic_table(pairs, obs.schema, recovered, cfg)
     observations = tables.assemble_observations(obs, trajectory_of, recovered, bridge_of, synthetic,
-                                                tables.bridge_info_table(bridges, cfg))
+                                                tables.bridge_info_table(bridges, cfg),
+                                                tails=tail_rows, tail_bridge_of=tail_bridge_of,
+                                                tail_info=tail_info)
     trajectory_table = tables.trajectory_table(observations, trajectories)
+    status = identity.classify_trajectories(observations, min_frames=cfg.min_identity_frames,
+                                            min_score=cfg.min_identity_score)
+    starts = identity.identity_starts(trajectory_table, observations, status)
+    observations, trajectory_table = tables.append_status(observations, trajectory_table, status)
     check_invariants(tracklet_ids, trajectories, len(links), obs.num_rows, observations,
                      trajectory_table)
+    n_spurious = sum(v == 'spurious' for v in status.values())
     _progress('assemble', started, f"{observations.num_rows} output rows "
-              f"({synthetic.num_rows} interpolated); invariants hold")
+              f"({synthetic.num_rows} interpolated); {n_spurious} spurious trajectories; "
+              "invariants hold")
 
     traj = trajectory_table.to_pydict()
     counts = {
@@ -332,12 +400,17 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
         'trajectories': len(trajectories), 'bridges': len(bridges),
         'n_observed': int(sum(traj['n_observed'])), 'n_recovered': int(sum(traj['n_recovered'])),
         'n_interpolated': int(sum(traj['n_interpolated'])),
+        'n_recovered_tail': int(sum(traj['n_recovered_tail'])),
         'n_unassigned': int(observations['trajectory_id'].null_count),
         'decisions': {d: int(decision_counts.get(d, 0)) for d in DECISIONS},
         'candidate_pairs': dict(pair_stats),
+        'spurious_trajectories': int(n_spurious),
+        'identity_starts': int(starts['all']),
+        'identity_starts_identity_only': int(starts['identity']),
     }
-    if counts['n_recovered'] != len(recovered) or counts['n_interpolated'] != synthetic.num_rows:
-        raise RuntimeError("trajectory counts disagree with recovered/interpolated rows")
+    if (counts['n_recovered'] != len(recovered) or counts['n_interpolated'] != synthetic.num_rows
+            or counts['n_recovered_tail'] != len(tail_rows)):
+        raise RuntimeError("trajectory counts disagree with recovered/interpolated/tail rows")
     source = {'path': str(observations_path), 'sha256': digest, 'rows': obs.num_rows,
               'tracklets': len(tracklet_ids)}
     if per_file is not None:

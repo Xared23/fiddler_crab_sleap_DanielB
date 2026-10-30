@@ -4,7 +4,8 @@
 Figures of the gap-bridging sweep and hold-out evaluation (WP-D).
 
 ``fig_sweep`` plots links and trajectory length against the horizon
-``max_gap``; ``fig_holdout`` the hold-out precision and recall against the
+``max_gap`` (dashed: identity trajectories only); ``fig_start_curve`` the
+cumulative identity starts over the clip per horizon; ``fig_holdout`` the hold-out precision and recall against the
 planted gap length, one line per horizon; ``fig_radius_fit`` the measured
 displacement quantiles with the fitted and configured gate radius; and
 ``fig_bridges`` renders long bridges as image crops of the source video
@@ -50,7 +51,8 @@ plt.rcParams.update({"font.family": "serif", "mathtext.fontset": "cm", "font.siz
     "axes.linewidth": 1.0, "xtick.direction": "in", "ytick.direction": "in",
     "xtick.top": False, "ytick.right": False})
 BLACK, BLUE, RED = "black", "#1f4e9c", "#c0392b"
-SOURCE_COLORS = {"observed": "#19c3ff", "recovered": "#ffd400", "interpolated": "#ff2ad4"}
+SOURCE_COLORS = {"observed": "#19c3ff", "recovered": "#ffd400", "interpolated": "#ff2ad4",
+                 "recovered_tail": "#7dff3a"}
 BRIDGE_COLUMNS = ("video_id", "frame", "trajectory_id", "source", "bridge_id", "gap_frames",
                   "fill_confidence", "body_x", "body_y", "shoulder_x", "shoulder_y")
 MIN_CROP_PX = 220
@@ -88,7 +90,9 @@ def fig_sweep(summary_csv: Path, out: Path) -> list[Path]:
     ----------
     summary_csv : Path
         ``sweep_summary.csv`` with ``max_gap``, ``links``, ``mean_length``
-        and ``median_length``.
+        and ``median_length``; when it also has ``mean_length_filtered`` and
+        ``median_length_filtered`` (identity trajectories only), those are
+        drawn dashed in the same colours.
     out : Path
         Output path; written as ``.pdf`` and ``.png``.
 
@@ -102,11 +106,82 @@ def fig_sweep(summary_csv: Path, out: Path) -> list[Path]:
     axes[0].plot(s.max_gap, s.links, "o-", lw=2.0, color=BLACK)
     axes[0].set_ylabel(r"Links, $N_{\mathrm{link}}$")
     axes[1].plot(s.max_gap, s.mean_length, "o-", lw=2.0, color=BLACK, label="Mean")
-    axes[1].plot(s.max_gap, s.median_length, "s--", lw=2.0, color=BLUE, label="Median")
+    axes[1].plot(s.max_gap, s.median_length, "s-", lw=2.0, color=BLUE, label="Median")
+    if {"mean_length_filtered", "median_length_filtered"} <= set(s.columns):
+        axes[1].plot(s.max_gap, s.mean_length_filtered, "o--", lw=2.0, mfc="none",
+                     color=BLACK, label="Mean, identities")
+        axes[1].plot(s.max_gap, s.median_length_filtered, "s--", lw=2.0, mfc="none",
+                     color=BLUE, label="Median, identities")
     axes[1].set_ylabel(r"Trajectory length, $L$ (frames)")
-    axes[1].legend(frameon=False)
+    axes[1].legend(frameon=False, fontsize=11, loc="upper left", bbox_to_anchor=(1.02, 1.0))
     for ax in axes:
         ax.set_xlabel(r"Horizon, $g_{\max}$ (frames)")
+    fig.tight_layout()
+    return _save_line_art(fig, out)
+
+
+def _start_offsets(observations: pd.DataFrame) -> pd.Series:
+    """First frame of every video over its non-interpolated rows."""
+    real = observations[observations.source != "interpolated"]
+    return real.groupby("video_id").frame.min()
+
+
+def fig_start_curve(bridged_dirs: list[Path], out: Path) -> list[Path]:
+    """Cumulative identity starts over the clip, one colour per horizon.
+
+    A start is a trajectory whose ``start_frame`` lies after its video's
+    first frame (as in :func:`gap_bridging.identity.identity_starts`). Solid
+    lines count every trajectory, dashed lines identities only
+    (``trajectory_status == 'identity'``); the dotted grey line counts the
+    starts of the input tracklets (no bridging). Frames are counted from each
+    video's first frame and videos are pooled.
+
+    Parameters
+    ----------
+    bridged_dirs : list of Path
+        Pipeline output directories (``max_gap_<N>/``), in plotting order;
+        the horizon is read from each marker.
+    out : Path
+        Output path; written as ``.pdf`` and ``.png``.
+
+    Returns
+    -------
+    list of Path
+        The written files.
+    """
+    import json
+    fig, ax = plt.subplots(figsize=(6.5, 4.2))
+    tracklets = None
+    for i, run in enumerate(bridged_dirs):
+        run = Path(run)
+        horizon = json.loads((run / "GAP_BRIDGING_COMPLETE.json").read_text())["config"]["max_gap"]
+        obs = pq.read_table(run / "observations.parquet",
+                            columns=["video_id", "frame", "source", "tracklet_id"]).to_pandas()
+        first = _start_offsets(obs)
+        traj = pq.read_table(run / "trajectories.parquet",
+                             columns=["video_id", "start_frame", "trajectory_status"]).to_pandas()
+        t = traj.start_frame - traj.video_id.map(first)
+        late = t > 0
+        color = _horizon_style(i)["color"] if len(bridged_dirs) <= 3 else plt.cm.viridis(
+            i / max(1, len(bridged_dirs) - 1))
+        for mask, ls, label in ((late, "-", rf"$g_{{\max}} = {horizon}$"),
+                                (late & (traj.trajectory_status == "identity"), "--", None)):
+            x = np.sort(t[mask].to_numpy())
+            ax.step(np.r_[0, x], np.arange(x.size + 1), where="post", lw=2.0, ls=ls,
+                    color=color, label=label)
+        if tracklets is None:
+            seen = obs[obs.source == "observed"].dropna(subset=["tracklet_id"])
+            starts = seen.groupby("tracklet_id").agg(video_id=("video_id", "first"),
+                                                     frame=("frame", "min"))
+            tracklets = starts.frame - starts.video_id.map(first)
+    if tracklets is not None:
+        x = np.sort(tracklets[tracklets > 0].to_numpy())
+        ax.step(np.r_[0, x], np.arange(x.size + 1), where="post", lw=2.0, ls=":",
+                color="0.5", label="Input tracklets")
+    ax.plot([], [], lw=2.0, ls="--", color=BLACK, label="Identities only")
+    ax.set_xlabel(r"Frames since clip start, $t$")
+    ax.set_ylabel(r"Cumulative starts, $N_{\mathrm{start}}(t)$")
+    ax.legend(frameon=False, fontsize=11, ncol=2)
     fig.tight_layout()
     return _save_line_art(fig, out)
 
@@ -208,8 +283,13 @@ def _frame_offset(table: pa.Table) -> int:
 
 
 def _pick_bridges(obs: pd.DataFrame, n: int, min_gap: int, seed: int) -> pd.DataFrame:
-    """Up to ``n`` bridges with ``gap_frames >= min_gap``, drawn with ``seed``, sorted by gap."""
-    bridges = (obs[obs.bridge_id.notna()].groupby("bridge_id")
+    """Up to ``n`` bridges with ``gap_frames >= min_gap``, drawn with ``seed``, sorted by gap.
+
+    Only gap bridges count (rows ``recovered`` or ``interpolated``); tail
+    recoveries (``.../tail_*``) are not bridges between tracklets.
+    """
+    filled = obs.bridge_id.notna() & obs.source.isin(["recovered", "interpolated"])
+    bridges = (obs[filled].groupby("bridge_id")
                .agg(gap=("gap_frames", "first"), trajectory_id=("trajectory_id", "first"),
                     confidence=("fill_confidence", "first"), first=("frame", "min"),
                     last=("frame", "max"))
@@ -346,7 +426,7 @@ def fig_bridges(observations_parquet: Path, video_path: Path, out: Path, n: int 
                     ax.set_ylabel(f"$g={int(pick.gap)}$\n{pick.confidence}", fontsize=11)
         handles = [Line2D([], [], marker="o", mfc="none", mec=SOURCE_COLORS[k], mew=1.5, ms=9,
                           ls="", label=k) for k in SOURCE_COLORS]
-        fig.legend(handles=handles, loc="upper center", ncol=3, bbox_to_anchor=(0.5, 0.02),
+        fig.legend(handles=handles, loc="upper center", ncol=len(handles), bbox_to_anchor=(0.5, 0.02),
                    frameon=False)
         fig.tight_layout()
         page = out.with_name(f"{out.stem}_p{p}.png")

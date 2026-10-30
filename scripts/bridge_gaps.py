@@ -15,10 +15,15 @@ Subcommands (``run`` is the default, so the v001 invocation still works)::
     .venv/bin/python scripts/bridge_gaps.py fit \\
         --observations demo/crab_cam2_2_middle_300/observations.parquet
 
-    # sweep the horizon max_gap, with frame-deletion hold-out and figures
+    # sweep the horizon max_gap, with frame-deletion hold-out (plus decoys and
+    # flicker singletons) and figures
     .venv/bin/python scripts/bridge_gaps.py sweep \\
         --observations demo/crab_cam2_2_middle_300/observations.parquet \\
-        --out logs/gap_sweep --max-gaps 5,10,15,30,45,60 --holdout
+        --out logs/gap_sweep --max-gaps 5,10,15,30,45,60 --holdout --decoys 4 --flicker 2
+
+    # export interpolated frames as weak labels (fine-tuning candidates)
+    .venv/bin/python scripts/bridge_gaps.py export \\
+        --bridged outputs/gap_bridging/demo_v001 --out outputs/weak_labels/demo
 
 See docs/GAP_BRIDGING.md for the method and output schema.
 
@@ -49,7 +54,7 @@ import pyarrow.compute as pc  # noqa: E402
 import pyarrow.parquet as pq  # noqa: E402
 
 # ----- local modules -----
-from gap_bridging import fit, pipeline, tables  # noqa: E402
+from gap_bridging import export, fit, identity, pipeline, tables  # noqa: E402
 from gap_bridging.config import BridgeConfig, load_config  # noqa: E402
 from gap_bridging.types import DECISIONS  # noqa: E402
 
@@ -57,7 +62,7 @@ from gap_bridging.types import DECISIONS  # noqa: E402
 # CONSTANTS
 # ============================================================
 
-COMMANDS = ('run', 'fit', 'sweep')
+COMMANDS = ('run', 'fit', 'sweep', 'export')
 DEFAULT_MAX_GAPS = (5, 10, 15, 30, 45, 60)
 DEFAULT_HOLDOUT_GAPS = (1, 2, 3, 5, 10, 15, 20, 30, 45, 60)
 SUMMARY_NAME = 'sweep_summary.csv'
@@ -69,10 +74,16 @@ SUMMARY_COLUMNS = (('max_gap', 'links', 'trajectories', 'mean_length', 'median_l
                     'interpolated')
                    + tuple(f'interpolated_{c}' for c in CONFIDENCES)
                    + tuple(f'decision_{d}' for d in DECISIONS)
+                   + ('n_recovered_tail', 'claw_side_refusals', 'spurious', 'identity_starts',
+                      'identity_starts_filtered', 'units_len1_filtered', 'mean_length_filtered',
+                      'median_length_filtered')
                    + ('holdout_planted', 'holdout_precision', 'holdout_recall',
-                      'holdout_unplanted_links'))
+                      'holdout_unplanted_links', 'holdout_decoy_planted',
+                      'holdout_decoy_false_link', 'holdout_flicker_planted',
+                      'holdout_flicker_spurious'))
 BY_GAP_COLUMNS = ('max_gap', 'gap', 'planted', 'recovered', 'false_link', 'missed', 'recall',
-                  'precision')
+                  'precision', 'decoy_planted', 'decoy_recovered', 'decoy_false_link',
+                  'flicker_planted', 'flicker_recovered', 'flicker_spurious')
 
 # ============================================================
 # HELPERS
@@ -150,9 +161,22 @@ def run_summary(run_dir: Path, marker: dict) -> dict:
     """Continuity statistics of one bridging run (one ``sweep_summary.csv`` row, no hold-out).
 
     Unit length is ``end_frame - start_frame + 1`` of each trajectory
-    (interpolated frames included), as in the v001 report.
+    (interpolated frames included), as in the v001 report. The ``*_filtered``
+    columns repeat the statistics over identity trajectories only
+    (``trajectory_status == 'identity'``; spurious units are flagged, never
+    removed); ``identity_starts`` counts trajectories starting after the
+    video's first frame; ``claw_side_refusals`` counts ``refused_gate`` audit
+    rows with reason ``claw_side``.
     """
-    traj = pq.read_table(run_dir / 'trajectories.parquet', columns=['start_frame', 'end_frame'])
+    traj = pq.read_table(run_dir / 'trajectories.parquet',
+                         columns=['trajectory_id', 'start_frame', 'end_frame',
+                                  tables.STATUS_FIELD.name])
+    status = dict(zip(traj['trajectory_id'].to_pylist(),
+                      traj[tables.STATUS_FIELD.name].to_pylist()))
+    filtered = identity.filtered_lengths(traj, status)
+    links = pq.read_table(run_dir / 'links.parquet', columns=['decision', 'reason'])
+    claw_side = pc.sum(pc.and_(pc.equal(links['decision'], 'refused_gate'),
+                               pc.equal(links['reason'], 'claw_side'))).as_py() or 0
     length = (np.asarray(traj['end_frame'].to_numpy(), np.int64)
               - np.asarray(traj['start_frame'].to_numpy(), np.int64) + 1)
     obs = pq.read_table(run_dir / 'observations.parquet', columns=['source', 'fill_confidence'])
@@ -171,13 +195,22 @@ def run_summary(run_dir: Path, marker: dict) -> dict:
     }
     row.update({f'interpolated_{c}': interp.count(c) for c in CONFIDENCES})
     row.update({f'decision_{d}': counts['decisions'][d] for d in DECISIONS})
+    row.update({
+        'n_recovered_tail': counts['n_recovered_tail'], 'claw_side_refusals': int(claw_side),
+        'spurious': counts['spurious_trajectories'], 'identity_starts': counts['identity_starts'],
+        'identity_starts_filtered': counts['identity_starts_identity_only'],
+        'units_len1_filtered': filtered['units_len1'],
+        'mean_length_filtered': _nan(filtered['mean']),
+        'median_length_filtered': _nan(filtered['median']),
+    })
     return row
 
 
 def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
           holdout_run: bool = False, holdout_gaps: list[int] = list(DEFAULT_HOLDOUT_GAPS),
           per_gap: int = 8, seed: int = 0, force: bool = False, video: Path | None = None,
-          bridges_from: int | None = None, figures_on: bool = True) -> list[dict]:
+          bridges_from: int | None = None, figures_on: bool = True, decoys: int = 0,
+          flicker: int = 0) -> list[dict]:
     """Bridge at every horizon, optionally score a hold-out, write the CSVs and figures.
 
     Parameters
@@ -194,8 +227,8 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
     holdout_run : bool
         Run :func:`gap_bridging.holdout.run_holdout` per horizon, with the
         planted gap lengths ``holdout_gaps`` capped at the horizon.
-    holdout_gaps, per_gap, seed
-        Hold-out planting parameters.
+    holdout_gaps, per_gap, seed, decoys, flicker
+        Hold-out planting parameters (see :func:`gap_bridging.holdout.plant_gaps`).
     force : bool
         Overwrite existing outputs.
     video : Path, optional
@@ -228,21 +261,30 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
         marker = pipeline.run(observations, run_dir, run_cfg, force=force)
         row = run_summary(run_dir, marker)
         row.update({'holdout_planted': 0, 'holdout_precision': math.nan,
-                    'holdout_recall': math.nan, 'holdout_unplanted_links': -1})
+                    'holdout_recall': math.nan, 'holdout_unplanted_links': -1,
+                    'holdout_decoy_planted': 0, 'holdout_decoy_false_link': 0,
+                    'holdout_flicker_planted': 0, 'holdout_flicker_spurious': 0})
         gaps = [g for g in holdout_gaps if 1 <= g <= horizon]
         if holdout_run and gaps:
             print(f"[sweep] max_gap {horizon}: hold-out gaps {gaps} x {per_gap}", flush=True)
             result = holdout.run_holdout(observations, out / f'holdout_{horizon}', run_cfg, gaps,
-                                         per_gap, seed=seed, force=force)
+                                         per_gap, seed=seed, force=force, decoys=decoys,
+                                         flicker=flicker)
             overall = result['scores'][-1]
             row.update({'holdout_planted': overall['planted'],
                         'holdout_precision': _nan(overall['precision']),
                         'holdout_recall': _nan(overall['recall']),
-                        'holdout_unplanted_links': result['n_unplanted_links']})
+                        'holdout_unplanted_links': result['n_unplanted_links'],
+                        'holdout_decoy_planted': overall['decoy_planted'],
+                        'holdout_decoy_false_link': overall['decoy_false_link'],
+                        'holdout_flicker_planted': overall['flicker_planted'],
+                        'holdout_flicker_spurious': overall['flicker_spurious']})
+            counted = ('planted', 'recovered', 'false_link', 'missed', 'decoy_planted',
+                       'decoy_recovered', 'decoy_false_link', 'flicker_planted',
+                       'flicker_recovered', 'flicker_spurious')
             for score in result['scores'][:-1]:
                 by_gap_rows.append({'max_gap': horizon, 'gap': score['gap_frames'],
-                                    **{k: score[k] for k in ('planted', 'recovered', 'false_link',
-                                                             'missed')},
+                                    **{k: score[k] for k in counted},
                                     'recall': _nan(score['recall']),
                                     'precision': _nan(score['precision'])})
         summary_rows.append(row)
@@ -261,6 +303,10 @@ def make_figures(observations: Path, out: Path, cfg: BridgeConfig, with_holdout:
     from gap_bridging import figures
     fig_dir = out / FIGURES_DIR
     written = figures.fig_sweep(out / SUMMARY_NAME, fig_dir / 'sweep.pdf')
+    runs = sorted((p for p in out.glob('max_gap_*') if (p / tables.COMPLETE_NAME).is_file()),
+                  key=lambda p: int(p.name.rsplit('_', 1)[1]))
+    if runs:
+        written += figures.fig_start_curve(runs, fig_dir / 'start_curve.pdf')
     if with_holdout:
         written += figures.fig_holdout(out / BY_GAP_NAME, fig_dir / 'holdout.pdf')
     obs = pipeline.read_observations(pipeline.input_files(observations))
@@ -289,7 +335,7 @@ def make_figures(observations: Path, out: Path, cfg: BridgeConfig, with_holdout:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Argument parser with the ``run``, ``fit`` and ``sweep`` subcommands."""
+    """Argument parser with the ``run``, ``fit``, ``sweep`` and ``export`` subcommands."""
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0].strip(),
                                      epilog=__doc__.split('\n\n', 1)[1].rsplit('\n\nSam', 1)[0],
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -331,12 +377,22 @@ def build_parser() -> argparse.ArgumentParser:
                     help='planted gap lengths, capped at each horizon')
     sw.add_argument('--per-gap', type=int, default=8, help='planted tracklets per gap length')
     sw.add_argument('--seed', type=int, default=0, help='hold-out seed')
+    sw.add_argument('--decoys', type=int, default=0,
+                    help='decoy pairs per planted gap length: a donor right half with '
+                         'different appearance cues placed next to a target\'s right half')
+    sw.add_argument('--flicker', type=int, default=0,
+                    help='flicker singletons per planted gap length: g frames deleted on '
+                         'each side of one kept frame')
     sw.add_argument('--video', type=Path, default=None,
                     help='video for the rendered bridges (default: single *.mp4 next to the input)')
     sw.add_argument('--bridges-from', type=int, default=None,
                     help='horizon whose bridges are rendered (default the largest)')
     sw.add_argument('--no-figures', action='store_true', help='skip the figures')
     sw.add_argument('--force', action='store_true', help='overwrite existing outputs')
+
+    ex = sub.add_parser('export', help='export interpolated frames as weak labels '
+                                       '(fine-tuning candidates, not labels)')
+    export.add_arguments(ex)
     return parser
 
 
@@ -380,12 +436,17 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == 'fit':
             fit_command(args.observations, args.max_dt, args.quantile, args.min_samples,
                         args.write_yaml)
+        elif args.command == 'export':
+            marker = export.run(args)
+            print(f"[export] {marker['counts']['rows']} weak-label rows -> {args.out}",
+                  flush=True)
         else:
             rows = sweep(args.observations, args.out, args.max_gaps, load_config(args.config),
                          holdout_run=args.holdout, holdout_gaps=args.holdout_gaps,
                          per_gap=args.per_gap, seed=args.seed, force=args.force,
                          video=args.video, bridges_from=args.bridges_from,
-                         figures_on=not args.no_figures)
+                         figures_on=not args.no_figures, decoys=args.decoys,
+                         flicker=args.flicker)
             print(f"[sweep] wrote {args.out / SUMMARY_NAME} ({len(rows)} horizons)", flush=True)
     except (FileExistsError, FileNotFoundError, ValueError) as error:
         print(f"bridge_gaps: error: {error}", file=sys.stderr, flush=True)

@@ -13,7 +13,9 @@ DEFAULT_RECOVERABLE = ('low_body_score', 'missing_position', 'outside_image',
 @dataclass(frozen=True)
 class BridgeConfig:
     """Parameters for linking and filling. See docs/GAP_BRIDGING.md."""
-    max_gap: int = 5                          # link when 1 <= gap <= max_gap; 0 disables linking
+    max_gap: int = 45                         # link when 1 <= gap <= max_gap; 0 disables linking.
+                                              # v003 rule: highest horizon with pooled hold-out precision
+                                              # 1.0 at every planted gap (decoys counted), demo seeds 0-4
     velocity_window: int = 3                  # steps used for endpoint velocity and node offsets
     max_velocity_px_per_frame: float = 6.0    # clip endpoint speeds (tracker value)
     max_body_displacement_px: float = 12.0    # gate: dist <= this * dt

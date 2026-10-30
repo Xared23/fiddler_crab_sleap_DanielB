@@ -17,6 +17,7 @@ import pyarrow.parquet as pq
 
 from gap_bridging.config import BridgeConfig
 from gap_bridging.geometry import fill_confidence
+from gap_bridging.identity import status_column
 from gap_bridging.types import DECISIONS, SOURCES, Bridge, LinkDecision
 from pipeline_common import atomic_json, sha256
 
@@ -26,13 +27,16 @@ BridgeInfo = tuple[int, str]          # (gap_frames, fill_confidence) of one bri
 ADDED_FIELDS = (pa.field('trajectory_id', pa.string()), pa.field('source', pa.string()),
                 pa.field('bridge_id', pa.string()), pa.field('gap_frames', pa.int64()),
                 pa.field('fill_confidence', pa.string()))
-TRAJECTORY_SCHEMA = pa.schema([
+# v003: identity flag appended last to both outputs by :func:`append_status`.
+STATUS_FIELD = pa.field('trajectory_status', pa.string())
+TRAJECTORY_BASE_SCHEMA = pa.schema([
     ('trajectory_id', pa.string()), ('video_id', pa.string()),
     ('start_frame', pa.int64()), ('end_frame', pa.int64()),
     ('n_observed', pa.int64()), ('n_recovered', pa.int64()), ('n_interpolated', pa.int64()),
     ('n_recovered_tail', pa.int64()),
     ('n_tracklets', pa.int64()), ('member_tracklet_ids', pa.list_(pa.string())),
 ])
+TRAJECTORY_SCHEMA = TRAJECTORY_BASE_SCHEMA.append(STATUS_FIELD)
 LINKS_SCHEMA = pa.schema([
     ('video_id', pa.string()), ('tracklet_a', pa.string()), ('tracklet_b', pa.string()),
     ('gap_frames', pa.int64()), ('cost', pa.float64()), ('runner_up_cost', pa.float64()),
@@ -48,14 +52,25 @@ COMPLETE_NAME = 'GAP_BRIDGING_COMPLETE.json'
 # --------------------------------------------------------------------------- #
 def output_schema(input_schema: pa.Schema) -> pa.Schema:
     """Return the input schema plus the :data:`ADDED_FIELDS` (``trajectory_id``,
-    ``source``, ``bridge_id``, ``gap_frames``, ``fill_confidence``)."""
-    clash = {f.name for f in ADDED_FIELDS}.intersection(input_schema.names)
+    ``source``, ``bridge_id``, ``gap_frames``, ``fill_confidence``).
+
+    This is the schema of the assembled table before :func:`append_status`;
+    an input that already has any of these columns or ``trajectory_status``
+    is refused.
+    """
+    clash = {f.name for f in ADDED_FIELDS + (STATUS_FIELD,)}.intersection(input_schema.names)
     if clash:
         raise ValueError(f"input already has output columns: {sorted(clash)}")
     schema = input_schema
     for field in ADDED_FIELDS:
         schema = schema.append(field)
     return schema
+
+
+def final_output_schema(input_schema: pa.Schema) -> pa.Schema:
+    """Schema of the written ``observations.parquet``: :func:`output_schema`
+    plus :data:`STATUS_FIELD` (input + 6 columns)."""
+    return output_schema(input_schema).append(STATUS_FIELD)
 
 
 def bridge_gap_info(bridge: Bridge, cfg: BridgeConfig | None = None) -> BridgeInfo:
@@ -127,10 +142,34 @@ def synthetic_table(pairs: Sequence[tuple[Bridge, pa.Table]], input_schema: pa.S
     return pa.concat_tables(parts)
 
 
+def _adoptions(recovered: Mapping[RecoveryKey, str], bridge_of_recovered: Mapping[RecoveryKey, str],
+               bridge_info: Mapping[str, BridgeInfo] | None, source: str,
+               label: str) -> list[tuple[RecoveryKey, str, str, str, int | None, str | None]]:
+    """Validated ``(key, detection_id, source, bridge_id, gap_frames, fill_confidence)`` rows."""
+    if set(recovered) != set(bridge_of_recovered):
+        raise ValueError(f"{label} and its bridge mapping have different keys")
+    if bridge_info is not None:
+        uncovered = set(bridge_of_recovered.values()) - set(bridge_info)
+        if uncovered:
+            name = 'bridge_info lacks recovering' if source == 'recovered' else 'tail_info lacks tail'
+            raise ValueError(f"{name} bridges: {sorted(uncovered)[:5]}")
+    rows = []
+    for key, det in sorted(recovered.items()):
+        if not det:
+            raise ValueError(f"empty detection_id for {label} {key}")
+        bridge = bridge_of_recovered[key]
+        gap, confidence = bridge_info[bridge] if bridge_info is not None else (None, None)
+        rows.append((key, det, source, bridge, gap, confidence))
+    return rows
+
+
 def assemble_observations(obs: pa.Table, trajectory_of_tracklet: dict[str, str],
                           recovered: dict[RecoveryKey, str], bridge_of_recovered: dict[RecoveryKey, str],
                           synthetic: pa.Table | None,
-                          bridge_info: Mapping[str, BridgeInfo] | None = None) -> pa.Table:
+                          bridge_info: Mapping[str, BridgeInfo] | None = None, *,
+                          tails: Mapping[RecoveryKey, str] | None = None,
+                          tail_bridge_of: Mapping[RecoveryKey, str] | None = None,
+                          tail_info: Mapping[str, BridgeInfo] | None = None) -> pa.Table:
     """Build the output observation table.
 
     Parameters
@@ -149,26 +188,33 @@ def assemble_observations(obs: pa.Table, trajectory_of_tracklet: dict[str, str],
         ``bridge_id -> (gap_frames, fill_confidence)`` (see
         :func:`bridge_info_table`); must cover every recovering bridge. None
         leaves ``gap_frames`` and ``fill_confidence`` null on recovered rows.
+    tails : mapping, optional
+        Tail recoveries (:func:`gap_bridging.tails.recover_tails`), same key
+        and value convention as ``recovered``; their rows get
+        ``source='recovered_tail'``. A detection may not be in both mappings.
+    tail_bridge_of : mapping, optional
+        ``key -> tail bridge id`` (:func:`gap_bridging.tails.tail_bridge_of`);
+        required with a non-empty ``tails``.
+    tail_info : mapping, optional
+        ``tail bridge id -> (tail length, fill_confidence)``
+        (:func:`gap_bridging.tails.tail_info`); None leaves the two columns
+        null on tail rows.
 
     Returns
     -------
     pa.Table
         Original rows in original order with ``trajectory_id`` (null for
-        unassigned rows not recovered), ``source`` (observed / recovered),
-        ``bridge_id``, ``gap_frames`` and ``fill_confidence`` (null unless
-        recovered) appended, then the synthetic rows sorted by
+        unassigned rows not adopted), ``source`` (observed / recovered /
+        recovered_tail), ``bridge_id``, ``gap_frames`` and ``fill_confidence``
+        (null unless adopted) appended, then the synthetic rows sorted by
         (video_id, frame, trajectory_id).
     """
     target = output_schema(obs.schema)
-    if set(recovered) != set(bridge_of_recovered):
-        raise ValueError("recovered and bridge_of_recovered have different keys")
-    for (video, frame, traj), det in recovered.items():
-        if not det:
-            raise ValueError(f"empty detection_id for recovery {(video, frame, traj)}")
-    if bridge_info is not None:
-        uncovered = set(bridge_of_recovered.values()) - set(bridge_info)
-        if uncovered:
-            raise ValueError(f"bridge_info lacks recovering bridges: {sorted(uncovered)[:5]}")
+    tails = dict(tails or {})
+    if tails and tail_bridge_of is None:
+        raise ValueError("tails need tail_bridge_of")
+    items = (_adoptions(recovered, bridge_of_recovered, bridge_info, 'recovered', 'recovery')
+             + _adoptions(tails, dict(tail_bridge_of or {}), tail_info, 'recovered_tail', 'tail'))
 
     keys = list(trajectory_of_tracklet)
     tidx = pc.index_in(obs['tracklet_id'], value_set=pa.array(keys, pa.string()))
@@ -177,8 +223,7 @@ def assemble_observations(obs: pa.Table, trajectory_of_tracklet: dict[str, str],
         raise ValueError(f"{unknown} rows have a tracklet_id with no trajectory")
     traj = pc.take(pa.array([trajectory_of_tracklet[k] for k in keys], pa.string()), tidx)
 
-    items = sorted(recovered.items())
-    dets = [det for _, det in items]
+    dets = [item[1] for item in items]
     if len(set(dets)) != len(dets):
         raise ValueError("a detection is recovered more than once")
     ridx = pc.index_in(obs['detection_id'], value_set=pa.array(dets, pa.string()))
@@ -191,22 +236,25 @@ def assemble_observations(obs: pa.Table, trajectory_of_tracklet: dict[str, str],
         rows = dict(zip(rec_rows['detection_id'].to_pylist(),
                         zip(rec_rows['video_id'].to_pylist(), rec_rows['frame'].to_pylist(),
                             rec_rows['accepted_for_tracking'].to_pylist(), rec_rows['tracklet_id'].to_pylist())))
-        for (video, frame, _), det in items:
+        for (video, frame, _), det, *_ in items:
             r_video, r_frame, accepted, tracklet = rows[det]
             if (r_video, r_frame) != (video, frame) or accepted is not False or tracklet is not None:
                 raise ValueError(f"detection {det!r} cannot be recovered at {video}/{frame}")
-    rec_traj = pc.take(pa.array([key[2] for key, _ in items], pa.string()), ridx)
-    rec_bridge_ids = [bridge_of_recovered[key] for key, _ in items]
-    rec_bridge = pc.take(pa.array(rec_bridge_ids, pa.string()), ridx)
-    info = [bridge_info[b] if bridge_info is not None else (None, None) for b in rec_bridge_ids]
-    rec_gap = pc.take(pa.array([i[0] for i in info], pa.int64()), ridx)
-    rec_conf = pc.take(pa.array([i[1] for i in info], pa.string()), ridx)
+
+    def column(values: list, kind: pa.DataType) -> pa.Array:
+        return pc.take(pa.array(values, kind), ridx)
+
+    rec_traj = column([item[0][2] for item in items], pa.string())
+    rec_source = column([item[2] for item in items], pa.string())
+    rec_bridge = column([item[3] for item in items], pa.string())
+    rec_gap = column([item[4] for item in items], pa.int64())
+    rec_conf = column([item[5] for item in items], pa.string())
 
     out = obs
-    added = (pc.coalesce(traj, rec_traj), pc.if_else(is_rec, 'recovered', 'observed'), rec_bridge,
-             rec_gap, rec_conf)
-    for field, column in zip(ADDED_FIELDS, added):
-        out = out.append_column(field, column)
+    added = (pc.coalesce(traj, rec_traj), pc.coalesce(rec_source, pa.scalar('observed')),
+             rec_bridge, rec_gap, rec_conf)
+    for field, values in zip(ADDED_FIELDS, added):
+        out = out.append_column(field, values)
     out = out.cast(target)
     if synthetic is None or synthetic.num_rows == 0:
         return out
@@ -217,6 +265,37 @@ def assemble_observations(obs: pa.Table, trajectory_of_tracklet: dict[str, str],
     synthetic = synthetic.sort_by([('video_id', 'ascending'), ('frame', 'ascending'),
                                    ('trajectory_id', 'ascending')])
     return pa.concat_tables([out, synthetic])
+
+
+def append_status(observations: pa.Table, trajectories: pa.Table,
+                  status: Mapping[str, str]) -> tuple[pa.Table, pa.Table]:
+    """Append ``trajectory_status`` (:data:`STATUS_FIELD`) to both output tables.
+
+    Parameters
+    ----------
+    observations : pa.Table
+        Output of :func:`assemble_observations`.
+    trajectories : pa.Table
+        Output of :func:`trajectory_table` (:data:`TRAJECTORY_BASE_SCHEMA`).
+    status : mapping
+        ``trajectory_id -> 'identity' | 'spurious'``
+        (:func:`gap_bridging.identity.classify_trajectories`), covering every
+        trajectory.
+
+    Returns
+    -------
+    (observations, trajectories) : tuple of pa.Table
+        The tables with the status as last column, null on unassigned
+        observation rows; the trajectory table in :data:`TRAJECTORY_SCHEMA`.
+    """
+    if STATUS_FIELD.name in observations.schema.names or STATUS_FIELD.name in trajectories.schema.names:
+        raise ValueError("trajectory_status is already present")
+    extra = set(status) - set(trajectories['trajectory_id'].to_pylist())
+    if extra:
+        raise ValueError(f"status for unknown trajectories: {sorted(extra)[:5]}")
+    observations = observations.append_column(STATUS_FIELD, status_column(observations, status))
+    trajectories = trajectories.append_column(STATUS_FIELD, status_column(trajectories, status))
+    return observations, trajectories.cast(TRAJECTORY_SCHEMA)
 
 
 # --------------------------------------------------------------------------- #
@@ -235,8 +314,9 @@ def trajectory_table(observations: pa.Table, trajectories: Mapping[str, Sequence
     Returns
     -------
     pa.Table
-        :data:`TRAJECTORY_SCHEMA`, one row per trajectory, sorted by
-        (video_id, trajectory_id).
+        :data:`TRAJECTORY_BASE_SCHEMA` (``n_<source>`` for every source),
+        one row per trajectory, sorted by (video_id, trajectory_id); see
+        :func:`append_status` for the ``trajectory_status`` column.
     """
     has = pc.is_valid(observations['trajectory_id'])
     t = observations.select(['trajectory_id', 'video_id', 'frame', 'source']).filter(has)
@@ -261,7 +341,7 @@ def trajectory_table(observations: pa.Table, trajectories: Mapping[str, Sequence
     order = sorted(info, key=lambda k: (info[k]['video_id'], k))
     rows = [dict(trajectory_id=k, **info[k], n_tracklets=len(trajectories[k]),
                  member_tracklet_ids=list(trajectories[k])) for k in order]
-    return pa.Table.from_pylist(rows, schema=TRAJECTORY_SCHEMA)
+    return pa.Table.from_pylist(rows, schema=TRAJECTORY_BASE_SCHEMA)
 
 
 def links_table(decisions: list[LinkDecision], video_id: str) -> pa.Table:

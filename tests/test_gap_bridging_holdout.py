@@ -33,9 +33,10 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 sys.path.insert(0, str(ROOT / 'tests'))
 
 # ----- local modules -----
-from gap_bridging import holdout, tables  # noqa: E402
+from gap_bridging import geometry, holdout, tables  # noqa: E402
 from gap_bridging.config import BridgeConfig  # noqa: E402
-from gap_bridging_fixtures import Crab, make_observations, straight_crab  # noqa: E402
+from gap_bridging_fixtures import (DEFAULT_OFFSETS, Crab, make_observations,  # noqa: E402
+                                   straight_crab)
 
 # ============================================================
 # CONSTANTS
@@ -79,13 +80,33 @@ def links_table(rows: List[Tuple[str, str, str]]) -> pa.Table:
     return pa.Table.from_pydict(columns, schema=tables.LINKS_SCHEMA)
 
 
-def truth_table(rows: List[Tuple[str, str, int]]) -> pa.Table:
-    """A truth table from ``(left_id, right_id, gap)``."""
+def truth_table(rows: List[tuple]) -> pa.Table:
+    """A truth table from ``(left_id, right_id, gap[, role, middle_id, partner_id])``."""
+    rows = [tuple(r) + ('plant', None, None)[len(r) - 3:] for r in rows]
     return pa.Table.from_pydict({
         'left_id': [r[0] for r in rows], 'right_id': [r[1] for r in rows],
         'original_id': [r[0] for r in rows], 'gap_frames': [r[2] for r in rows],
         'deleted_first_frame': [10] * len(rows),
-        'deleted_last_frame': [9 + r[2] for r in rows]}, schema=holdout.TRUTH_SCHEMA)
+        'deleted_last_frame': [9 + r[2] for r in rows], 'role': [r[3] for r in rows],
+        'middle_id': [r[4] for r in rows], 'partner_id': [r[5] for r in rows]},
+        schema=holdout.TRUTH_SCHEMA)
+
+
+MIRRORED = DEFAULT_OFFSETS * np.array([1.0, -1.0])     # claw on the other side: claw_side +1
+
+
+def cue_crabs(n: int, n_frames: int = N_FRAMES, speed: float = 0.5) -> List[Crab]:
+    """``far_crabs`` with the claw mirrored on every other crab (confident opposite sides)."""
+    crabs = far_crabs(n, n_frames)
+    for crab in crabs:
+        crab.positions = crab.positions[:1] + (crab.positions - crab.positions[:1]) * (speed / 0.5)
+        if crab.crab_id % 2 == 0:
+            crab.offsets = MIRRORED.copy()
+    return crabs
+
+
+def tracklet_rows(table: pa.Table, tracklet: str) -> pa.Table:
+    return table.filter(pc.fill_null(pc.equal(table['tracklet_id'], tracklet), False))
 
 
 def score_dict(scores: pa.Table) -> Dict[int, dict]:
@@ -111,6 +132,8 @@ class PlantTests(unittest.TestCase):
         self.assertEqual(self.truth.schema, holdout.TRUTH_SCHEMA)
         self.assertEqual(self.truth.num_rows, 6)
         self.assertEqual(sorted(self.truth['gap_frames'].to_pylist()), [1, 1, 3, 3, 5, 5])
+        self.assertEqual(set(self.truth['role'].to_pylist()), {'plant'})
+        self.assertEqual(self.truth['middle_id'].null_count, 6)
         for row in self.truth.to_pylist():
             self.assertEqual(row['left_id'], row['original_id'])
             self.assertEqual(row['deleted_last_frame'] - row['deleted_first_frame'] + 1,
@@ -203,6 +226,114 @@ class PlantTests(unittest.TestCase):
         self.assertEqual(n_ids, 12 + truth.num_rows)
 
 
+class DecoyFlickerPlantTests(unittest.TestCase):
+    """plant_gaps with decoys and flicker singletons on 16 synthetic tracklets."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.base = make_observations(cue_crabs(16))
+        cls.planted, cls.truth = holdout.plant_gaps(cls.base, (1, 3), per_gap=2, seed=5,
+                                                    decoys=2, flicker=1)
+
+    def test_roles_and_counts(self):
+        roles = self.truth['role'].to_pylist()
+        self.assertEqual(roles, ['plant', 'plant', 'decoy_target', 'decoy_donor', 'decoy_target',
+                                 'decoy_donor', 'flicker'] * 2)
+        originals = self.truth['original_id'].to_pylist()
+        self.assertEqual(len(set(originals)), len(originals))
+        deleted = sum(g * (2 if r == 'flicker' else 1)
+                      for g, r in zip(self.truth['gap_frames'].to_pylist(), roles))
+        self.assertEqual(self.base.num_rows - self.planted.num_rows, deleted)
+        new = [t for t in set(self.planted['tracklet_id'].drop_null().to_pylist())
+               if '/holdout' in t]
+        self.assertEqual(len(new), 7 * 2 + 2)       # one per split, two per flicker
+
+    def test_plants_unchanged_by_extras(self):
+        """With decoys and flicker the plants of each gap are drawn first, as without."""
+        _, plain = holdout.plant_gaps(self.base, (1,), per_gap=2, seed=5)
+        first = self.truth.filter(pc.equal(self.truth['gap_frames'], 1)).slice(0, 2)
+        self.assertEqual(first['original_id'].to_pylist(), plain['original_id'].to_pylist())
+        self.assertEqual(first['deleted_first_frame'].to_pylist(),
+                         plain['deleted_first_frame'].to_pylist())
+
+    def test_decoy_geometry(self):
+        rows = self.truth.to_pylist()
+        cfg = BridgeConfig()
+        coords = holdout.coordinate_columns(self.base.schema)
+        self.assertIn('body_x', coords)
+        self.assertIn('claw_y', coords)
+        self.assertIn('centroid_x', coords)
+        for k, row in enumerate(rows):
+            if row['role'] != 'decoy_target':
+                continue
+            donor = rows[k + 1]
+            self.assertEqual(donor['role'], 'decoy_donor')
+            self.assertEqual(row['partner_id'], donor['right_id'])
+            self.assertEqual(donor['partner_id'], row['left_id'])
+            self.assertEqual((row['deleted_first_frame'], row['gap_frames']),
+                             (donor['deleted_first_frame'], donor['gap_frames']))
+            start = row['deleted_last_frame'] + 1
+            target_right = tracklet_rows(self.planted, row['right_id'])
+            donor_right = tracklet_rows(self.planted, donor['right_id'])
+            self.assertEqual(pc.min(target_right['frame']).as_py(), start)
+            self.assertEqual(pc.min(donor_right['frame']).as_py(), start)
+            t0, d0 = target_right.to_pylist()[0], donor_right.to_pylist()[0]
+            self.assertAlmostEqual(d0['body_x'] - t0['body_x'], 3.0, delta=1e-9)
+            self.assertAlmostEqual(d0['body_y'] - t0['body_y'], 0.0, delta=1e-9)
+            # Every coordinate column of the donor's right half moved by the same vector.
+            original = tracklet_rows(self.base, donor['original_id']).filter(
+                pc.greater_equal(tracklet_rows(self.base, donor['original_id'])['frame'], start))
+            moved = donor_right.to_pydict()
+            dx = moved['body_x'][0] - original['body_x'][0].as_py()
+            dy = moved['body_y'][0] - original['body_y'][0].as_py()
+            for name in coords:
+                shift = dx if name.endswith('_x') else dy
+                for new, old in zip(moved[name], original[name].to_pylist()):
+                    self.assertAlmostEqual(new, old + shift, delta=1e-9, msg=name)
+            # Left halves unchanged; the target is untouched apart from the split.
+            target_left = tracklet_rows(self.planted, row['left_id'])
+            self.assertTrue(target_left.equals(tracklet_rows(self.base, row['original_id']).filter(
+                pc.less(tracklet_rows(self.base, row['original_id'])['frame'],
+                        row['deleted_first_frame']))))
+            # The pair differs in appearance (here: opposite confident claw sides).
+            ends = geometry.endpoints(self.planted, cfg)
+            left_cue = ends[row['left_id']][1]
+            right_cue = ends[donor['right_id']][0]
+            self.assertTrue(holdout.cues_differ(
+                (left_cue.size_px, left_cue.size_n, left_cue.claw_side, left_cue.claw_side_n),
+                (right_cue.size_px, right_cue.size_n, right_cue.claw_side, right_cue.claw_side_n),
+                cfg))
+
+    def test_flicker_parts(self):
+        for row in self.truth.filter(pc.equal(self.truth['role'], 'flicker')).to_pylist():
+            g = row['gap_frames']
+            self.assertEqual(row['deleted_last_frame'] - row['deleted_first_frame'] + 1, 2 * g + 1)
+            middle = tracklet_rows(self.planted, row['middle_id'])
+            self.assertEqual(middle['frame'].to_pylist(), [row['deleted_first_frame'] + g])
+            self.assertEqual(middle['incoming_reason'].to_pylist(), ['no_candidate'])
+            left = tracklet_rows(self.planted, row['left_id'])
+            right = tracklet_rows(self.planted, row['right_id'])
+            self.assertEqual(pc.max(left['frame']).as_py(), row['deleted_first_frame'] - 1)
+            self.assertEqual(pc.min(right['frame']).as_py(), row['deleted_last_frame'] + 1)
+
+    def test_cues_differ(self):
+        cfg = BridgeConfig()
+        self.assertTrue(holdout.cues_differ((20.0, 3, 0.0, 0), (26.0, 1, 0.0, 0), cfg))
+        self.assertFalse(holdout.cues_differ((20.0, 3, 0.0, 0), (25.9, 1, 0.0, 0), cfg))
+        self.assertFalse(holdout.cues_differ((20.0, 0, 0.0, 0), (30.0, 3, 0.0, 0), cfg))
+        self.assertTrue(holdout.cues_differ((20.0, 9, 1.0, 9), (20.0, 9, -0.9, 5), cfg))
+        self.assertFalse(holdout.cues_differ((20.0, 9, 1.0, 9), (20.0, 9, -0.9, 4), cfg))
+        self.assertFalse(holdout.cues_differ((20.0, 9, 1.0, 9), (20.0, 9, 1.0, 9), cfg))
+
+    def test_short_pool_plants_fewer_extras(self):
+        _, truth = holdout.plant_gaps(make_observations(far_crabs(4)), (1,), per_gap=2, seed=0,
+                                      decoys=3, flicker=3)
+        roles = truth['role'].to_pylist()
+        self.assertEqual(roles.count('plant'), 2)
+        self.assertEqual(roles.count('decoy_target'), 0)    # all crabs share their cues
+        self.assertEqual(roles.count('flicker'), 2)         # only two tracklets left
+
+
 # ============================================================
 # SCORING
 # ============================================================
@@ -243,6 +374,32 @@ class ScoreTests(unittest.TestCase):
                          [5, 1, 2, 2])
         self.assertAlmostEqual(total['recall'], 0.2)
         self.assertAlmostEqual(total['precision'], 1 / 3)
+
+    def test_decoys_and_flicker(self):
+        truth = truth_table([
+            ('A', 'A/h1', 2, 'decoy_target', None, 'B/h2'),
+            ('B', 'B/h2', 2, 'decoy_donor', None, 'A'),
+            ('C', 'C/h3', 2, 'decoy_target', None, 'D/h4'),
+            ('D', 'D/h4', 2, 'decoy_donor', None, 'C'),
+            ('E', 'E/h6', 2, 'flicker', 'E/h5', None),
+            ('F', 'F/h8', 2, 'flicker', 'F/h7', None),
+            ('G', 'G/h9', 2, 'plant'),
+        ])
+        links = links_table([('A', 'B/h2', 'linked'),       # target linked to the decoy
+                             ('C', 'C/h3', 'linked'),       # target recovered
+                             ('E', 'E/h5', 'linked'), ('E/h5', 'E/h6', 'linked'),
+                             ('F', 'F/h8', 'linked'),       # flicker middle left alone
+                             ('G', 'G/h9', 'linked')])
+        row = score_dict(holdout.score_links(links, truth, {'F/h7': 'spurious',
+                                                            'E/h5': 'identity'}))[2]
+        self.assertEqual([row[k] for k in ('planted', 'recovered', 'false_link', 'missed')],
+                         [3, 2, 1, 0])
+        self.assertAlmostEqual(row['precision'], 2 / 3)
+        self.assertEqual((row['decoy_planted'], row['decoy_recovered'], row['decoy_false_link']),
+                         (2, 1, 1))
+        self.assertEqual((row['flicker_planted'], row['flicker_recovered'],
+                          row['flicker_spurious']), (2, 1, 1))
+        self.assertEqual(score_dict(holdout.score_links(links, truth))[2]['flicker_spurious'], 0)
 
     def test_nothing_linked(self):
         scores = holdout.score_links(links_table([]), self.TRUTH)
@@ -367,6 +524,108 @@ class DecoyTests(unittest.TestCase):
         vetoed = (gap1['missed'] == 1 and 'refused_margin' in decisions
                   and 'linked' not in decisions)
         self.assertTrue(wrong_link or vetoed, (gap1, from_left))
+
+
+class DecoyPropertyTests(unittest.TestCase):
+    """Decoys whose claw side is confidently opposite are never linked with cues on,
+    and cues never lower precision."""
+
+    @settings(deadline=None, max_examples=8)
+    @given(seed=st.integers(0, 2**16), speed=st.sampled_from([0.0, 0.3, 0.8]))
+    def test_mismatched_decoy_never_linked(self, seed, speed):
+        table = make_observations(cue_crabs(16, speed=speed))
+        scores = {}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write(table, Path(tmp))
+            for cues in (True, False):
+                cfg = BridgeConfig(max_gap=5, appearance_cues=cues)
+                summary = holdout.run_holdout(path, Path(tmp) / f'cues_{cues}', cfg, (1, 3, 5),
+                                              per_gap=1, seed=seed, decoys=1)
+                scores[cues] = summary['scores'][-1]
+                self.assertEqual(summary['decoys'], 1)
+        on, off = scores[True], scores[False]
+        self.assertEqual(on['decoy_planted'], 3)
+        self.assertEqual(on['decoy_false_link'], 0)
+        precision = {k: v['precision'] for k, v in scores.items()}
+        if precision[False] is not None:
+            self.assertIsNotNone(precision[True])
+            self.assertGreaterEqual(precision[True], precision[False])
+
+
+def shift_tracklet(table: pa.Table, tracklet: str, dx: float) -> pa.Table:
+    """``table`` with every coordinate column of ``tracklet``'s rows moved by ``dx`` along x."""
+    mask = pc.fill_null(pc.equal(table['tracklet_id'], tracklet), False).to_numpy(
+        zero_copy_only=False)
+    for name in holdout.coordinate_columns(table.schema):
+        if not name.endswith('_x'):
+            continue
+        values = np.asarray(table[name].to_numpy(zero_copy_only=False), dtype=float)
+        values = np.where(mask, values + dx, values)
+        index = table.schema.get_field_index(name)
+        table = table.set_column(index, table.schema.field(index),
+                                 pa.array(values, table.schema.field(index).type))
+    return table
+
+
+class DecoyVetoExampleTests(unittest.TestCase):
+    """Motion favours the decoy: the target's right half is moved 6 px off its predicted
+    start and the donor's right half sits on it (decoy_offset_px = 0). Without cues the
+    decoy is linked (a false link); with cues the claw-side veto refuses it."""
+
+    def test_veto_turns_false_link_into_recovery_or_miss(self):
+        table = make_observations(cue_crabs(16, speed=0.3))
+        planted, truth = holdout.plant_gaps(table, (2,), per_gap=1, seed=4, decoys=1,
+                                            decoy_offset_px=0.0)
+        target = truth.filter(pc.equal(truth['role'], 'decoy_target')).to_pylist()[0]
+        planted = shift_tracklet(planted, target['right_id'], 6.0)
+        outcome = {}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write(planted, Path(tmp))
+            for cues in (True, False):
+                out = Path(tmp) / f'cues_{cues}'
+                from gap_bridging import pipeline
+                pipeline.run(path, out, BridgeConfig(max_gap=5, appearance_cues=cues))
+                links = pq.read_table(out / 'links.parquet')
+                outcome[cues] = score_dict(holdout.score_links(links, truth))[2]
+                pair = links.filter(pc.and_(pc.equal(links['tracklet_a'], target['left_id']),
+                                            pc.equal(links['tracklet_b'],
+                                                     target['partner_id']))).to_pylist()
+                self.assertEqual(len(pair), 1)
+                if cues:
+                    self.assertEqual((pair[0]['decision'], pair[0]['reason']),
+                                     ('refused_gate', 'claw_side'))
+        self.assertEqual(outcome[False]['decoy_false_link'], 1)
+        self.assertEqual(outcome[True]['decoy_false_link'], 0)
+        self.assertGreater(outcome[True]['precision'], outcome[False]['precision'])
+
+
+class FlickerPropertyTests(unittest.TestCase):
+    """A flicker singleton bridged on both sides is never flagged spurious, even with low
+    scores (it would be spurious if left alone)."""
+
+    @settings(deadline=None, max_examples=6)
+    @given(seed=st.integers(0, 2**16), max_gap=st.sampled_from([3, 5]))
+    def test_flicker_never_spurious_within_horizon(self, seed, max_gap):
+        table = make_observations(far_crabs(8, 80), scores=0.3)
+        gaps = tuple(g for g in (1, 2, 3, 5) if g <= max_gap)
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = holdout.run_holdout(write(table, Path(tmp)), Path(tmp) / 'out',
+                                          BridgeConfig(max_gap=max_gap), gaps, per_gap=1,
+                                          seed=seed, flicker=1)
+        total = summary['scores'][-1]
+        self.assertEqual(total['flicker_planted'], len(gaps))
+        self.assertEqual(total['flicker_spurious'], 0)
+        self.assertEqual(total['flicker_recovered'], len(gaps))
+
+    def test_flicker_beyond_horizon_is_spurious(self):
+        table = make_observations(far_crabs(4, 80), scores=0.3)
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = holdout.run_holdout(write(table, Path(tmp)), Path(tmp) / 'out',
+                                          BridgeConfig(max_gap=2), (3,), per_gap=1, seed=0,
+                                          flicker=1)
+        total = summary['scores'][-1]
+        self.assertEqual((total['flicker_planted'], total['flicker_recovered'],
+                          total['flicker_spurious']), (1, 0, 1))
 
 
 # ============================================================

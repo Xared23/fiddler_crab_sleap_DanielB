@@ -49,8 +49,10 @@ from gap_bridging.types import DECISIONS, Endpoint  # noqa: E402
 # HELPERS
 # ============================================================
 
-CFG = BridgeConfig(gate_model='linear')      # legacy v001 behaviour; example tests pin its numbers
-SQRT = BridgeConfig(gate_model='sqrt', radius_r0_px=0.0, radius_k_px=3.73, radius_safety=1.25,
+# max_gap is pinned at 5 (the v001/v002 default) so the examples do not move with the shipped
+# default horizon (BridgeConfig.max_gap).
+CFG = BridgeConfig(gate_model='linear', max_gap=5)   # legacy v001 behaviour; example tests pin its numbers
+SQRT = BridgeConfig(gate_model='sqrt', max_gap=5, radius_r0_px=0.0, radius_k_px=3.73, radius_safety=1.25,
                     radius_min_px=6.0, prediction_error_ratio=1.5, prediction_horizon_frames=3,
                     gap_penalty=0.06, max_assignment_cost_sqrt=1.0, unmatched_cost_sqrt=0.6,
                     minimum_cost_margin_sqrt=0.25)    # pinned so example numbers survive refits

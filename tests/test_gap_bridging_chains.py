@@ -477,10 +477,57 @@ class TableTests(unittest.TestCase):
         self.assertEqual(back.num_rows, obs.num_rows + 1)
         self.assertEqual(traj_table.num_rows, len(spans))
 
+    def test_tail_rows_and_status(self):
+        """Tail adoptions are labelled recovered_tail; append_status fills both tables."""
+        # Crab 1 is observed on frames 0-11 with two rejected rows after its end.
+        crab = straight_crab(1, 0, 14, (100.0, 100.0), (2.0, 0.0), video_id='vid')
+        decoy = straight_crab(2, 0, 14, (400.0, 400.0), (0.0, 1.0), video_id='vid')
+        obs = make_observations([crab, decoy], reject_frames={1: {12: 'low_body_score',
+                                                                  13: 'low_body_score'}})
+        spans = tracklet_spans(obs)
+        trajs = chains.build_trajectories(list(spans), [], endpoints_for(spans, 'vid'))
+        inverse = chains.tracklet_to_trajectory(trajs)
+        crab_traj = next(t for t, m in trajs.items() if spans[m[0]] == (0, 11))
+        rows = obs.filter(pc.equal(obs['rejection_reason'], 'low_body_score')).to_pylist()
+        tails = {('vid', r['frame'], crab_traj): r['detection_id'] for r in rows}
+        tail_of = {k: f'{crab_traj}/tail_fwd' for k in tails}
+        out = tables.assemble_observations(obs, inverse, {}, {}, None, {}, tails=tails,
+                                           tail_bridge_of=tail_of,
+                                           tail_info={f'{crab_traj}/tail_fwd': (2, 'high')})
+        tail = out.filter(pc.equal(out['source'], 'recovered_tail')).to_pylist()
+        self.assertEqual([r['frame'] for r in tail], [12, 13])
+        self.assertEqual({(r['trajectory_id'], r['bridge_id'], r['gap_frames'],
+                           r['fill_confidence']) for r in tail},
+                         {(crab_traj, f'{crab_traj}/tail_fwd', 2, 'high')})
+        t = tables.trajectory_table(out, trajs)
+        row = [r for r in t.to_pylist() if r['trajectory_id'] == crab_traj][0]
+        self.assertEqual((row['start_frame'], row['end_frame'], row['n_observed'],
+                          row['n_recovered_tail']), (0, 13, 12, 2))
+        status = {k: ('identity' if k == crab_traj else 'spurious') for k in trajs}
+        out2, t2 = tables.append_status(out, t, status)
+        self.assertEqual(t2.schema, tables.TRAJECTORY_SCHEMA)
+        self.assertEqual(out2.schema, tables.final_output_schema(obs.schema))
+        self.assertEqual(len(out2.schema), len(obs.schema) + 6)
+        pairs = set(zip(out2['trajectory_id'].to_pylist(), out2['trajectory_status'].to_pylist()))
+        self.assertEqual({p for p in pairs if p[0] is not None}, set(status.items()))
+        self.assertEqual(out2['trajectory_status'].null_count, out2['trajectory_id'].null_count)
+        with self.assertRaises(ValueError):   # a detection cannot be both bridged and a tail
+            tables.assemble_observations(obs, inverse, dict(tails), dict(tail_of), None,
+                                         {f'{crab_traj}/tail_fwd': (2, 'high')}, tails=tails,
+                                         tail_bridge_of=tail_of)
+        with self.assertRaises(ValueError):
+            tables.assemble_observations(obs, inverse, {}, {}, None, tails=tails)
+        with self.assertRaises(ValueError):
+            tables.append_status(out2, t2, status)
+        with self.assertRaises(ValueError):   # input already carries the status column
+            tables.output_schema(out2.select(obs.schema.names + ['trajectory_status']).schema)
+
     def test_trajectory_table(self):
         s = run_scene()
         t = tables.trajectory_table(s['out'], s['trajs'])
-        self.assertEqual(t.schema, tables.TRAJECTORY_SCHEMA)
+        self.assertEqual(t.schema, tables.TRAJECTORY_BASE_SCHEMA)
+        self.assertEqual(tables.TRAJECTORY_SCHEMA,
+                         tables.TRAJECTORY_BASE_SCHEMA.append(tables.STATUS_FIELD))
         rows = {r['trajectory_id']: r for r in t.to_pylist()}
         main = rows[s['traj']]
         self.assertEqual((main['start_frame'], main['end_frame'], main['n_observed'], main['n_recovered'],

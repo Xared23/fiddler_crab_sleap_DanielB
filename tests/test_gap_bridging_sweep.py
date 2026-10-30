@@ -133,7 +133,7 @@ class SweepTests(unittest.TestCase):
         cls.out = tmp / 'sweep'
         cls.args = ['sweep', '--observations', str(cls.path), '--out', str(cls.out),
                     '--max-gaps', '5,2', '--holdout', '--holdout-gaps', '1,2,3',
-                    '--per-gap', '1']
+                    '--per-gap', '1', '--flicker', '1']
         cls.code = bridge_gaps.main(cls.args)
 
     @classmethod
@@ -164,17 +164,33 @@ class SweepTests(unittest.TestCase):
             self.assertEqual(float(row['holdout_precision']), 1.0)
             self.assertEqual(float(row['holdout_recall']), 1.0)
             self.assertEqual(int(row['decision_linked']), int(row['links']))
+            # Six 60-frame crabs, all identities; nothing to recover at the ends.
+            self.assertEqual((int(row['spurious']), int(row['n_recovered_tail']),
+                              int(row['claw_side_refusals'])), (0, 0, 0))
+            self.assertEqual(int(row['identity_starts']), int(row['identity_starts_filtered']))
+            self.assertEqual(float(row['mean_length_filtered']), float(row['mean_length']))
+            self.assertEqual(int(row['holdout_decoy_planted']), 0)
+        # Five 60-frame crabs are eligible: the plants take 2 (3), the flicker
+        # singletons what is left, best effort; none ends spurious.
+        self.assertEqual((int(short['holdout_flicker_planted']),
+                          int(full['holdout_flicker_planted'])), (2, 2))
+        self.assertEqual(int(full['holdout_flicker_spurious']), 0)
+        self.assertEqual(int(short['identity_starts']), 1)    # crab 1's second tracklet
 
     def test_holdout_by_gap(self):
         rows = read_csv(self.out / bridge_gaps.BY_GAP_NAME)
         self.assertEqual([(int(r['max_gap']), int(r['gap'])) for r in rows],
                          [(2, 1), (2, 2), (5, 1), (5, 2), (5, 3)])
+        self.assertEqual(list(rows[0]), list(bridge_gaps.BY_GAP_COLUMNS))
         for row in rows:
             self.assertEqual((int(row['planted']), int(row['recovered'])), (1, 1))
+            self.assertEqual(int(row['flicker_recovered']), int(row['flicker_planted']))
+            self.assertEqual(int(row['flicker_spurious']), 0)
+        self.assertEqual(sum(int(r['flicker_planted']) for r in rows), 4)
 
     def test_figures(self):
         fig_dir = self.out / bridge_gaps.FIGURES_DIR
-        for name in ('sweep', 'holdout', 'radius_fit'):
+        for name in ('sweep', 'holdout', 'radius_fit', 'start_curve'):
             self.assertTrue(nonempty(fig_dir / f'{name}.pdf'), name)
             self.assertTrue(nonempty(fig_dir / f'{name}.png'), name)
         self.assertEqual(list(fig_dir.glob('bridges_*.png')), [])   # no video for the scene
@@ -196,6 +212,29 @@ class CliCompatibilityTests(unittest.TestCase):
         self.assertEqual(args.max_gaps, [5, 10, 15, 30, 45, 60])
         self.assertEqual(args.holdout_gaps, [1, 2, 3, 5, 10, 15, 20, 30, 45, 60])
         self.assertEqual((args.per_gap, args.seed, args.holdout), (8, 0, False))
+        self.assertEqual((args.decoys, args.flicker), (0, 0))
+        args = bridge_gaps.parse_args(['sweep', '--observations', 'a', '--out', 'b',
+                                       '--decoys', '4', '--flicker', '2'])
+        self.assertEqual((args.decoys, args.flicker), (4, 2))
+        args = bridge_gaps.parse_args(['export', '--bridged', 'r', '--out', 'w',
+                                       '--max-gap-frames', '15'])
+        self.assertEqual((args.command, args.max_gap_frames, args.crop_size), ('export', 15, 256))
+
+    def test_export_subcommand(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            path = tmp / 'observations.parquet'
+            pq.write_table(sweep_scene(), path)
+            self.assertEqual(bridge_gaps.main(['run', '--observations', str(path), '--out',
+                                               str(tmp / 'run')]), 0)
+            self.assertEqual(bridge_gaps.main(['export', '--bridged', str(tmp / 'run'),
+                                               '--out', str(tmp / 'weak')]), 0)
+            weak = pq.read_table(tmp / 'weak' / 'weak_labels.parquet')
+            self.assertEqual(weak.num_rows, 4)                 # crab 1's 4-frame gap
+            self.assertEqual(bridge_gaps.main(['export', '--bridged', str(tmp / 'run'),
+                                               '--out', str(tmp / 'weak')]), 1)   # exists
+            self.assertEqual(bridge_gaps.main(['export', '--bridged', str(tmp / 'none'),
+                                               '--out', str(tmp / 'w2')]), 1)
 
 
 # --------------------------------------------------------------------------- #

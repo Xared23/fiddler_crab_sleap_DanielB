@@ -17,15 +17,23 @@ i+2 or later. As a result, tracklet lengths in the published dataframe vary
 widely (demo clip: 1,181 tracklets, median length 3 frames).
 
 `scripts/bridge_gaps.py` links pairs of tracklets separated by 1 to `max_gap`
-missing frames (default 5; the horizon sweep below recommends 15). It fills each missing frame with either a real
+missing frames (default 45 since v003; v001/v002 shipped 5 and v002 recommended 15; see
+[Default horizon (v003)](#default-horizon-v003)). It fills each missing frame with either a real
 detection the tracker had rejected (**recovered**) or a synthesized pose
 (**interpolated**). It writes new tables and an audit row for every candidate
 link. The input table is never modified, and its rows are carried into the
 output value- and type-identical (pyarrow `Table.equals`).
 
+Since v003 the run also extends trajectories at their ends with rejected
+low-score detections (**recovered_tail**), uses carapace size and claw side as
+appearance cues when linking, and flags one-frame low-score units as
+`spurious` without removing them; see [v003](#v003-tail-recovery-identity-filter-appearance-cues).
+
 Implementation: `scripts/gap_bridging/` (`geometry.py`, `candidates.py`,
-`chains.py`, `recover.py`, `tables.py`, `pipeline.py`; the evaluation tools
-`fit.py`, `holdout.py` and `figures.py`).
+`chains.py`, `recover.py`, `tails.py`, `identity.py`, `tables.py`,
+`pipeline.py`; the evaluation tools `fit.py`, `holdout.py` and `figures.py`;
+the weak-label export `export.py`), plus `scripts/reinfer_low_threshold.py`
+and `jobs/reinfer_low_threshold.sh` (re-inference scaffold).
 Parameters: `configs/tracking/gap_bridging_v001.yaml`.
 Tests: `tests/test_gap_bridging_*.py`.
 
@@ -147,6 +155,16 @@ included, is the v001 method, and the outputs reproduce v001 exactly.
     The offset is the mean of the two endpoints' body-frame offsets, or one side's
     offset if the other is unknown. A node with no heading or no offset is left
     null, with `*_visible = False`.
+11. **Tail recovery (v003).** After the bridges are filled, each trajectory is
+    extended backwards from its first frame and forwards from its last frame
+    with rejected `low_body_score` rows; see [Tail recovery](#tail-recovery).
+12. **Identity flag (v003).** Every trajectory is classified `identity` or
+    `spurious` and the class is appended to both output tables
+    (`trajectory_status`); see [Identity filter](#identity-filter). Linking
+    is not affected.
+
+Under the sqrt model the cost of step 3 also carries two appearance terms and
+a claw-side veto ([Appearance cues](#appearance-cues)).
 
 ## Parameters
 
@@ -162,7 +180,7 @@ records the value in force.
 
 | Parameter | Default | Meaning |
 |---|---:|---|
-| `max_gap` | 5 | Bridge `1 <= gap <= max_gap` missing frames; 0 disables linking (CLI `--max-gap`) |
+| `max_gap` | 45 | Bridge `1 <= gap <= max_gap` missing frames; 0 disables linking (CLI `--max-gap`); 5 until v002 |
 | `velocity_window` | 3 | Steps used for endpoint velocity, heading search and offsets |
 | `max_velocity_px_per_frame` | 6.0 | Endpoint speed clip (tracker value) |
 | `max_body_displacement_px` | 12.0 | Gate: `dist <= this · dt` |
@@ -178,6 +196,21 @@ records the value in force.
 | `fps` | 30000/1001 | Sets `time_s = frame / fps` on interpolated rows when the input has `time_s` |
 | `fill_confidence_gaps` | [5, 15] | `fill_confidence` of a bridge: `high` for gap ≤ 5, `medium` for gap ≤ 15, else `low` |
 
+v003 parameters (all in the YAML):
+
+| Parameter | Default | Meaning |
+|---|---:|---|
+| `tail_recovery` | true | Extend trajectories at their ends with rejected rows |
+| `tail_radius_px` | 8.0 | Adoption radius around the predicted tail position |
+| `tail_max_frames` | 15 | Maximum length of each tail |
+| `tail_reasons` | [low_body_score] | Rejection reasons eligible for a tail |
+| `tail_exclusion_px` | 5.0 | A candidate within this of another trajectory's row at that frame is never adopted (the tracker's duplicate-Shell radius) |
+| `min_identity_frames` | 2 | A trajectory with fewer real frames ... |
+| `min_identity_score` | 0.6 | ... and a median `instance_score` below this is `spurious` |
+| `appearance_cues` | true | Size and claw-side terms and the claw-side veto (sqrt model only) |
+| `size_scale_px`, `size_noise_px`, `size_cost_cap`, `size_weight` | 3.0, 1.0, 3.0, 0.1 | Size term (see [Appearance cues](#appearance-cues)) |
+| `claw_side_weight`, `claw_side_confidence`, `claw_side_min_frames` | 0.15, 0.9, 5 | Side term and veto |
+
 ## Outputs
 
 These files are written to `--out`. Each parquet is first written to
@@ -185,15 +218,18 @@ These files are written to `--out`. Each parquet is first written to
 outputs are refused unless `--force` is given.
 
 **`observations.parquet`**. All input rows in their original order, with the
-original columns unchanged, followed by five new columns:
+original columns unchanged, followed by six new columns (an input that already
+has any of them is refused; the published `identity_status` column is
+provenance and unrelated):
 
 | Column | Type | Content |
 |---|---|---|
 | `trajectory_id` | string | Trajectory of the row. Null for rejected rows that were not recovered. |
-| `source` | string | `observed`, `recovered` or `interpolated` |
-| `bridge_id` | string | `<trajectory_id>/bNNN` for recovered and interpolated rows, otherwise null |
-| `gap_frames` | int64 | Number of missing frames of the row's bridge (recovered frames included), on recovered and interpolated rows; null on observed and unassigned rows |
-| `fill_confidence` | string | `high` / `medium` / `low` from `gap_frames` and `fill_confidence_gaps`, on recovered and interpolated rows; otherwise null |
+| `source` | string | `observed`, `recovered`, `recovered_tail` or `interpolated` |
+| `bridge_id` | string | `<trajectory_id>/bNNN` for recovered and interpolated rows, `<trajectory_id>/tail_back` or `/tail_fwd` for tail rows, otherwise null |
+| `gap_frames` | int64 | Number of missing frames of the row's bridge (recovered frames included), on recovered and interpolated rows; the tail's length on tail rows; null on observed and unassigned rows |
+| `fill_confidence` | string | `high` / `medium` / `low` from `gap_frames` and `fill_confidence_gaps`, on recovered, tail and interpolated rows; otherwise null |
+| `trajectory_status` | string | `identity` or `spurious` ([Identity filter](#identity-filter)) of the row's trajectory; null on unassigned rows |
 
 Interpolated rows come after the input rows, sorted by (video_id, frame,
 trajectory_id). Every column of an interpolated row is null except the
@@ -214,20 +250,24 @@ following:
 
 All scores are null on interpolated rows, and `tracklet_id` is null. A recovered
 row keeps all of its original values, including `accepted_for_tracking = False`
-and its `rejection_reason`. Only the five new columns mark it as adopted.
+and its `rejection_reason`. Only the new columns mark it as adopted; the same
+holds for a `recovered_tail` row.
 
 **`trajectories.parquet`**. One row per trajectory, with these columns:
 `trajectory_id`, `video_id`, `start_frame`, `end_frame`, `n_observed`,
-`n_recovered`, `n_interpolated`, `n_tracklets`, and `member_tracklet_ids`
-(list<string>, in time order). Every trajectory is contiguous:
-`end_frame − start_frame + 1 = n_observed + n_recovered + n_interpolated`.
+`n_recovered`, `n_interpolated`, `n_recovered_tail`, `n_tracklets`,
+`member_tracklet_ids` (list<string>, in time order) and `trajectory_status`.
+Every trajectory is contiguous: `end_frame − start_frame + 1 = n_observed +
+n_recovered + n_interpolated + n_recovered_tail`.
 
 **`links.parquet`**. One audit row per candidate pair, with these columns
 (under the sqrt model, pairs beyond the prefilter radius `R_max` are not
 candidates and have no row; see [Gate model v002](#gate-model-v002)):
 `video_id`, `tracklet_a`, `tracklet_b`, `gap_frames`, `cost` (NaN when a motion
-gate failed), `runner_up_cost` (NaN when there is no competitor), `decision`,
-`reason`, `n_chain_ignored` and `stage`. `stage` (int64) is the 1-based
+gate or the claw-side veto failed), `runner_up_cost` (NaN when there is no
+competitor), `decision`, `reason`, `n_chain_ignored`, `stage`, `size_term` and
+`side_term` (the appearance terms added to the cost; NaN under linear or with
+`appearance_cues: false`, 0 when a cue is unknown). `stage` (int64) is the 1-based
 linking stage whose gap range holds the pair (always 1 under the linear model;
 see [staged linking](#gate-model-v002)). `n_chain_ignored` (int64) is the number of
 chain-reachable competitors left out of the runner-up (method, step 5). It is
@@ -243,19 +283,26 @@ sum it directly; there is no need to parse `reason`.
   also lists the `files` with their hashes, and `sha256` is the hash of the
   sorted listing `"<relpath>\t<sha256>\n"`.
 - `counts`: `videos`, `tracklets`, `links`, `trajectories`, `bridges`,
-  `n_observed`, `n_recovered`, `n_interpolated`, `n_unassigned`,
-  `decisions` and `candidate_pairs` (`enumerated`: pairs with an audit row;
-  `pruned_by_radius`: pairs inside the time window but beyond `R_max`, which
-  were not enumerated; always 0 under linear).
+  `n_observed`, `n_recovered`, `n_interpolated`, `n_recovered_tail`,
+  `n_unassigned`, `decisions`, `candidate_pairs` (`enumerated`: pairs with an
+  audit row; `pruned_by_radius`: pairs inside the time window but beyond
+  `R_max`, which were not enumerated; always 0 under linear),
+  `spurious_trajectories`, `identity_starts` (trajectories starting after
+  their video's first frame) and `identity_starts_identity_only` (the same,
+  identities only).
 - `versions`: the numpy, scipy and pyarrow versions.
 - `outputs`: the `sha256` and `rows` of each parquet.
 
-Before writing, the run checks four invariants and raises an error on any
+Before writing, the run checks these invariants and raises an error on any
 violation:
 - Every tracklet is in exactly one trajectory.
 - `trajectories = tracklets − links`.
 - Output rows = input rows + interpolated rows.
-- Every trajectory is contiguous, with no duplicate frame.
+- Every trajectory is contiguous (tails included), with no duplicate frame.
+- Every `recovered_tail` row lies outside the span of its trajectory's
+  tracklets and bridges and inside the trajectory's span.
+- `trajectory_status` is set on exactly the assigned rows and agrees between
+  the two tables.
 
 ## Limitations
 
@@ -354,8 +401,9 @@ them exactly, interpolated coordinates included (the original columns of the
 output equal those of a run of the pre-gate-model code, 3233ca6, at `max_gap` 5
 and 30). `tests/test_gap_bridging_pipeline.py::LinearGoldenTests` pins the counts
 below and the SHA-256 of the interpolated rows and of the audit table. The
-current default (sqrt, `max_gap` 5) is the first row of the
-[sweep table](#horizon-sweep-results).
+v002 default (sqrt, `max_gap` 5) is the first row of the
+[sweep table](#horizon-sweep-results); the current default (v003, `max_gap`
+45) is in [v003 results](#v003-results).
 Input: 36,573 rows, 300 frames,
 `Crab_Cam_2_2` frames 14250–14549. Input sha256
 `739c2daf087bd1967d53dcfd8d41653166d7d30b9cc713d5ba5203a41432e1ef`. The run took
@@ -622,6 +670,7 @@ horizon), then writes the tables and figures:
     --observations demo/crab_cam2_2_middle_300/observations.parquet \
     --out logs/gap_sweep --max-gaps 5,10,15,30,45,60 \
     --holdout [--holdout-gaps 1,2,3,5,10,15,20,30,45,60] [--per-gap 8] [--seed 0] \
+    [--decoys 4] [--flicker 2] \
     [--config YAML] [--video MP4] [--bridges-from N] [--no-figures] [--force]
 ```
 
@@ -634,12 +683,22 @@ Outputs under `--out`:
   `trajectories`, `mean_length`, `median_length`, `p90_length`, `units_len1`,
   `frac_frames_in_units_ge_30`, `recovered`, `interpolated`,
   `interpolated_{high,medium,low}`, `decision_<label>` for the four labels,
+  `n_recovered_tail`, `claw_side_refusals` (`refused_gate` rows with reason
+  `claw_side`), `spurious`, `identity_starts`, `identity_starts_filtered`,
+  `units_len1_filtered`, `mean_length_filtered`, `median_length_filtered`
+  (the `_filtered` statistics over `identity` trajectories only),
   `holdout_planted`, `holdout_precision`, `holdout_recall`,
-  `holdout_unplanted_links`. Lengths are `end_frame − start_frame + 1` of the
-  trajectories (interpolated frames included).
+  `holdout_unplanted_links`, `holdout_decoy_planted`,
+  `holdout_decoy_false_link`, `holdout_flicker_planted`,
+  `holdout_flicker_spurious`. Lengths are `end_frame − start_frame + 1` of the
+  trajectories (interpolated and tail frames included).
 - `holdout_by_gap.csv`: long form `max_gap, gap, planted, recovered,
-  false_link, missed, recall, precision`.
-- `figures/`: `sweep.pdf` (links and trajectory length vs horizon),
+  false_link, missed, recall, precision, decoy_planted, decoy_recovered,
+  decoy_false_link, flicker_planted, flicker_recovered, flicker_spurious`
+  ([Decoys and flicker singletons](#decoys-and-flicker-singletons)).
+- `figures/`: `sweep.pdf` (links and trajectory length vs horizon; dashed:
+  identities only), `start_curve.pdf` (cumulative identity starts over the
+  clip per horizon, all and identities only, and the input tracklets),
   `holdout.pdf` (precision and recall vs planted gap, one line per horizon),
   `radius_fit.pdf` (measured 99th percentile, fit, configured `r(dt)`, legacy
   `12 dt`), each with a PNG preview, and `bridges_max_gap_<N>_p<k>.png`
@@ -734,6 +793,10 @@ losses on the demo are detector misses on still crabs, not crabs walking away.
 
 ### Recommended default
 
+*Superseded by [Default horizon (v003)](#default-horizon-v003): with the
+appearance cues and the decoy hold-out the default is now 45. The v002
+reasoning is kept below.*
+
 **`max_gap = 15`** (0.5 s), unchanged by staged linking. The rule: the
 highest horizon whose pooled hold-out precision is at least 0.95 and whose
 precision does not decline at the longest planted gaps. On seed 0 alone every
@@ -776,3 +839,361 @@ gaps 20–30. The YAML default stays at 5 until this is confirmed there (rerun
   burrow and re-emerges at the same spot within the horizon is bridged; the
   interpolated pose is then a placeholder for an invisible crab. Filter on
   `fill_confidence` or `gap_frames` when that matters.
+
+## v003: tail recovery, identity filter, appearance cues
+
+v003 adds three remedies for the excess identity starts left after v002 (at
+`max_gap` 15: 400 trajectories, 277 starts after frame 0, of which 70 were
+one-frame units with median instance score 0.33):
+
+- tail recovery: miss fewer detections at trajectory ends;
+- a flag-only identity filter: count and report without spurious one-frame units;
+- appearance cues: refuse links between visibly different crabs.
+
+It also adds decoys and flicker singletons to the hold-out and re-derives the
+default horizon (now **45**, see [Default horizon (v003)](#default-horizon-v003)).
+Every v003 stage can be switched off from the config (`tail_recovery`,
+`appearance_cues`), and the identity filter only adds a column. With
+`gate_model: linear` the cues are ignored, so the linear golden test (D-003)
+still passes; its interpolated rows and audit table are unchanged.
+
+### Tail recovery
+
+`scripts/gap_bridging/tails.py`, run after the gap fill and recovery (method,
+step 11). This is a continuation-only relaxation of the tracker's Shell-score
+gate. Trajectories are processed in (video, start frame, trajectory) order:
+first the backward tail from the START endpoint, then the forward tail from
+the END.
+
+- Anchor `p` = the endpoint's Shell position; velocity `v` = the endpoint
+  velocity (0 when unknown). Step `j = 1 .. tail_max_frames` probes frame
+  `start − j` (or `end + j`) and predicts `p ∓ v`. The anchor then moves to
+  the adopted row, so the extrapolation is always one frame (`dt = 1`) and
+  `prediction_horizon_frames` never shortens it.
+- The candidates at that frame are rejected rows with a `rejection_reason` in
+  `tail_reasons` (`low_body_score`) and a finite body position whose detection
+  is not already adopted by a bridge or another tail. A candidate within
+  `tail_exclusion_px` = 5 px (the tracker's duplicate-Shell radius) of a row
+  owned by another trajectory at that frame is excluded. Owned rows are
+  accepted rows, bridge recoveries and tails adopted so far.
+- The nearest remaining candidate within `tail_radius_px` = 8 px is adopted
+  (ties by `detection_id`). The tail stops at the first frame without an
+  adoption, after `tail_max_frames`, or at the video's first or last frame.
+- Adopted rows keep every original value and get `source='recovered_tail'`,
+  `bridge_id = <trajectory_id>/tail_back` or `/tail_fwd`, `gap_frames` = the
+  tail's length and `fill_confidence` from that length.
+
+Tails run after linking, so they never change `links.parquet`
+(`TailSceneTests`, `HypothesisTailTests`). Demo yield: 3 rows at `max_gap` 15
+and 1 at 45. Of the 26 `low_body_score` rows still unassigned after bridging,
+only these lie within 8 px of a trajectory-end prediction. The rest lie 100 to
+1,300 px from every trajectory end, e.g. a run at frames 14326–14335 about
+300 px from any accepted row. They are isolated low-score objects, not missed
+tails. Unassigned rejected rows: 32 at both horizons (9 of them
+`missing_position`, never recoverable).
+
+### Identity filter
+
+`scripts/gap_bridging/identity.py`, run on the final trajectories (method,
+step 12). The real frames of a trajectory are its rows with `source` in
+{`observed`, `recovered`, `recovered_tail`}. A trajectory is `spurious` when
+it has fewer than `min_identity_frames` = 2 real frames **and** the median
+`instance_score` over them is below `min_identity_score` = 0.6. A trajectory
+without any scored real row counts as low-score. Every other trajectory is an
+`identity`. The class is written to both tables as `trajectory_status`.
+
+The filter is a flag only, for three reasons:
+
+- Nothing is deleted, so row counts and every v002 invariant are unchanged.
+- The flag is computed after linking, so a one-frame tracklet bridged into a
+  chain is an identity, and the flag cannot affect linking.
+- The 0.6 threshold is tuned on one clip's bimodal scores (one-frame units:
+  median 0.33; long trajectories: 0.86). A consumer who disagrees can
+  recompute it from the published columns.
+
+Filter with `trajectory_status == 'identity'` to drop spurious units.
+
+The sweep reports both variants of every count. On the demo:
+
+| `max_gap` | trajectories | spurious | starts after frame 0 (all / identities) | 1-frame units (all / identities) | mean L (all / identities) | median L (all / identities) |
+|---:|---:|---:|---|---|---|---|
+| 5 | 542 | 95 | 419 / 326 | 115 / 20 | 69.8 / 84.4 | 13 / 20 |
+| 10 | 441 | 61 | 318 / 258 | 81 / 20 | 87.5 / 101.4 | 21 / 31.5 |
+| 15 | 399 | 52 | 276 / 225 | 70 / 18 | 98.1 / 112.6 | 28 / 40 |
+| 30 | 354 | 47 | 231 / 185 | 63 / 16 | 113.2 / 130.4 | 51.5 / 78 |
+| **45** | **339** | **44** | **216 / 173** | **59 / 15** | **119.9 / 137.6** | **61 / 100** |
+| 60 | 333 | 41 | 210 / 170 | 56 / 15 | 123.0 / 140.1 | 64 / 105 |
+
+Every spurious unit is one frame long. The one-frame units left as
+identities have scores of 0.6 or more (18 at `max_gap` 15).
+
+`figures/start_curve.pdf` plots the cumulative number of starts against the
+frame of the clip, one colour per horizon (solid: all trajectories; dashed:
+identities only), and the 1,058 starts of the input tracklets (dotted).
+At every horizon the start rate stays roughly constant over the clip, both
+with and without the spurious units. The remaining starts are therefore
+neither a transient at the clip start nor concentrated in a few frames.
+
+Interaction with tail recovery: a tail adds a real frame. A one-frame
+low-score unit that gains a one-frame tail (two low-score detections at the
+same spot) becomes a two-frame identity. On the demo this happens once at
+`max_gap` 15 (`trajectory0000212`, median score 0.33), which is why the
+spurious count is 52 with tails and 53 without (identity-only starts 225
+and 224).
+
+### Appearance cues
+
+`geometry.tracklet_cues` measures two whole-tracklet statistics, which are
+stored identically on the START and END endpoints:
+
+- **Size.** `L` = the median Shell–Shoulder length `|u|`, `u = shoulder −
+  shell`. Only frames with Shell and Shoulder valid and `|u|` in [10, 65] px
+  count; `n` is their number. On the demo the within-trajectory std is
+  0.94 px and the between-trajectory std 4.9 px.
+- **Claw side.** `s` = the mean over valid frames of
+  `sign(u_x w_y − u_y w_x)`, with `w = claw − shell` in image coordinates (y
+  down); `n_s` is the number of frames. Valid frames are size frames with the
+  Claw also valid and a non-zero sign. The sign convention: a claw at body
+  offset (40, −14) with the shoulder at (22, 0) (the fixtures'
+  `DEFAULT_OFFSETS`) gives −1; its mirror image gives +1. The statistic needs
+  no heading, and it is invariant under rotation and translation and flips
+  under reflection. On the demo it is consistent in 96% of long trajectories,
+  with a 48/52 split across crabs.
+
+Under the sqrt model (`appearance_cues: true`), each candidate pair (END a,
+START b) gets two terms:
+
+```text
+size_term = min(3, |L_a − L_b| / sqrt(3² + 1²/n_a + 1²/n_b))      0 unless n_a, n_b > 0
+side_term = max(0, −s_a s_b) · min(1, n_s,a/5) · min(1, n_s,b/5)   0 unless n_s,a, n_s,b > 0
+cost     += 0.1 · size_term + 0.15 · side_term
+```
+
+The parameters are `size_scale_px`, `size_noise_px`, `size_cost_cap`,
+`claw_side_min_frames`, `size_weight` and `claw_side_weight`. The
+confidence factor `min(1, n_s/5)` keeps a side measured on one to four frames
+from carrying the full weight. Both terms are symmetric in a and b, and both
+are zero when a cue is unknown. They are added after the gap-penalised motion
+cost, like the Shoulder term. The audit table records them (`size_term`,
+`side_term`).
+
+**Veto.** A pair is refused when both sides are confident and opposite:
+`|s_a|, |s_b| ≥ claw_side_confidence` (0.9),
+`n_s,a, n_s,b ≥ claw_side_min_frames` (5) and `s_a s_b < 0`. The refusal is
+`refused_gate` with reason `claw_side` and cost NaN. The veto ranks after the
+`displacement` and `prediction_error` gates and before `max_cost`. A vetoed
+pair is neither assignable nor chain-reachable, and it is no runner-up.
+On the demo at `max_gap` 15 there are three vetoes (tracklet ids
+`…/t0000NNNNN`; the first is a 31-frame tracklet with side −1 against a
+5-frame tracklet with side +1):
+
+| pair | gap | size term | outcome without cues |
+|---|---:|---:|---|
+| 41951 → 42378 | 5 | 1.74 | `refused_assignment` |
+| 42409 → 42525 | 14 | 0.66 | `refused_gate max_cost` |
+| 42600 → 42661 | 15 | 0.41 | `refused_gate max_cost` |
+
+Only the first veto was a live decision. Overall, the cues change the demo at
+`max_gap` 15 from 781 links / 400 trajectories (cues off) to 782 / 399. At
+`max_gap` 45 they change it from 843 / 338 to 842 / 339, with 18 `claw_side`
+refusals (sweep: 1 / 1 / 3 / 11 / 18 / 25 at horizons 5 to 60). On the v002
+hold-out draw (no decoys, seeds 0–4), the cues remove the one false link
+of v002 (seed 1, planted gap 30), which becomes a miss. Recoveries change at
+two gaps: 34 → 36 of 40 at gap 20 and 30 → 29 at gap 30. Every other count is
+unchanged.
+
+### Decoys and flicker singletons
+
+`holdout.plant_gaps(..., decoys, decoy_offset_px=3.0, flicker)` and
+`sweep --decoys N --flicker M` add two kinds of plants to the hold-out. Both
+are drawn per gap length, after that length's ordinary plants and from the
+tracklets not yet used. The `role` column of `holdout_truth.parquet` records
+them.
+
+- **Decoy pair** (`decoy_target` C, `decoy_donor` A). C is drawn like a
+  plant. The same run of `g` frames is deleted in C and in A, so both right
+  halves start on the same frame `s`. A is any unused contiguous tracklet of
+  the same video that covers 3 frames on each side of the run. A's right half
+  must differ in appearance from C's left half: `|ΔL| ≥ 2 · size_scale_px`,
+  or confidently opposite claw sides (the veto condition). Donors that are not
+  eligible as plants are preferred. Every coordinate column (`*_x`, `*_y`:
+  body, nodes, centroid) of A's right half is translated by
+  `shell_C(s) − shell_A(s) + (decoy_offset_px, 0)`. A's right half thus starts
+  3 px from C's right half and competes with it for C's left end. Translation
+  preserves both cues.
+- **Scoring.** Targets are scored like plants and count in recall and
+  precision. A target whose left half links to the donor's right half is a
+  `false_link` and also a `decoy_false_link`. Donors are excluded.
+- **Flicker singleton.** `g` frames are deleted on each side of one kept frame
+  of a tracklet with at least `max(40, 2g + 7)` frames. This leaves a left
+  part, a one-frame middle tracklet and a right part. A flicker is
+  `flicker_recovered` when all three parts end in one trajectory, and
+  `flicker_spurious` when the middle's trajectory is flagged spurious.
+- **Pool limits.** Plants are mandatory: the run raises an error when the
+  pool is short. Decoys and flicker singletons are best effort. On the demo
+  the 156 eligible tracklets cannot supply the full 4 + 2 at planted gap 60,
+  where 7 of 20 decoys and 4 of 10 flickers were planted over the five seeds;
+  every shorter gap got the full count. `decoy_planted` and `flicker_planted`
+  in the scores show what was planted.
+- **Reproducibility.** With `decoys = flicker = 0` the draw is the v002 plant
+  draw. With decoys or flicker the plants of each gap differ from v002's,
+  because the extras share the generator. The draws of shorter gaps still never
+  depend on the longer ones, so a sweep's horizons share their short-gap
+  plants, decoys and flickers.
+
+Decoys test the cues, not motion plausibility: the donor's right half is real
+motion translated next to the target. On straight synthetic crabs the motion
+model alone already refuses a 3-px decoy, by the margin veto. Cues-off then
+loses recall but not precision. `DecoyVetoExampleTests` therefore moves the
+target's right half 6 px off its prediction and puts the decoy on it. Without
+cues the decoy is linked; with cues the pair is vetoed. On the demo,
+flicker singletons come from long, high-score tracklets, so they cannot be
+spurious whether linked or not. The meaningful check is
+`FlickerPropertyTests`, with all scores 0.3: every flicker with
+`g ≤ max_gap` is re-linked and none is spurious, while a flicker beyond the
+horizon is.
+
+### Weak-label export and re-inference scaffold
+
+The detector misses that gap bridging interpolates over can only be fixed
+upstream. v003 ships two ready-to-run but, in this checkout, untested pieces
+for that (no checkpoints, raw videos or GPU here):
+
+- `bridge_gaps.py export --bridged DIR --out DIR [--frame-offset N]
+  [--max-gap-frames N] [--crop-size 256] [--confidences high medium]`
+  (`gap_bridging/export.py`) writes the interpolated rows of a bridging run as
+  `weak_labels.parquet`, plus a README and a completion marker. The table
+  holds the video and frame, a `local_frame` index into the video file, the
+  trajectory and bridge, `gap_frames`, `fill_confidence`, all node
+  coordinates, a crop window clipped to 7680×4320 and
+  `label_status = 'weak_interpolated'`.
+  These are **fine-tuning candidates, not labels**: every pose is a rigid
+  Hermite interpolation that has to be reviewed before training a centroid
+  model on it. The export refuses a run whose `observations.parquet` does not
+  match its marker. It does not filter on `trajectory_status`; with
+  `min_identity_frames = 2` no bridged trajectory can be spurious.
+- `scripts/reinfer_low_threshold.py` and `jobs/reinfer_low_threshold.sh`
+  re-run SLEAP inference on a frame range with a lower centroid threshold
+  (default 0.05) and keypoint threshold (0.2). They write an untracked
+  `<video>.frames_<start>_<stop-1>.predictions.slp`, `raw_candidates.npz` and
+  `RUN_MANIFEST.json` (checkpoint hashes, thresholds, versions). `--dry-run`
+  validates the arguments and paths without importing torch; it exits 2 when
+  checkpoints are missing, as they are here. The job takes its root from
+  `SLURM_SUBMIT_DIR`, requests one 80 GB GPU and fails on a node without one.
+  **Caveat:** the SLP keeps the video's frame numbers (`start..stop−1`), as
+  the SLP validator requires. `prediction_finalize.derive_tracks` assumes
+  frames `0..n−1`, so it can consume the output unchanged only when
+  `start == 0` (e.g. a range cut into its own clip, as the demo was); a range
+  of a full video needs renumbering first. Centroid thresholds below 0.05 are
+  refused because `unpack_output` asserts scores ≥ 0.05.
+
+### v003 results
+
+Demo clip, default config except `max_gap`. Sweep with
+`--per-gap 8 --decoys 4 --flicker 2 --seed 0` in `logs/gap_sweep/`, seeds 1–4
+in `logs/gap_sweep_seeds/seed_<k>/`, pooled in
+`logs/gap_sweep_seeds/pooled_by_gap.csv` and `pooled_by_horizon.csv` (not
+committed). The `refused_gate` column counts `claw_side` refusals too:
+
+| `max_gap` | links | trajectories | mean L | median L | 1-frame units | frames in units ≥ 30 | recovered | tail | interpolated (low) | refused_assignment | refused_gate (`claw_side`) |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---|
+| 5 | 639 | 542 | 69.8 | 13 | 115 | 0.934 | 19 | 3 | 1,278 (0) | 117 | 68 (1) |
+| 10 | 740 | 441 | 87.5 | 21 | 81 | 0.952 | 19 | 3 | 2,046 (0) | 420 | 120 (1) |
+| 15 | 782 | 399 | 98.1 | 28 | 70 | 0.959 | 19 | 3 | 2,581 (0) | 707 | 185 (3) |
+| 30 | 827 | 354 | 113.2 | 51.5 | 63 | 0.974 | 19 | 3 | 3,546 (965) | 1,512 | 377 (11) |
+| **45** | **842** | **339** | **119.9** | **61** | **59** | **0.978** | **21** | **1** | **4,100 (1,519)** | **2,142** | **638 (18)** |
+| 60 | 848 | 333 | 123.0 | 64 | 56 | 0.979 | 21 | 1 | 4,403 (1,822) | 2,436 | 1,137 (25) |
+
+`refused_margin` is 0 at every horizon (v002: 1). Pooled hold-out over seeds
+0–4. Per gap, 40 plants plus 20 decoy targets (60 scored pairs) and 10 flicker
+singletons. At planted gap 60: 47 scored pairs, 7 decoys and 4 flickers (pool
+limit):
+
+| planted gap | 1 | 2 | 3 | 5 | 10 | 15 | 20 | 30 | 45 | 60 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| recall | 1.000 | 0.983 | 0.983 | 0.983 | 1.000 | 0.950 | 0.900 | 0.783 | 0.567 | 0.170 |
+| precision | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.889 (1 false link) |
+| decoys recovered / planted | 20/20 | 19/20 | 20/20 | 19/20 | 20/20 | 19/20 | 17/20 | 16/20 | 10/20 | 0/7 |
+| decoy false links | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| flickers recovered / planted | 10/10 | 10/10 | 10/10 | 10/10 | 10/10 | 9/10 | 9/10 | 6/10 | 5/10 | 1/4 |
+| flickers spurious | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+The values are the same at every horizon that covers the gap. Per horizon:
+
+| `max_gap` | scored pairs | pooled precision | pooled recall | decoy false links | precision 1.0 at every gap |
+|---:|---:|---:|---:|---:|:---:|
+| 5 | 240 | 1.000 | 0.988 | 0 | yes |
+| 10 | 300 | 1.000 | 0.990 | 0 | yes |
+| 15 | 360 | 1.000 | 0.983 | 0 | yes |
+| 30 | 480 | 1.000 | 0.948 | 0 | yes |
+| **45** | **540** | **1.000** | **0.906** | **0** | **yes** |
+| 60 | 587 | 0.998 | 0.847 | 0 | no (gap 60: 0.889) |
+
+No decoy was ever linked. The one false link (seed 0, a plant at gap 60) is
+a stage-4 link at gap 38 from the plant's left half to another crab's
+tracklet. Its cost is 0.86: the size term 2.27 corresponds to about 7 px of
+carapace difference, and the claw sides were unknown. The true pair (gap 60,
+cost 6.6) failed `max_cost`. A size difference that large adds only 0.23 to
+the cost, so the size cue alone does not refuse it.
+
+Figures: `logs/gap_sweep/figures/sweep.pdf` (dashed: identities only),
+`start_curve.pdf`, `holdout.pdf`, `radius_fit.pdf` and
+`bridges_max_gap_60_p*.png`.
+
+### Default horizon (v003)
+
+**`max_gap = 45`** (1.5 s), in `BridgeConfig` and
+`configs/tracking/gap_bridging_v001.yaml`. The rule: the highest horizon
+whose pooled hold-out precision is 1.0 at every planted gap, counting decoy
+false links.
+
+- With decoys, pooled over seeds 0–4: 1.000 at every gap for horizons 5, 10,
+  15, 30 and 45. At horizon 60, gap 60 drops to 0.889. Hence 45.
+- On the v002 draw (no decoys, seeds 0–4, 40 plants per gap) with the v003
+  code: cues on gives precision 1.000 at every gap up to 60; cues off
+  reproduces v002's false link at gap 30 (0.968). So cues on also passes
+  45 and higher.
+
+What 45 buys over 15 on the demo:
+
+- +60 links (782 → 842) and −60 trajectories (399 → 339).
+- Median trajectory length 28 → 61 frames; 100 frames for identities only.
+- Identity starts 276 → 216 (225 → 173 for identities only).
+
+What it costs:
+
+- 1,519 interpolated rows with `fill_confidence = 'low'` (bridges of 16–45
+  frames), 37% of the 4,100.
+- Hold-out recall of 0.78 at gap 30 and 0.57 at gap 45. Long losses are mostly
+  missed rather than mislinked.
+
+Keep only short fills with `fill_confidence in ('high', 'medium')` or
+`gap_frames <= 15`, or run with `--max-gap 15` for the v002 behaviour.
+
+### Residual risks (v003)
+
+- **Thin evidence at long gaps.** The default rests on 60 scored pairs per gap
+  from one 300-frame clip, with plants reused across seeds (156 eligible
+  tracklets). Precision 1.0 from 60 pairs has a one-sided 95% lower bound of
+  0.95. Above `dt` 45 the measured displacement quantile exceeds the radius
+fit (few long tracklets). Re-run `fit` and the
+  decoy sweep on the full dataset before relying on 45 there.
+- **Burrow retreats.** At 1.5 s the horizon reaches into the 1–2 s range at
+  which burrow retreats begin. A crab that disappears into its burrow and
+  re-emerges is bridged with a placeholder pose (`low` confidence), and a
+  neighbour emerging from the same burrow can be linked instead.
+- **Size cue is soft.** The one hold-out false link had a 7 px size
+  difference and unknown claw sides. Only the claw side has a hard veto.
+  Claw waving can flip the side sign within a tracklet (4% of long
+  trajectories fall below 0.9 agreement); the veto needs 0.9 over 5 frames
+  on both sides.
+- **Decoys translate real rows.** They test the appearance cues, not motion
+  plausibility. A real neighbour with the same size and side is not covered.
+- **Tail adoption at burrow clusters.** A tail can adopt a neighbour's
+  low-score detection; the 5 px exclusion radius mitigates this but does not
+  prove identity. A tail can also turn a spurious one-frame unit into a
+  two-frame identity (see [Identity filter](#identity-filter)).
+- **Identity threshold.** `min_identity_score = 0.6` is tuned on one clip's
+  bimodal scores; the filter is a flag, so it can be re-applied.
+- **Export and re-inference are unvalidated here**: only unit tests,
+  `--dry-run` and `bash -n` were run.

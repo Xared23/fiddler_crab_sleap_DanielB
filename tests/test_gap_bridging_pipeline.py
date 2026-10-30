@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import os
+from dataclasses import replace
 from pathlib import Path
 import subprocess
 import sys
@@ -21,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 sys.path.insert(0, str(ROOT / 'tests'))
 
-from gap_bridging import geometry, pipeline, tables  # noqa: E402
+from gap_bridging import geometry, identity, pipeline, tables  # noqa: E402
 from gap_bridging.config import BridgeConfig  # noqa: E402
 from gap_bridging.types import DECISIONS, NODES  # noqa: E402
 from gap_bridging_fixtures import (Crab, make_observations, node_positions,  # noqa: E402
@@ -107,6 +108,27 @@ def assert_gap_columns(case: unittest.TestCase, obs: pa.Table, cfg: BridgeConfig
         case.assertEqual({r['fill_confidence'] for r in members},
                          {geometry.fill_confidence(gap, cfg)}, bridge_id)
     return bridged.num_rows
+
+
+def assert_tails_outside_tracklets(case: unittest.TestCase, obs: pa.Table,
+                                   traj: pa.Table) -> None:
+    """Every recovered_tail row lies outside its trajectory's chained tracklets and bridges
+    and inside the trajectory span; tail runs are contiguous with the span ends."""
+    t = traj.to_pydict()
+    span = {k: (s, e) for k, s, e in zip(t['trajectory_id'], t['start_frame'], t['end_frame'])}
+    assigned = obs.filter(pc.is_valid(obs['trajectory_id'])).select(
+        ['trajectory_id', 'frame', 'source']).to_pylist()
+    core: dict[str, list[int]] = {}
+    for row in assigned:
+        if row['source'] != 'recovered_tail':
+            core.setdefault(row['trajectory_id'], []).append(row['frame'])
+    for row in assigned:
+        if row['source'] != 'recovered_tail':
+            continue
+        lo, hi = min(core[row['trajectory_id']]), max(core[row['trajectory_id']])
+        case.assertFalse(lo <= row['frame'] <= hi, row)
+        start, end = span[row['trajectory_id']]
+        case.assertTrue(start <= row['frame'] <= end, row)
 
 
 def _fmt6(value) -> str:
@@ -196,13 +218,50 @@ class DemoRunTests(unittest.TestCase):
     def test_original_rows_unchanged(self):
         original = self.obs.slice(0, self.input.num_rows).select(self.input.schema.names)
         self.assertTrue(original.equals(self.input))
-        added = ['trajectory_id', 'source', 'bridge_id', 'gap_frames', 'fill_confidence']
+        added = ['trajectory_id', 'source', 'bridge_id', 'gap_frames', 'fill_confidence',
+                 'trajectory_status']
         self.assertEqual(self.obs.schema.names, self.input.schema.names + added)
+        self.assertEqual(self.obs.schema, tables.final_output_schema(self.input.schema))
+
+    def test_trajectory_status(self):
+        self.assertEqual(self.traj.schema, tables.TRAJECTORY_SCHEMA)
+        self.assertEqual(self.traj.schema.names[-1], 'trajectory_status')
+        status = dict(zip(self.traj['trajectory_id'].to_pylist(),
+                          self.traj['trajectory_status'].to_pylist()))
+        self.assertEqual(set(status.values()), {'identity', 'spurious'})
+        expected = identity.classify_trajectories(
+            self.obs, min_frames=CFG.min_identity_frames, min_score=CFG.min_identity_score)
+        self.assertEqual(status, expected)
+        self.assertEqual(self.obs['trajectory_status'].null_count,
+                         self.obs['trajectory_id'].null_count)
+        counts = self.marker['counts']
+        self.assertEqual(counts['spurious_trajectories'],
+                         sum(v == 'spurious' for v in status.values()))
+        starts = identity.identity_starts(self.traj, self.obs, status)
+        self.assertEqual((counts['identity_starts'], counts['identity_starts_identity_only']),
+                         (starts['all'], starts['identity']))
+        self.assertLess(counts['identity_starts_identity_only'], counts['identity_starts'])
+        t = self.traj.to_pydict()
+        for k, traj in enumerate(t['trajectory_id']):     # only one-frame units are spurious
+            if status[traj] == 'spurious':
+                real = t['n_observed'][k] + t['n_recovered'][k] + t['n_recovered_tail'][k]
+                self.assertLess(real, CFG.min_identity_frames)
+
+    def test_recovered_tail_rows(self):
+        tail = self.obs.filter(pc.equal(self.obs['source'], 'recovered_tail'))
+        counts = self.marker['counts']
+        self.assertEqual(tail.num_rows, counts['n_recovered_tail'])
+        self.assertLessEqual(counts['n_recovered_tail'], 26)
+        self.assertGreater(counts['n_recovered_tail'], 0)
+        self.assertEqual(tail['trajectory_status'].null_count, 0)
+        self.assertEqual(set(tail['rejection_reason'].to_pylist()), set(CFG.tail_reasons))
+        assert_tails_outside_tracklets(self, self.obs, self.traj)
 
     def test_gap_columns(self):
         n = assert_gap_columns(self, self.obs, CFG)
         counts = self.marker['counts']
-        self.assertEqual(n, counts['n_recovered'] + counts['n_interpolated'])
+        self.assertEqual(n, counts['n_recovered'] + counts['n_interpolated']
+                         + counts['n_recovered_tail'])
         self.assertGreater(counts['n_recovered'], 0)
         self.assertEqual(self.obs.schema.field('gap_frames').type, pa.int64())
         self.assertEqual(self.obs.schema.field('fill_confidence').type, pa.string())
@@ -228,12 +287,13 @@ class DemoRunTests(unittest.TestCase):
                    for d in pc.value_counts(self.obs['source']).to_pylist()}
         self.assertEqual(sources.get('interpolated', 0), counts['n_interpolated'])
         self.assertEqual(sources.get('recovered', 0), counts['n_recovered'])
+        self.assertEqual(sources.get('recovered_tail', 0), counts['n_recovered_tail'])
         self.assertEqual(self.obs.num_rows, self.input.num_rows + counts['n_interpolated'])
-        self.assertLessEqual(counts['n_recovered'], 54)
+        self.assertLessEqual(counts['n_recovered'] + counts['n_recovered_tail'], 54)
         self.assertEqual(sum(self.traj['n_tracklets'].to_pylist()), tracklets)
         span = pc.add(pc.subtract(self.traj['end_frame'], self.traj['start_frame']), 1)
-        filled = pc.add(pc.add(self.traj['n_observed'], self.traj['n_recovered']),
-                        self.traj['n_interpolated'])
+        filled = pc.add(pc.add(pc.add(self.traj['n_observed'], self.traj['n_recovered']),
+                               self.traj['n_interpolated']), self.traj['n_recovered_tail'])
         self.assertTrue(pc.all(pc.equal(span, filled)).as_py())
 
     def test_chain_ignored_column(self):
@@ -260,7 +320,7 @@ class SyntheticSceneTests(unittest.TestCase):
     (default sqrt gate model)."""
 
     FAST = False
-    CONFIG = CFG
+    CONFIG = replace(CFG, max_gap=5)   # the scene's gaps are 1..5; pinned against the default
 
     @classmethod
     def setUpClass(cls):
@@ -372,12 +432,113 @@ class SyntheticSceneTests(unittest.TestCase):
         self.assertEqual(self.marker['gate']['gate_model'], self.CONFIG.gate_model)
 
 
+class TailSceneTests(unittest.TestCase):
+    """The synthetic scene with rejected rows just outside the trajectories' ends."""
+
+    REJECT = {1: {0: 'low_body_score', 39: 'low_body_score'},
+              2: {25: 'low_body_score', 39: 'missing_position'},
+              3: {0: 'low_body_score', 1: 'low_body_score', 38: 'low_body_score',
+                  39: 'duplicate_candidate'}}
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        tmp = Path(cls._tmp.name)
+        cls.input = make_observations(scene_crabs(), drop_frames=SCENE_DROPS,
+                                      reject_frames=cls.REJECT)
+        cls.path = write_parquet(cls.input, tmp)
+        cls.runs = {}
+        for on in (True, False):
+            marker = pipeline.run(cls.path, tmp / f'tails_{on}', replace(CFG, tail_recovery=on))
+            cls.runs[on] = (marker, *read_outputs(tmp / f'tails_{on}')[:3])
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def test_tails_adopted(self):
+        marker, obs, traj, _ = self.runs[True]
+        tail = obs.filter(pc.equal(obs['source'], 'recovered_tail')).to_pylist()
+        # crab 1: frames 0 and 39; crab 3: frames 0, 1 and 38 (39 is not a tail reason).
+        self.assertEqual(sorted(r['frame'] for r in tail), [0, 0, 1, 38, 39])
+        self.assertEqual(marker['counts']['n_recovered_tail'], 5)
+        self.assertEqual(set(r['rejection_reason'] for r in tail), {'low_body_score'})
+        for row in tail:
+            kind = 'tail_back' if row['frame'] < 20 else 'tail_fwd'
+            self.assertEqual(row['bridge_id'], f"{row['trajectory_id']}/{kind}")
+            self.assertEqual(row['trajectory_status'], 'identity')
+        lengths = {r['bridge_id']: r['gap_frames'] for r in tail}
+        self.assertEqual(sorted(lengths.values()), [1, 1, 1, 2])
+        n = assert_gap_columns(self, obs, CFG)
+        self.assertEqual(n, marker['counts']['n_recovered'] + marker['counts']['n_interpolated']
+                         + marker['counts']['n_recovered_tail'])
+        assert_tails_outside_tracklets(self, obs, traj)
+        self.assertEqual(sum(traj['n_recovered_tail'].to_pylist()), 5)
+        spans = {(r['start_frame'], r['end_frame']) for r in traj.to_pylist()}
+        self.assertEqual(spans, {(0, 39), (0, 38)})       # crab 2 ends at 38 (39 has no position)
+
+    def test_tails_never_change_links(self):
+        on, off = self.runs[True], self.runs[False]
+        self.assertEqual(on[3].num_rows, off[3].num_rows)
+        self.assertEqual(on[0]['outputs']['links.parquet']['sha256'],
+                         off[0]['outputs']['links.parquet']['sha256'])
+        self.assertEqual(off[0]['counts']['n_recovered_tail'], 0)
+        self.assertEqual(on[0]['counts']['n_unassigned'] + 5, off[0]['counts']['n_unassigned'])
+        for name in ('links', 'trajectories', 'n_interpolated', 'n_recovered', 'decisions'):
+            self.assertEqual(on[0]['counts'][name], off[0]['counts'][name], name)
+
+    def test_invariant_violations_are_caught(self):
+        marker, obs, traj, links = self.runs[True]
+        tracklets = sorted(set(self.input['tracklet_id'].drop_null().to_pylist()))
+        trajectories = {r['trajectory_id']: r['member_tracklet_ids'] for r in traj.to_pylist()}
+        args = (tracklets, trajectories, marker['counts']['links'], self.input.num_rows)
+        pipeline.check_invariants(*args, obs, traj)          # the written outputs pass
+        source = obs['source'].to_pylist()
+        # A tail row inside its trajectory's tracklet span.
+        frames = obs['frame'].to_pylist()
+        traj_ids = obs['trajectory_id'].to_pylist()
+        inside = next(i for i, s in enumerate(source) if s == 'observed'
+                      and traj_ids[i] is not None and 5 < frames[i] < 30)
+        moved = obs.set_column(obs.schema.get_field_index('source'), obs.schema.field('source'),
+                               pa.array([('recovered_tail' if i == inside else v)
+                                         for i, v in enumerate(source)], pa.string()))
+        n_obs = traj.to_pydict()
+        row = n_obs['trajectory_id'].index(traj_ids[inside])
+        fixed = traj.set_column(traj.schema.get_field_index('n_observed'), 'n_observed',
+                                pa.array([v - (i == row) for i, v in enumerate(n_obs['n_observed'])],
+                                         pa.int64()))
+        fixed = fixed.set_column(fixed.schema.get_field_index('n_recovered_tail'),
+                                 'n_recovered_tail',
+                                 pa.array([v + (i == row) for i, v in
+                                           enumerate(n_obs['n_recovered_tail'])], pa.int64()))
+        with self.assertRaisesRegex(RuntimeError, 'inside'):
+            pipeline.check_invariants(*args, moved, fixed.cast(traj.schema))
+        # Contiguity counts the tails.
+        no_tail = traj.set_column(traj.schema.get_field_index('n_recovered_tail'),
+                                  'n_recovered_tail', pa.array([0] * traj.num_rows, pa.int64()))
+        with self.assertRaisesRegex(RuntimeError, 'contiguous'):
+            pipeline.check_invariants(*args, obs, no_tail.cast(traj.schema))
+        # Status on an unassigned row, and disagreeing between the tables.
+        status = obs['trajectory_status'].to_pylist()
+        orphan = traj_ids.index(None)
+        bad = obs.set_column(obs.schema.get_field_index('trajectory_status'), 'trajectory_status',
+                             pa.array([('identity' if i == orphan else v)
+                                       for i, v in enumerate(status)], pa.string()))
+        with self.assertRaisesRegex(RuntimeError, 'assigned rows'):
+            pipeline.check_invariants(*args, bad, traj)
+        flipped = traj.set_column(traj.schema.get_field_index('trajectory_status'),
+                                  'trajectory_status',
+                                  pa.array(['spurious'] * traj.num_rows, pa.string()))
+        with self.assertRaisesRegex(RuntimeError, 'differs'):
+            pipeline.check_invariants(*args, obs, flipped.cast(traj.schema))
+
+
 class LinearFastSceneTests(SyntheticSceneTests):
     """The same scene with crabs walking 2 to 4 px/frame under the legacy linear gate:
     the v001 path still re-links all five gaps."""
 
     FAST = True
-    CONFIG = LINEAR
+    CONFIG = replace(LINEAR, max_gap=5)
 
 
 class MaxGapZeroTests(unittest.TestCase):
@@ -511,7 +672,11 @@ class DirectoryInputTests(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # Hypothesis end-to-end
 # --------------------------------------------------------------------------- #
-MAX_GAP = CFG.max_gap
+# The random scenes walk at up to sqrt(2) px/frame; the sqrt gate admits only
+# prediction_horizon_frames of directed motion, so they are bridged at a horizon of 5
+# (pinned, independent of the shipped default).
+MAX_GAP = 5
+HYP_CFG = replace(CFG, max_gap=MAX_GAP)
 N_FRAMES = 60
 
 
@@ -566,7 +731,7 @@ class HypothesisEndToEndTests(unittest.TestCase):
         table = make_observations(crabs, drop_frames=drops)
         with tempfile.TemporaryDirectory() as tmp:
             path = write_parquet(table, Path(tmp))
-            marker = pipeline.run(path, Path(tmp) / 'out', CFG)
+            marker = pipeline.run(path, Path(tmp) / 'out', HYP_CFG)
             obs, traj, _, _ = read_outputs(Path(tmp) / 'out')
         self.assertEqual(marker['counts']['trajectories'], len(crabs))
         self.assertEqual(traj.num_rows, len(crabs))
@@ -582,6 +747,36 @@ class HypothesisEndToEndTests(unittest.TestCase):
             interp = rows.filter(pc.equal(rows['source'], 'interpolated'))
             synthetic = set(interp['frame'].to_pylist())
             self.assertFalse(observed & synthetic)
+
+
+class HypothesisTailTests(unittest.TestCase):
+    """Random scenes with rejected rows around the trajectories: tail recovery never changes
+    links.parquet, and adopted rows lie outside their tracklets' span."""
+
+    @settings(deadline=None, max_examples=15)
+    @given(crab_scenes(), st.data())
+    def test_tails_never_change_links(self, scene, data):
+        crabs, drops = scene
+        reject = {}
+        for crab in crabs:
+            kept = [f for f in range(N_FRAMES) if f not in set(drops[crab.crab_id])]
+            frames = data.draw(st.sets(st.sampled_from(kept[:3] + kept[-3:]), max_size=3))
+            reasons = st.sampled_from(['low_body_score', 'low_body_score', 'missing_position'])
+            reject[crab.crab_id] = {f: data.draw(reasons) for f in frames}
+        table = make_observations(crabs, drop_frames=drops, reject_frames=reject)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_parquet(table, Path(tmp))
+            markers = {on: pipeline.run(path, Path(tmp) / f'{on}', replace(HYP_CFG, tail_recovery=on))
+                       for on in (True, False)}
+            obs, traj, _, _ = read_outputs(Path(tmp) / 'True')
+            hashes = {on: sha256(Path(tmp) / f'{on}' / 'links.parquet') for on in (True, False)}
+        self.assertEqual(hashes[True], hashes[False])
+        self.assertEqual(markers[False]['counts']['n_recovered_tail'], 0)
+        tail = obs.filter(pc.equal(obs['source'], 'recovered_tail'))
+        self.assertEqual(tail.num_rows, markers[True]['counts']['n_recovered_tail'])
+        self.assertEqual(set(tail['rejection_reason'].to_pylist()) - {'low_body_score'}, set())
+        self.assertEqual(tail['trajectory_status'].null_count, 0)
+        assert_tails_outside_tracklets(self, obs, traj)
 
 
 if __name__ == '__main__':
