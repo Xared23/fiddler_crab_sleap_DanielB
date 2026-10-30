@@ -497,7 +497,7 @@ class TableTests(unittest.TestCase):
         t = tables.links_table(decisions, 'v')
         self.assertEqual(t.schema, tables.LINKS_SCHEMA)
         self.assertEqual(t.column_names, ['video_id', 'tracklet_a', 'tracklet_b', 'gap_frames', 'cost',
-                                          'runner_up_cost', 'decision', 'reason', 'n_chain_ignored'])
+                                          'runner_up_cost', 'decision', 'reason', 'n_chain_ignored', 'stage'])
         self.assertEqual(t['n_chain_ignored'].to_pylist(), [2, 0])
         both = tables.concat_links([t, tables.links_table(decisions[:1], 'w'), tables.links_table([], 'x')])
         self.assertEqual(both['video_id'].to_pylist(), ['v', 'v', 'w'])

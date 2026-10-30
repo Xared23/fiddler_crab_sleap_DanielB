@@ -42,6 +42,7 @@ class LinkDecision:
     decision: str          # one of DECISIONS
     reason: str
     n_chain_ignored: int = 0  # chain-reachable competitors excluded from the runner-up (linked/refused_margin)
+    stage: int = 0            # 1-based linking stage whose gap range holds gap_frames (linear: 1)
 
 
 @dataclass(frozen=True)

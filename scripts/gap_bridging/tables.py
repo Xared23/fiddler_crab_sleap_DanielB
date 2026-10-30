@@ -36,6 +36,7 @@ LINKS_SCHEMA = pa.schema([
     ('video_id', pa.string()), ('tracklet_a', pa.string()), ('tracklet_b', pa.string()),
     ('gap_frames', pa.int64()), ('cost', pa.float64()), ('runner_up_cost', pa.float64()),
     ('decision', pa.string()), ('reason', pa.string()), ('n_chain_ignored', pa.int64()),
+    ('stage', pa.int64()),
 ])
 OUTPUT_NAMES = ('observations.parquet', 'trajectories.parquet', 'links.parquet')
 COMPLETE_NAME = 'GAP_BRIDGING_COMPLETE.json'
@@ -271,7 +272,7 @@ def links_table(decisions: list[LinkDecision], video_id: str) -> pa.Table:
     bad = set(columns['decision']) - set(DECISIONS)
     if bad:
         raise ValueError(f"unknown decisions: {sorted(bad)}")
-    for name in ('gap_frames', 'n_chain_ignored'):
+    for name in ('gap_frames', 'n_chain_ignored', 'stage'):
         columns[name] = [int(v) for v in columns[name]]
     for name in ('cost', 'runner_up_cost'):
         columns[name] = [float(v) for v in columns[name]]

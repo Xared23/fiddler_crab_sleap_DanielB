@@ -74,7 +74,7 @@ def links_table(rows: List[Tuple[str, str, str]]) -> pa.Table:
     for a, b, decision in rows:
         for name, value in (('video_id', 'v'), ('tracklet_a', a), ('tracklet_b', b),
                             ('gap_frames', 1), ('cost', 0.1), ('runner_up_cost', math.nan),
-                            ('decision', decision), ('reason', ''), ('n_chain_ignored', 0)):
+                            ('decision', decision), ('reason', ''), ('n_chain_ignored', 0), ('stage', 1)):
             columns[name].append(value)
     return pa.Table.from_pydict(columns, schema=tables.LINKS_SCHEMA)
 

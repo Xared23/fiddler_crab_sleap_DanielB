@@ -31,3 +31,6 @@ max_assignment_cost_sqrt: 1.0
 unmatched_cost_sqrt: 0.6
 minimum_cost_margin_sqrt: 0.25
 fill_confidence_gaps: [5, 15]
+# Staged linking (sqrt): link gaps in (0, 5], then (5, 15], ... up to max_gap, removing
+# matched endpoints after each stage. Stages above max_gap are dropped.
+link_stages: [5, 15, 30, 45]

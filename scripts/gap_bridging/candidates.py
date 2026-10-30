@@ -21,7 +21,9 @@ for both gates and the cost, extrapolates velocities over at most
 ``h = prediction_horizon_frames``, and divides by ``R`` so the cost is
 dimensionless, with a ``(1 + gap_penalty)^(gap-1)`` gap penalty. The thresholds
 ``max_assignment_cost``, ``unmatched_cost`` and ``minimum_cost_margin`` come
-from ``cfg.cost_thresholds()`` (the ``*_sqrt`` fields under sqrt).
+from ``cfg.cost_thresholds()`` (the ``*_sqrt`` fields under sqrt). Under sqrt,
+linking is staged by gap (``cfg.link_stages``, shortest first) so a short-gap
+link is fixed before longer gaps compete for its endpoints.
 
 The assignment is solved per connected component of the assignable-pair graph;
 non-candidate cells are never chosen at the optimum, so this equals the global
@@ -433,9 +435,17 @@ def _fmt(x: float) -> str:
     return f"{x:.4f}"
 
 
+def _motion_gated(rows: np.ndarray, cols: np.ndarray, gate: np.ndarray,
+                  ids: Tuple[np.ndarray, np.ndarray]) -> Set[Tuple[str, str]]:
+    """(end_id, start_id) pairs that pass both motion gates (``''`` or ``max_cost``)."""
+    motion_ok = (gate == '') | (gate == GATE_MAX_COST)
+    end_ids, start_ids = ids
+    return {(end_ids[r], start_ids[c]) for r, c in zip(rows[motion_ok], cols[motion_ok])}
+
+
 def _decide(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, gate: np.ndarray,
             assigned: np.ndarray, ids: Tuple[np.ndarray, np.ndarray],
-            margin: float) -> List[Tuple[str, float, float, str, int]]:
+            margin: float, gated: Set[Tuple[str, str]]) -> List[Tuple[str, float, float, str, int]]:
     """
     Label each candidate pair.
 
@@ -450,6 +460,9 @@ def _decide(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, gate: np.ndarr
         chain-reachable competitors, which do not count toward the runner-up.
     margin : float
         ``minimum_cost_margin`` on the gate model's cost scale.
+    gated : set of (str, str)
+        Motion-gated (end_id, start_id) pairs over all gaps up to ``max_gap``
+        (``_motion_gated``); defines chain reachability.
 
     Returns
     -------
@@ -461,7 +474,6 @@ def _decide(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, gate: np.ndarr
     motion_ok = (gate == '') | (gate == GATE_MAX_COST)
     gated_cost = np.where(motion_ok, cost, np.inf)
     end_ids, start_ids = ids
-    gated = {(end_ids[r], start_ids[c]) for r, c in zip(rows[motion_ok], cols[motion_ok])}
     by_row: Dict[int, List[int]] = defaultdict(list)
     by_col: Dict[int, List[int]] = defaultdict(list)
     win_row: Dict[int, float] = {}
@@ -503,10 +515,43 @@ def _decide(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, gate: np.ndarr
 # PUBLIC API
 # ============================================================
 
+def _stages(cfg: BridgeConfig) -> Tuple[int, ...]:
+    """Upper gap bound of each linking stage: ``(max_gap,)`` for linear, staged for sqrt."""
+    if cfg.gate_model == 'linear':
+        return (int(cfg.max_gap),)
+    stages = sorted({int(s) for s in cfg.link_stages if s < cfg.max_gap} | {int(cfg.max_gap)})
+    assert stages[-1] == cfg.max_gap and stages[0] >= 1
+    return tuple(stages)
+
+
+def _excluded_label(k: int, cost: np.ndarray, gate: np.ndarray, rows: np.ndarray,
+                    cols: np.ndarray, done_end: Dict[int, Tuple[int, float]],
+                    done_start: Dict[int, Tuple[int, float]]) -> Tuple[str, float, float, str, int]:
+    """Label of a pair whose END or START was linked at an earlier stage."""
+    c = float(cost[k])
+    if gate[k] == GATE_MAX_COST:
+        return 'refused_gate', c, math.nan, GATE_MAX_COST, 0
+    if gate[k] != '':
+        return 'refused_gate', math.nan, math.nan, str(gate[k]), 0
+    earlier = [x for x in (done_end.get(int(rows[k])), done_start.get(int(cols[k])))
+               if x is not None]
+    assert earlier, "excluded pair must touch an endpoint linked earlier"
+    stage = min(s for s, _ in earlier)
+    ru = min(v for _, v in earlier)
+    return 'refused_assignment', c, ru, f"endpoint linked at stage {stage}", 0
+
+
 def link_tracklets(ends: List[Endpoint], starts: List[Endpoint],
                    cfg: BridgeConfig) -> Tuple[List[Tuple[str, str]], List[LinkDecision]]:
     """
     Link tracklet ENDs to STARTs of one video across 1..max_gap missing frames.
+
+    Linking runs in stages of increasing gap (``_stages``): stage k assigns the
+    pairs with ``stage_{k-1} < gap <= stage_k`` whose END and START are both
+    still unlinked, fixes its links, and removes the matched endpoints before
+    stage k+1. Gates and costs are per pair and stage-independent; runner-ups
+    are taken over the stage's own candidates, and chain reachability over all
+    motion-gated pairs up to ``max_gap``. The linear model has a single stage.
 
     Parameters
     ----------
@@ -515,9 +560,9 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint],
     starts : list of Endpoint
         One START endpoint per tracklet (same video as ``ends``).
     cfg : BridgeConfig
-        Gate model, gates and cost weights. The unmatched cost and margin are
-        taken from ``cfg.cost_thresholds()`` (the px-scale values under the
-        linear model, the ``*_sqrt`` values under the sqrt model).
+        Gate model, gates, cost weights and ``link_stages``. The unmatched cost
+        and margin are taken from ``cfg.cost_thresholds()`` (the px-scale
+        values under the linear model, the ``*_sqrt`` values under sqrt).
 
     Returns
     -------
@@ -525,7 +570,10 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint],
         One-to-one accepted links, in enumeration order.
     decisions : list of LinkDecision
         One row per enumerated pair (ends sorted by (frame, tracklet_id), then
-        starts by (frame, tracklet_id)).
+        starts by (frame, tracklet_id)); ``stage`` is the 1-based stage whose
+        gap range holds the pair. A gate-passing pair whose END or START was
+        linked at an earlier stage is ``refused_assignment`` with reason
+        ``endpoint linked at stage s`` and that link's cost as runner-up.
 
     Raises
     ------
@@ -544,15 +592,40 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint],
         return [], []
     scale = cfg.cost_thresholds()
     dt, cost, gate = _pair_costs(ends, starts, rows, cols, cfg)
-    assigned = _assign(rows, cols, cost, gate == '', len(ends), scale['unmatched_cost'])
     ids = (np.array([e.tracklet_id for e in ends], dtype=object),
            np.array([b.tracklet_id for b in starts], dtype=object))
-    labels = _decide(rows, cols, cost, gate, assigned, ids, scale['minimum_cost_margin'])
+    gated = _motion_gated(rows, cols, gate, ids)
+    stages = _stages(cfg)
+    stage_of = np.searchsorted(np.asarray(stages), dt - 1, side='left') + 1
+    assert stage_of.min() >= 1 and stage_of.max() <= len(stages)
+    labels: List[Tuple[str, float, float, str, int]] = [None] * len(rows)  # type: ignore
+    done_end: Dict[int, Tuple[int, float]] = {}
+    done_start: Dict[int, Tuple[int, float]] = {}
+    for stage in range(1, len(stages) + 1):
+        in_stage = stage_of == stage
+        free = np.array([int(r) not in done_end and int(c) not in done_start
+                         for r, c in zip(rows, cols)], dtype=bool)
+        for k in np.flatnonzero(in_stage & ~free):
+            labels[k] = _excluded_label(int(k), cost, gate, rows, cols, done_end, done_start)
+        idx = np.flatnonzero(in_stage & free)
+        if idx.size == 0:
+            continue
+        sub_rows, sub_cols, sub_cost, sub_gate = rows[idx], cols[idx], cost[idx], gate[idx]
+        assigned = _assign(sub_rows, sub_cols, sub_cost, sub_gate == '', len(ends),
+                           scale['unmatched_cost'])
+        sub = _decide(sub_rows, sub_cols, sub_cost, sub_gate, assigned, ids,
+                      scale['minimum_cost_margin'], gated)
+        for k, label in zip(idx, sub):
+            labels[k] = label
+            if label[0] == 'linked':
+                done_end[int(rows[k])] = done_start[int(cols[k])] = (stage, float(cost[k]))
+    assert all(label is not None for label in labels)
     links: List[Tuple[str, str]] = []
     decisions: List[LinkDecision] = []
     for k, (decision, c, ru, reason, n_chain) in enumerate(labels):
         a, b = ends[rows[k]].tracklet_id, starts[cols[k]].tracklet_id
-        decisions.append(LinkDecision(a, b, int(dt[k]) - 1, c, ru, decision, reason, int(n_chain)))
+        decisions.append(LinkDecision(a, b, int(dt[k]) - 1, c, ru, decision, reason, int(n_chain),
+                                      int(stage_of[k])))
         if decision == 'linked':
             links.append((a, b))
     assert len({a for a, _ in links}) == len({b for _, b in links}) == len(links)

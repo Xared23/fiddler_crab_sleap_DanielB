@@ -47,6 +47,9 @@ class BridgeConfig:
     unmatched_cost_sqrt: float = 0.6
     minimum_cost_margin_sqrt: float = 0.25
     fill_confidence_gaps: tuple[int, int] = (5, 15)   # gap <= 5 high, <= 15 medium, else low
+    # Staged linking (sqrt only): gaps (prev, stage] are linked stage by stage, shortest first;
+    # stages above max_gap are dropped and max_gap is always the last stage.
+    link_stages: tuple[int, ...] = (5, 15, 30, 45)
 
     def __post_init__(self) -> None:
         if self.max_gap < 0 or self.velocity_window < 1:
@@ -68,6 +71,10 @@ class BridgeConfig:
             raise ValueError("invalid gate-model parameters")
         if not (0 < self.fill_confidence_gaps[0] <= self.fill_confidence_gaps[1]):
             raise ValueError("fill_confidence_gaps must be increasing and positive")
+        stages = tuple(self.link_stages)
+        if not stages or any(int(s) != s or s < 1 for s in stages) or any(
+                b <= a for a, b in zip(stages, stages[1:])):
+            raise ValueError("link_stages must be positive integers, strictly increasing")
 
     def gate_radius(self, dt) -> "np.ndarray | float":
         """Search radius r(dt) in pixels for the configured gate model (array-safe)."""
@@ -108,7 +115,7 @@ def load_config(path: Path | None = None, **overrides) -> BridgeConfig:
             raise ValueError(f"Unknown config keys: {sorted(unknown)}")
         values.update(loaded)
     values.update({k: v for k, v in overrides.items() if v is not None})
-    for key in ("recoverable_reasons", "fill_confidence_gaps"):
+    for key in ("recoverable_reasons", "fill_confidence_gaps", "link_stages"):
         if key in values:
             values[key] = tuple(values[key])
     return replace(BridgeConfig(), **values)

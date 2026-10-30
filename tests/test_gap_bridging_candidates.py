@@ -36,8 +36,9 @@ from hypothesis import given, settings, strategies as st
 
 # ----- local modules -----
 ROOT = Path(__file__).resolve().parents[1]
+DEMO = ROOT / 'demo/crab_cam2_2_middle_300/observations.parquet'
 sys.path.insert(0, str(ROOT / 'scripts'))
-from gap_bridging import candidates  # noqa: E402
+from gap_bridging import candidates, geometry  # noqa: E402
 from gap_bridging.candidates import link_tracklets  # noqa: E402
 from gap_bridging.config import BridgeConfig  # noqa: E402
 from gap_bridging.types import DECISIONS, Endpoint  # noqa: E402
@@ -79,18 +80,28 @@ def by_pair(decisions) -> dict:
     return {(d.tracklet_a, d.tracklet_b): d for d in decisions}
 
 
+EXCLUDED = 'endpoint linked at stage '
+
+
 def chain_free_runner_up(decisions, a: str, b: str) -> float:
     """
-    Independent runner-up for (a, b) over non-chain-reachable competitors.
+    Independent runner-up for (a, b) over non-chain-reachable same-stage competitors.
 
-    Motion-gated pairs are those with a finite cost. A row competitor (a, c) is
-    dropped when (b, c) is motion-gated; a column competitor (d, b) is dropped
-    when (d, a) is motion-gated.
+    Motion-gated pairs are those with a finite cost (over all stages). Competitors
+    are motion-gated pairs of the same stage as (a, b) whose END and START were
+    not linked at an earlier stage. A row competitor (a, c) is dropped when (b, c)
+    is motion-gated; a column competitor (d, b) is dropped when (d, a) is motion-gated.
     """
-    gated = {(d.tracklet_a, d.tracklet_b): d.cost for d in decisions if math.isfinite(d.cost)}
-    values = [cost for (x, y), cost in gated.items()
-              if (x == a and y != b and (b, y) not in gated)
-              or (y == b and x != a and (x, a) not in gated)]
+    gated = {(d.tracklet_a, d.tracklet_b) for d in decisions if math.isfinite(d.cost)}
+    stage = {(d.tracklet_a, d.tracklet_b): d.stage for d in decisions}[(a, b)]
+    end_at = {d.tracklet_a: d.stage for d in decisions if d.decision == 'linked'}
+    start_at = {d.tracklet_b: d.stage for d in decisions if d.decision == 'linked'}
+    values = [d.cost for d in decisions
+              if math.isfinite(d.cost) and d.stage == stage
+              and end_at.get(d.tracklet_a, stage) >= stage
+              and start_at.get(d.tracklet_b, stage) >= stage
+              and ((d.tracklet_a == a and d.tracklet_b != b and (b, d.tracklet_b) not in gated)
+                   or (d.tracklet_b == b and d.tracklet_a != a and (d.tracklet_a, a) not in gated))]
     return min(values) if values else math.nan
 
 
@@ -733,6 +744,112 @@ class ChainAwareBothModelsTests(unittest.TestCase):
         self.assertNotIn('chain', d[('A', 'B')].reason)
 
 
+class StagedLinkingTests(unittest.TestCase):
+    """Sqrt linking runs stage by stage, shortest gaps first."""
+
+    def abc_scene(self):
+        """A -> B (gap 2) -> C (gap 15) at about the same spot; A -> C has gap 25."""
+        a = ep('A', 10, (0., 0.), vel_known=False)
+        b_start = ep('B', 13, (0.3, 0.), vel_known=False)
+        b_end = ep('B', 20, (0.3, 0.2), vel_known=False)
+        c = ep('C', 36, (0.1, 0.4), vel_known=False)
+        return [a, b_end], [b_start, c]
+
+    def test_stages_from_config(self):
+        for max_gap, expected in ((1, (1,)), (5, (5,)), (10, (5, 10)), (30, (5, 15, 30)),
+                                  (60, (5, 15, 30, 45, 60))):
+            self.assertEqual(candidates._stages(replace(SQRT, max_gap=max_gap)), expected)
+        self.assertEqual(candidates._stages(replace(SQRT, max_gap=7, link_stages=(2, 7, 9))),
+                         (2, 7))
+        self.assertEqual(candidates._stages(replace(CFG, max_gap=30)), (30,))
+        with self.assertRaises(ValueError):
+            replace(SQRT, link_stages=(5, 5))
+
+    def test_short_gap_chain_survives_longer_horizon(self):
+        ends, starts = self.abc_scene()
+        cfg = replace(SQRT, max_gap=30)
+        links, decisions = link_tracklets(ends, starts, cfg)
+        self.assertEqual(sorted(links), [('A', 'B'), ('B', 'C')])
+        d = by_pair(decisions)
+        self.assertEqual([d[p].stage for p in (('A', 'B'), ('B', 'C'), ('A', 'C'))], [1, 2, 3])
+        self.assertEqual(d[('A', 'C')].decision, 'refused_assignment')
+        self.assertEqual(d[('A', 'C')].reason, 'endpoint linked at stage 1')
+        self.assertEqual(d[('A', 'C')].runner_up_cost,                # both ends linked earlier
+                         min(d[('A', 'B')].cost, d[('B', 'C')].cost))
+
+    def test_short_link_not_lost_to_cheaper_long_gap(self):
+        # The demo defect: A ends; B starts 2 frames later and runs on; a one-frame blip C,
+        # 15 frames after A and during B, is cheaper for A than B. One global solve picks
+        # (A, C), the margin vetoes it (runner-up (A, B)), and A stays unlinked.
+        a = ep('A', 10, (0., 0.), vel_known=False)
+        b_start, b_end = ep('B', 13, (0.15, -3.6), vel_known=False), ep('B', 150, (30., -20.))
+        c_start, c_end = ep('C', 26, (1.6, -2.2), vel_known=False), ep('C', 26, (1.6, -2.2))
+        ends, starts = [a, b_end, c_end], [b_start, c_start]
+        cfg = replace(SQRT, max_gap=30)
+        single, single_dec = link_tracklets(ends, starts, replace(cfg, link_stages=(30,)))
+        self.assertEqual(single, [])
+        s = by_pair(single_dec)
+        self.assertLess(s[('A', 'C')].cost, s[('A', 'B')].cost)
+        self.assertEqual(s[('A', 'C')].decision, 'refused_margin')
+        links, decisions = link_tracklets(ends, starts, cfg)
+        self.assertEqual(links, [('A', 'B')])
+        d = by_pair(decisions)
+        self.assertEqual((d[('A', 'B')].stage, d[('A', 'C')].stage), (1, 2))
+        self.assertEqual(d[('A', 'C')].reason, 'endpoint linked at stage 1')
+
+    def test_long_gap_alone_links_at_stage_2(self):
+        a = ep('A', 10, (0., 0.), vel_known=False)
+        b = ep('B', 21, (1., 0.), vel_known=False)                    # gap 10
+        links, decisions = link_tracklets([a], [b], replace(SQRT, max_gap=30))
+        self.assertEqual(links, [('A', 'B')])
+        self.assertEqual((decisions[0].stage, decisions[0].gap_frames), (2, 10))
+
+    def test_chain_reachability_spans_stages(self):
+        # Stage 2 holds (A, B) and (A, C), within the margin. C is B's successor through the
+        # stage-1 pair (B, C), which fails only max_cost (so C stays free); chain reachability
+        # is built over all gaps, so (A, C) is ignored and A -> B links.
+        r4 = radius(SQRT, 4)
+        a = ep('A', 10, (0., 0.), vel_known=False)
+        b_start = ep('B', 18, (2., 0.), vel_known=False)             # (A, B) gap 7
+        b_end = ep('B', 19, (3. - 0.98 * r4, 0.), vel_known=False)
+        c = ep('C', 23, (3., 0.), vel_known=False)                   # (B, C) gap 3, (A, C) gap 12
+        links, decisions = link_tracklets([a, b_end], [b_start, c], replace(SQRT, max_gap=30))
+        d = by_pair(decisions)
+        self.assertEqual((d[('B', 'C')].stage, d[('B', 'C')].reason), (1, 'max_cost'))
+        self.assertEqual((d[('A', 'B')].stage, d[('A', 'C')].stage), (2, 2))
+        self.assertLess(d[('A', 'C')].cost - d[('A', 'B')].cost, 0.25)
+        self.assertEqual(links, [('A', 'B')])
+        self.assertTrue(math.isnan(d[('A', 'B')].runner_up_cost))
+        self.assertEqual(d[('A', 'B')].n_chain_ignored, 1)
+
+    def test_linear_is_single_stage(self):
+        ends, starts = self.abc_scene()
+        _, decisions = link_tracklets(ends, starts, replace(CFG, max_gap=30))
+        self.assertEqual({d.stage for d in decisions}, {1})
+
+    @settings(deadline=None, max_examples=150)
+    @given(scenes(), st.integers(5, 30))
+    def test_first_stage_links_do_not_depend_on_max_gap(self, scene, max_gap):
+        ends, starts = scene
+        short, _ = link_tracklets(ends, starts, replace(SQRT, max_gap=5))
+        links, decisions = link_tracklets(ends, starts, replace(SQRT, max_gap=max_gap))
+        gap = {(d.tracklet_a, d.tracklet_b): d.gap_frames for d in decisions}
+        self.assertTrue(set(short) <= {p for p in links if gap[p] <= 5})
+
+    @unittest.skipUnless(DEMO.exists(), 'demo parquet not present')
+    def test_demo_short_links_kept_at_max_gap_30(self):
+        import pyarrow.parquet as pq
+        cfg = BridgeConfig()
+        eps = geometry.endpoints(pq.read_table(DEMO), cfg)
+        ends = [e for _, e in eps.values()]
+        starts = [s for s, _ in eps.values()]
+        links5, _ = link_tracklets(ends, starts, replace(cfg, max_gap=5))
+        links30, dec30 = link_tracklets(ends, starts, replace(cfg, max_gap=30))
+        gap = {(d.tracklet_a, d.tracklet_b): d.gap_frames for d in dec30}
+        self.assertEqual(len(set(links5) - {p for p in links30 if gap[p] <= 5}), 0)  # measured 0
+        self.assertGreater(len(links30), len(links5))
+
+
 # ============================================================
 # PROPERTY TESTS
 # ============================================================
@@ -746,13 +863,19 @@ class CandidatePropertyTests(unittest.TestCase):
         cfg = replace(MODELS[model], max_gap=max_gap)
         self.assertEqual(link_tracklets(ends, starts, cfg), ([], []))
 
-    @settings(deadline=None, max_examples=200)
-    @given(scenes(), st.integers(1, 30), st.sampled_from(sorted(MODELS)))
-    def test_audit_and_link_invariants(self, scene, max_gap, model):
+    @settings(deadline=None, max_examples=250)
+    @given(scenes(), st.integers(1, 30), st.sampled_from(sorted(MODELS)),
+           st.sampled_from([(5, 15, 30, 45), (1, 2, 3), (2, 8), (30,)]))
+    def test_audit_and_link_invariants(self, scene, max_gap, model, link_stages):
         ends, starts = scene
-        cfg = replace(MODELS[model], max_gap=max_gap)
+        cfg = replace(MODELS[model], max_gap=max_gap, link_stages=link_stages)
         scale = cfg.cost_thresholds()
+        stages = candidates._stages(cfg)
         links, decisions = link_tracklets(ends, starts, cfg)
+        linked_at = {}
+        for d in decisions:
+            if d.decision == 'linked':
+                linked_at[('end', d.tracklet_a)] = linked_at[('start', d.tracklet_b)] = d
         pairs = [(d.tracklet_a, d.tracklet_b) for d in decisions]
         self.assertEqual(len(pairs), len(set(pairs)))
         self.assertEqual(set(pairs), enumerated(ends, starts, max_gap))
@@ -762,6 +885,21 @@ class CandidatePropertyTests(unittest.TestCase):
         for d in decisions:
             self.assertIn(d.decision, DECISIONS)
             self.assertTrue(1 <= d.gap_frames <= max_gap)
+            lo = stages[d.stage - 2] if d.stage >= 2 else 0
+            self.assertTrue(lo < d.gap_frames <= stages[d.stage - 1])   # stage holds its gap
+            if d.reason.startswith(EXCLUDED):
+                # An endpoint was linked at an earlier stage; that link is the runner-up.
+                self.assertEqual(d.decision, 'refused_assignment')
+                earlier = [x for x in (linked_at.get(('end', d.tracklet_a)),
+                                       linked_at.get(('start', d.tracklet_b)))
+                           if x is not None and x.stage < d.stage]
+                self.assertTrue(earlier)
+                self.assertEqual(int(d.reason[len(EXCLUDED):]), min(x.stage for x in earlier))
+                self.assertEqual(d.runner_up_cost, min(x.cost for x in earlier))
+            elif d.decision == 'refused_assignment':
+                # Not excluded: neither endpoint was linked at an earlier stage.
+                for key in (('end', d.tracklet_a), ('start', d.tracklet_b)):
+                    self.assertFalse(key in linked_at and linked_at[key].stage < d.stage)
             if d.decision in ('linked', 'refused_margin'):
                 expected = chain_free_runner_up(decisions, d.tracklet_a, d.tracklet_b)
                 np.testing.assert_allclose(d.runner_up_cost, expected, rtol=1e-12)
