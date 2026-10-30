@@ -30,8 +30,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 sys.path.insert(0, str(ROOT / 'tests'))
 from gap_bridging.config import BridgeConfig  # noqa: E402
-from gap_bridging.geometry import (endpoints, fill_bridge, hermite, interp_angle,  # noqa: E402
-                                   place_nodes, synthetic_rows)
+from gap_bridging.geometry import (damped_tangents, endpoints, fill_bridge,  # noqa: E402
+                                   fill_confidence, hermite, interp_angle, place_nodes,
+                                   synthetic_rows)
+from gap_bridging.types import Endpoint  # noqa: E402
 from gap_bridging_fixtures import (DEFAULT_OFFSETS, FPS, NODES, SCHEMA, make_observations,  # noqa: E402
                                    node_positions, straight_crab, turning_crab)
 
@@ -54,6 +56,27 @@ dts = st.integers(2, 6)
 def angdiff(x: float, y: float) -> float:
     """Absolute angular distance in [0, pi]."""
     return abs(math.atan2(math.sin(x - y), math.cos(x - y)))
+
+
+def motion_endpoint(frame: int, pos, vel, known: bool = True) -> Endpoint:
+    """Bare endpoint with a position and velocity; heading and offsets unknown."""
+    return Endpoint('t', 'v', int(frame), 3 if known else 1, np.asarray(pos, float),
+                    np.asarray(vel, float), known, math.nan, np.full((5, 2), np.nan))
+
+
+def chord_deviation(bridge, a: Endpoint, b: Endpoint) -> np.ndarray:
+    """Distance of each filled shell position from the uniform-time chord point."""
+    dt = b.frame - a.frame
+    t = (bridge.frames - a.frame)[:, None] / dt
+    return np.linalg.norm(bridge.positions - (a.pos + t * (b.pos - a.pos)), axis=1)
+
+
+def damped_bound(a: Endpoint, b: Endpoint, horizon: int) -> float:
+    """(4/27) * dt * lam * (|va - c| + |vb - c|) with lam = min(1, horizon / dt)."""
+    dt = b.frame - a.frame
+    c = (b.pos - a.pos) / dt
+    lam = min(1.0, horizon / dt)
+    return (4 / 27) * dt * lam * (np.linalg.norm(a.vel - c) + np.linalg.norm(b.vel - c))
 
 
 # ============================================================
@@ -238,11 +261,105 @@ class FillTests(unittest.TestCase):
         expected = node_positions(bridge.positions[0], 0.4)
         np.testing.assert_allclose(bridge.nodes[0], expected, atol=1e-9)
 
+    def test_fill_confidence_stored_on_bridge(self):
+        for gap, expected in ((1, 'high'), (5, 'high'), (6, 'medium'), (15, 'medium'), (16, 'low')):
+            a = motion_endpoint(10, (0.0, 0.0), (1.0, 0.0))
+            b = motion_endpoint(11 + gap, (5.0, 0.0), (1.0, 0.0))
+            with self.subTest(gap=gap):
+                self.assertEqual(fill_bridge(a, b, 't', 't/b001', CFG).fill_confidence, expected)
+
     def test_invalid_bridges_raise(self):
         crab = straight_crab(1, 0, 5, origin=(0.0, 0.0), velocity=(1.0, 0.0))
         start, end = next(iter(endpoints(make_observations([crab]), CFG).values()))
         with self.assertRaises(ValueError):
             fill_bridge(end, start, 't', 't/b001', CFG)
+
+
+class DampedFillTests(unittest.TestCase):
+
+    def test_unchanged_within_horizon(self):
+        horizon = CFG.prediction_horizon_frames
+        a = motion_endpoint(20, (100.0, 50.0), (3.0, -2.0))
+        for dt in range(2, horizon + 1):
+            b = motion_endpoint(20 + dt, (104.0, 49.0), (-1.5, 4.0))
+            bridge = fill_bridge(a, b, 't', 't/b001', CFG)
+            undamped = np.stack([hermite(a.pos, a.vel, b.pos, b.vel, dt, (f - a.frame) / dt)
+                                 for f in bridge.frames])
+            with self.subTest(dt=dt):
+                np.testing.assert_array_equal(bridge.positions, undamped)
+
+    def test_long_gap_bound_and_damping(self):
+        dt = 60
+        a = motion_endpoint(0, (100.0, 100.0), (4.0, 3.0))
+        b = motion_endpoint(dt, (110.0, 95.0), (-3.0, 5.0))
+        bridge = fill_bridge(a, b, 't', 't/b001', CFG)
+        deviation = chord_deviation(bridge, a, b)
+        self.assertLessEqual(deviation.max(), damped_bound(a, b, CFG.prediction_horizon_frames) + 1e-9)
+        undamped = np.stack([hermite(a.pos, a.vel, b.pos, b.vel, dt, (f - a.frame) / dt)
+                             for f in bridge.frames])
+        undamped_dev = np.linalg.norm(undamped - (a.pos + ((bridge.frames - a.frame)[:, None] / dt)
+                                                  * (b.pos - a.pos)), axis=1)
+        self.assertLess(deviation.max(), 0.1 * undamped_dev.max())
+        self.assertEqual(bridge.fill_confidence, 'low')
+
+    def test_tends_to_chord(self):
+        a_vel, b_vel = np.array([5.0, -2.0]), np.array([-4.0, 6.0])
+        horizon = CFG.prediction_horizon_frames
+        for dt in (4, 10, 30, 100, 1000):
+            a = motion_endpoint(0, (0.0, 0.0), a_vel)
+            b = motion_endpoint(dt, (20.0, 10.0), b_vel)
+            c = (b.pos - a.pos) / dt
+            # Damped: bounded by a dt-independent constant, so the fill hugs the chord as dt grows.
+            limit = (4 / 27) * horizon * (np.linalg.norm(a_vel - c) + np.linalg.norm(b_vel - c))
+            bridge = fill_bridge(a, b, 't', 't/b001', CFG)
+            deviation = chord_deviation(bridge, a, b).max()
+            t = (bridge.frames - a.frame) / dt
+            undamped = np.stack([hermite(a.pos, a_vel, b.pos, b_vel, dt, x) for x in t])
+            undamped_dev = np.linalg.norm(undamped - (a.pos + t[:, None] * (b.pos - a.pos)), axis=1).max()
+            with self.subTest(dt=dt):
+                self.assertLessEqual(deviation, limit + 1e-9)
+                self.assertGreater(undamped_dev, dt / 30 * limit)  # undamped grows linearly in dt
+
+    def test_constant_velocity_exact_for_any_gap(self):
+        for dt in (2, 7, 45):
+            a = motion_endpoint(5, (10.0, 20.0), (1.5, -0.5))
+            b = motion_endpoint(5 + dt, (10.0 + 1.5 * dt, 20.0 - 0.5 * dt), (1.5, -0.5))
+            bridge = fill_bridge(a, b, 't', 't/b001', CFG)
+            expected = a.pos + (bridge.frames - a.frame)[:, None] * a.vel
+            np.testing.assert_allclose(bridge.positions, expected, rtol=0, atol=1e-9)
+
+    def test_linear_fallback_not_damped(self):
+        a = motion_endpoint(0, (0.0, 0.0), (9.0, 9.0), known=False)
+        b = motion_endpoint(30, (30.0, -60.0), (-9.0, 4.0))
+        bridge = fill_bridge(a, b, 't', 't/b001', CFG)
+        expected = (bridge.frames[:, None] / 30) * np.array([30.0, -60.0])
+        np.testing.assert_allclose(bridge.positions, expected, rtol=0, atol=1e-9)
+
+    def test_damped_tangents_validation(self):
+        with self.assertRaises(ValueError):
+            damped_tangents(np.zeros(2), np.zeros(2), np.ones(2), np.zeros(2), 0, 3)
+        with self.assertRaises(ValueError):
+            damped_tangents(np.zeros(2), np.zeros(2), np.ones(2), np.zeros(2), 5, 0)
+
+
+class FillConfidenceTests(unittest.TestCase):
+
+    def test_default_boundaries(self):
+        self.assertEqual(CFG.fill_confidence_gaps, (5, 15))
+        cases = {1: 'high', 5: 'high', 6: 'medium', 15: 'medium', 16: 'low', 59: 'low'}
+        self.assertEqual({g: fill_confidence(g, CFG) for g in cases}, cases)
+
+    def test_custom_thresholds_and_invalid_gap(self):
+        cfg = BridgeConfig(fill_confidence_gaps=(2, 2))
+        self.assertEqual([fill_confidence(g, cfg) for g in (1, 2, 3)], ['high', 'high', 'low'])
+        with self.assertRaises(ValueError):
+            fill_confidence(0, CFG)
+
+    @given(st.integers(1, 500), st.integers(1, 100), st.integers(0, 100))
+    def test_monotone_in_gap(self, gap, high, extra):
+        cfg = BridgeConfig(fill_confidence_gaps=(high, high + extra))
+        rank = {'high': 0, 'medium': 1, 'low': 2}
+        self.assertLessEqual(rank[fill_confidence(gap, cfg)], rank[fill_confidence(gap + 1, cfg)])
 
 
 class SyntheticRowTests(unittest.TestCase):
@@ -339,6 +456,33 @@ class HermiteProperties(unittest.TestCase):
         forward = hermite(pa_, va, pb, vb, dt, t)
         backward = hermite(pb, -vb, pa_, -va, dt, 1.0 - t)
         np.testing.assert_allclose(backward, forward, rtol=0, atol=1e-9)
+
+
+class DampedFillProperties(unittest.TestCase):
+
+    @settings(deadline=None, max_examples=200)
+    @given(vec, vel, vec, vel, st.integers(2, 400), st.integers(1, 30))
+    def test_damped_bound_any_gap(self, pa_, va, pb, vb, dt, horizon):
+        cfg = BridgeConfig(prediction_horizon_frames=horizon)
+        a, b = motion_endpoint(100, pa_, va), motion_endpoint(100 + dt, pb, vb)
+        bridge = fill_bridge(a, b, 't', 't/b001', cfg)
+        self.assertEqual(len(bridge.frames), dt - 1)
+        scale = 1.0 + float(np.abs(np.concatenate([pa_, pb])).max())
+        self.assertLessEqual(chord_deviation(bridge, a, b).max(),
+                             damped_bound(a, b, horizon) + 1e-9 * scale)
+        if dt <= horizon:
+            undamped = np.stack([hermite(pa_, va, pb, vb, dt, (f - a.frame) / dt) for f in bridge.frames])
+            np.testing.assert_array_equal(bridge.positions, undamped)
+
+    @settings(deadline=None)
+    @given(vec, vel, vec, vel, st.integers(1, 400), st.integers(1, 30))
+    def test_damped_tangents_shrink_towards_chord(self, pa_, va, pb, vb, dt, horizon):
+        da, db = damped_tangents(pa_, va, pb, vb, dt, horizon)
+        c = (pb - pa_) / dt
+        lam = min(1.0, horizon / dt)
+        tol = 1e-9 * (1.0 + float(np.abs(np.concatenate([va, vb, c])).max()))
+        self.assertLessEqual(np.linalg.norm(da - c), lam * np.linalg.norm(va - c) + tol)
+        self.assertLessEqual(np.linalg.norm(db - c), lam * np.linalg.norm(vb - c) + tol)
 
 
 class AngleProperties(unittest.TestCase):

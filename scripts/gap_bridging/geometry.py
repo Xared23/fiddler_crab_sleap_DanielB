@@ -6,9 +6,10 @@ Endpoint motion state and gap filling for tracklet bridging (WP-A).
 ``endpoints`` summarises every tracklet's START and END (shell position,
 clipped velocity, heading and body-frame node offsets) from the accepted
 rows of an observation table. ``fill_bridge`` synthesises the missing
-frames between a linked END and START: cubic Hermite on the shell path,
-shortest-arc interpolation of the heading and rigid placement of the
-remaining nodes. ``synthetic_rows`` renders a bridge as observation rows
+frames between a linked END and START: cubic Hermite on the shell path
+(tangents damped towards the chord for gaps longer than the prediction
+horizon), shortest-arc interpolation of the heading and rigid placement of
+the remaining nodes; ``fill_confidence`` classifies a bridge by its length. ``synthetic_rows`` renders a bridge as observation rows
 with the caller's schema. Units: pixels, px/frame, int64 frames.
 
 Sam
@@ -282,6 +283,42 @@ def hermite(pa: np.ndarray, va: np.ndarray, pb: np.ndarray, vb: np.ndarray,
     return h00 * pa + h10 * dt * va + h01 * pb + h11 * dt * vb
 
 
+def damped_tangents(pa: np.ndarray, va: np.ndarray, pb: np.ndarray, vb: np.ndarray,
+                    dt: float, horizon: float) -> tuple[np.ndarray, np.ndarray]:
+    """Endpoint velocities with their deviation from the chord damped.
+
+    With chord velocity ``c = (pb - pa) / dt`` and
+    ``lam = min(1, horizon / dt)`` each tangent becomes ``c + lam * (v - c)``.
+    For ``dt <= horizon`` the inputs are returned unchanged (bit-exact); a
+    constant-velocity path (``va == vb == c``) is unchanged for every ``dt``.
+    The Hermite curve then deviates from the uniform-time chord point by at
+    most ``(4/27) * dt * lam * (|va - c| + |vb - c|)``, i.e. by at most
+    ``(4/27) * horizon * (|va - c| + |vb - c|)`` once ``dt > horizon``.
+
+    Parameters
+    ----------
+    pa, va, pb, vb : np.ndarray
+        (2,) endpoint positions and velocities (px/frame).
+    dt : float
+        Frames between the endpoints, > 0.
+    horizon : float
+        Prediction horizon in frames, > 0.
+
+    Returns
+    -------
+    tuple of np.ndarray
+        Damped ``(va, vb)``.
+    """
+    if not (dt > 0 and horizon > 0):
+        raise ValueError(f"need dt > 0 and horizon > 0, got dt={dt}, horizon={horizon}")
+    va, vb = np.asarray(va, dtype=np.float64), np.asarray(vb, dtype=np.float64)
+    if dt <= horizon:
+        return va, vb
+    lam = horizon / dt
+    chord = (np.asarray(pb, dtype=np.float64) - np.asarray(pa, dtype=np.float64)) / dt
+    return chord + lam * (va - chord), chord + lam * (vb - chord)
+
+
 def wrap_angle(x: float) -> float:
     """Wrap an angle into (-pi, pi]."""
     return math.pi - (math.pi - x) % (2 * math.pi)
@@ -336,6 +373,21 @@ def _merge_offsets(oa: np.ndarray, ob: np.ndarray) -> np.ndarray:
 # ============================================================
 
 
+def fill_confidence(gap: int, cfg: BridgeConfig) -> str:
+    """Confidence class of a fill spanning ``gap`` missing frames.
+
+    ``'high'`` for ``gap <= cfg.fill_confidence_gaps[0]``, ``'medium'`` for
+    ``gap <= cfg.fill_confidence_gaps[1]``, else ``'low'``. ``gap`` must be >= 1.
+    """
+    gap = int(gap)
+    if gap < 1:
+        raise ValueError(f"a bridge has at least one missing frame, got gap={gap}")
+    high, medium = cfg.fill_confidence_gaps
+    if gap <= high:
+        return 'high'
+    return 'medium' if gap <= medium else 'low'
+
+
 def fill_bridge(a: Endpoint, b: Endpoint, trajectory_id: str, bridge_id: str,
                 cfg: BridgeConfig) -> Bridge:
     """Synthesise the missing frames between END ``a`` and START ``b``.
@@ -347,23 +399,26 @@ def fill_bridge(a: Endpoint, b: Endpoint, trajectory_id: str, bridge_id: str,
     trajectory_id, bridge_id : str
         Identifiers carried on the bridge.
     cfg : BridgeConfig
-        Accepted for interface symmetry; no parameter is currently used.
+        ``prediction_horizon_frames`` damps the Hermite tangents (see
+        :func:`damped_tangents`); ``fill_confidence_gaps`` sets
+        ``Bridge.fill_confidence``.
 
     Returns
     -------
     Bridge
         Frames e+1..s-1 with Hermite shell path (linear when either endpoint
-        lacks a velocity), interpolated headings and rigidly placed nodes.
+        lacks a velocity), interpolated headings, rigidly placed nodes and
+        the fill confidence class.
     """
     if a.video_id != b.video_id:
         raise ValueError(f"cannot bridge across videos {a.video_id!r} and {b.video_id!r}")
     dt = int(b.frame) - int(a.frame)
     if dt < 2:
         raise ValueError(f"bridge needs at least one missing frame, got dt={dt}")
-    del cfg
     frames = np.arange(a.frame + 1, b.frame, dtype=np.int64)
-    va, vb = np.asarray(a.vel, float), np.asarray(b.vel, float)
-    if not (a.vel_known and b.vel_known):
+    if a.vel_known and b.vel_known:
+        va, vb = damped_tangents(a.pos, a.vel, b.pos, b.vel, dt, cfg.prediction_horizon_frames)
+    else:
         va = vb = (np.asarray(b.pos, float) - np.asarray(a.pos, float)) / dt
     offsets = _merge_offsets(np.asarray(a.offsets, float), np.asarray(b.offsets, float))
     k = len(frames)
@@ -375,7 +430,8 @@ def fill_bridge(a: Endpoint, b: Endpoint, trajectory_id: str, bridge_id: str,
         headings[i] = interp_angle(a.heading, b.heading, t)
         nodes[i] = place_nodes(positions[i], headings[i], offsets)
     return Bridge(video_id=a.video_id, a=a, b=b, trajectory_id=trajectory_id, bridge_id=bridge_id,
-                  frames=frames, positions=positions, headings=headings, nodes=nodes)
+                  frames=frames, positions=positions, headings=headings, nodes=nodes,
+                  fill_confidence=fill_confidence(k, cfg))
 
 
 def synthetic_rows(bridge: Bridge, template_schema: pa.Schema, *,

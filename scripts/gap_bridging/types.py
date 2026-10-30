@@ -56,3 +56,4 @@ class Bridge:
     positions: np.ndarray  # (k,2) shell path
     headings: np.ndarray   # (k,) radians or NaN
     nodes: np.ndarray      # (k,5,2) node positions, NaN where unknown; nodes[:,0] == positions
+    fill_confidence: str | None = None  # 'high'/'medium'/'low' from len(frames); set by fill_bridge

@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 sys.path.insert(0, str(ROOT / 'tests'))
 
-from gap_bridging import chains, recover, tables  # noqa: E402
+from gap_bridging import chains, geometry, recover, tables  # noqa: E402
 from gap_bridging.config import BridgeConfig  # noqa: E402
 from gap_bridging.types import Bridge, Endpoint, LinkDecision  # noqa: E402
 from gap_bridging_fixtures import make_observations, straight_crab  # noqa: E402
@@ -42,13 +42,13 @@ def endpoints_for(spans, video='v'):
     return {t: (endpoint(t, video, s, e - s + 1), endpoint(t, video, e, e - s + 1)) for t, (s, e) in spans.items()}
 
 
-def make_bridge(video, a_id, a_end, b_id, b_start, traj, bid, positions):
+def make_bridge(video, a_id, a_end, b_id, b_start, traj, bid, positions, confidence=None):
     frames = np.arange(a_end + 1, b_start, dtype=np.int64)
     positions = np.asarray(positions, float).reshape(len(frames), 2)
     nodes = np.full((len(frames), 5, 2), np.nan)
     nodes[:, 0] = positions
     return Bridge(video, endpoint(a_id, video, a_end), endpoint(b_id, video, b_start), traj, bid,
-                  frames, positions, np.full(len(frames), np.nan), nodes)
+                  frames, positions, np.full(len(frames), np.nan), nodes, confidence)
 
 
 def fake_synthetic(bridge, schema):
@@ -102,7 +102,7 @@ def run_scene():
     recovered = recover.recover_detections(obs, bridges, CFG)
     bor = recover.bridge_of_recovered(bridges, recovered)
     synth = tables.synthetic_table([(b, fake_synthetic(b, obs.schema)) for b in bridges], obs.schema, recovered)
-    out = tables.assemble_observations(obs, inverse, recovered, bor, synth)
+    out = tables.assemble_observations(obs, inverse, recovered, bor, synth, tables.bridge_info_table(bridges, CFG))
     return dict(obs=obs, trajs=trajs, traj=traj, bridges=bridges, recovered=recovered, out=out, links=links)
 
 
@@ -343,17 +343,24 @@ class TableTests(unittest.TestCase):
         self.assertEqual(len(s['trajs']), 2)  # crab (3 tracklets) + decoy
         self.assertEqual(len(s['recovered']), 1)
         self.assertEqual(out.schema, tables.output_schema(obs.schema))
-        self.assertEqual(out.schema.names[-3:], ['trajectory_id', 'source', 'bridge_id'])
+        self.assertEqual(out.schema.names, obs.schema.names + ['trajectory_id', 'source', 'bridge_id',
+                                                               'gap_frames', 'fill_confidence'])
+        self.assertEqual(out.schema.field('gap_frames').type, pa.int64())
+        self.assertEqual(out.schema.field('fill_confidence').type, pa.string())
         self.assertTrue(out.slice(0, obs.num_rows).select(obs.schema.names).equals(obs))
         self.assertEqual(out.num_rows, obs.num_rows + 1)  # frame 8 interpolated; frame 4 recovered
         src = out['source'].to_pylist()
         self.assertEqual(src.count('recovered'), 1)
         self.assertEqual(src[-1], 'interpolated')
         rec_row = out.filter(pc.equal(out['source'], 'recovered')).to_pylist()[0]
-        self.assertEqual((rec_row['frame'], rec_row['trajectory_id'], rec_row['bridge_id']),
-                         (4, s['traj'], f"{s['traj']}/b001"))
+        self.assertEqual((rec_row['frame'], rec_row['trajectory_id'], rec_row['bridge_id'], rec_row['gap_frames'],
+                          rec_row['fill_confidence']), (4, s['traj'], f"{s['traj']}/b001", 1, 'high'))
         last = out.slice(out.num_rows - 1).to_pylist()[0]
-        self.assertEqual((last['frame'], last['bridge_id']), (8, f"{s['traj']}/b002"))
+        self.assertEqual((last['frame'], last['bridge_id'], last['gap_frames'], last['fill_confidence']),
+                         (8, f"{s['traj']}/b002", 1, 'high'))
+        observed = out.filter(pc.equal(out['source'], 'observed'))
+        self.assertEqual(observed['gap_frames'].null_count, observed.num_rows)
+        self.assertEqual(observed['fill_confidence'].null_count, observed.num_rows)
         self.assertIsNone(last['tracklet_local_id'])
         traj_rows = out.filter(pc.equal(out['trajectory_id'], s['traj']))
         self.assertEqual(sorted(traj_rows['frame'].to_pylist()), list(range(12)))
@@ -365,7 +372,8 @@ class TableTests(unittest.TestCase):
         trajs = chains.build_trajectories(list(spans), [], endpoints_for(spans))
         out = tables.assemble_observations(obs, chains.tracklet_to_trajectory(trajs), {}, {}, None)
         row = out.filter(pc.equal(out['frame'], 3)).to_pylist()[0]
-        self.assertEqual((row['trajectory_id'], row['source'], row['bridge_id']), (None, 'observed', None))
+        self.assertEqual((row['trajectory_id'], row['source'], row['bridge_id'], row['gap_frames'],
+                          row['fill_confidence']), (None, 'observed', None, None, None))
         self.assertEqual(set(out['source'].to_pylist()), {'observed'})
         with self.assertRaisesRegex(ValueError, 'no trajectory'):
             tables.assemble_observations(obs, {}, {}, {}, None)
@@ -380,6 +388,60 @@ class TableTests(unittest.TestCase):
         out = tables.assemble_observations(obs, inverse, {}, {}, synth)
         tail = out.slice(obs.num_rows).select(['frame', 'trajectory_id']).to_pylist()
         self.assertEqual([(r['frame'], r['trajectory_id'][-1]) for r in tail], [(8, '1'), (8, '2'), (9, '1')])
+
+    def test_gap_and_confidence_columns(self):
+        crab, obs = two_gap_scene()
+        cfg = BridgeConfig(fill_confidence_gaps=(1, 2))
+        frames = {1: (7, 9), 2: (6, 9), 3: (5, 9)}   # gaps 1, 2, 3 -> high, medium, low under cfg
+        bridges = [make_bridge('vid', 'a', lo, 'b', hi, f'vid/trajectory{g:07d}', f'vid/trajectory{g:07d}/b001',
+                               [(0.0, 0.0)] * (hi - lo - 1)) for g, (lo, hi) in frames.items()]
+        stored = make_bridge('vid', 'a', 7, 'b', 9, 'vid/trajectory0000009', 'vid/trajectory0000009/b001',
+                             [(0.0, 0.0)], confidence='low')
+        bridges.append(stored)
+        synth = tables.synthetic_table([(b, fake_synthetic(b, obs.schema)) for b in bridges], obs.schema, cfg=cfg)
+        self.assertEqual(synth.schema, tables.output_schema(obs.schema))
+        got = {(r['bridge_id'][-12:-5], r['gap_frames'], r['fill_confidence']) for r in synth.to_pylist()}
+        self.assertEqual(got, {('0000001', 1, 'high'), ('0000002', 2, 'medium'), ('0000003', 3, 'low'),
+                               ('0000009', 1, 'low')})   # a stored confidence wins over cfg
+        self.assertEqual(tables.bridge_info_table(bridges, cfg),
+                         {b.bridge_id: (len(b.frames), c) for b, c in zip(bridges, ('high', 'medium', 'low', 'low'))})
+        # Default thresholds (5, 15) when neither a stored class nor cfg is given.
+        self.assertEqual(set(tables.synthetic_table([(bridges[2], fake_synthetic(bridges[2], obs.schema))],
+                                                    obs.schema)['fill_confidence'].to_pylist()), {'high'})
+        with self.assertRaisesRegex(ValueError, 'duplicate'):
+            tables.bridge_info_table([stored, stored])
+
+    def test_recovered_gap_columns_without_and_with_bridge_info(self):
+        s = run_scene()
+        obs, bridges, recovered = s['obs'], s['bridges'], s['recovered']
+        inverse = chains.tracklet_to_trajectory(s['trajs'])
+        bor = recover.bridge_of_recovered(bridges, recovered)
+        synth = tables.synthetic_table([(b, fake_synthetic(b, obs.schema)) for b in bridges], obs.schema, recovered)
+        legacy = tables.assemble_observations(obs, inverse, recovered, bor, synth)
+        rec = legacy.filter(pc.equal(legacy['source'], 'recovered')).to_pylist()[0]
+        self.assertEqual((rec['gap_frames'], rec['fill_confidence']), (None, None))
+        self.assertTrue(legacy.drop_columns(['gap_frames', 'fill_confidence']).equals(
+            s['out'].drop_columns(['gap_frames', 'fill_confidence'])))
+        info = {rec['bridge_id']: (7, 'medium')}
+        out = tables.assemble_observations(obs, inverse, recovered, bor, synth, info)
+        rec = out.filter(pc.equal(out['source'], 'recovered')).to_pylist()[0]
+        self.assertEqual((rec['gap_frames'], rec['fill_confidence']), (7, 'medium'))
+        with self.assertRaisesRegex(ValueError, 'bridge_info lacks'):
+            tables.assemble_observations(obs, inverse, recovered, bor, synth, {})
+
+    def test_real_fill_flows_into_columns(self):
+        a = Endpoint('a', 'vid', 3, 4, np.array([100.0, 100.0]), np.array([2.0, 0.0]), True, math.nan,
+                     np.full((5, 2), np.nan))
+        b = Endpoint('b', 'vid', 23, 4, np.array([140.0, 100.0]), np.array([2.0, 0.0]), True, math.nan,
+                     np.full((5, 2), np.nan))
+        bridge = geometry.fill_bridge(a, b, 'vid/trajectory0000001', 'vid/trajectory0000001/b001', CFG)
+        self.assertEqual(bridge.fill_confidence, 'low')
+        crab, obs = two_gap_scene()
+        synth = tables.synthetic_table([(bridge, geometry.synthetic_rows(bridge, obs.schema))], obs.schema,
+                                       cfg=BridgeConfig(fill_confidence_gaps=(30, 40)))
+        self.assertEqual(set(synth['gap_frames'].to_pylist()), {19})
+        self.assertEqual(set(synth['fill_confidence'].to_pylist()), {'low'})  # fill-time class wins over cfg
+        self.assertEqual(tables.bridge_info_table([bridge]), {bridge.bridge_id: (19, 'low')})
 
     def test_rejects_bad_recovery(self):
         crab, obs = two_gap_scene()
@@ -403,7 +465,8 @@ class TableTests(unittest.TestCase):
         synth = tables.synthetic_table([(bridge, fake_synthetic(bridge, obs.schema))], obs.schema)
         out = tables.assemble_observations(obs, chains.tracklet_to_trajectory(trajs), {}, {}, synth)
         self.assertEqual(out.schema, pa.schema(list(obs.schema) + list(tables.ADDED_FIELDS)))
-        self.assertEqual(len(out.schema), 57)
+        self.assertEqual(len(out.schema), 59)
+        self.assertEqual(len(tables.ADDED_FIELDS), 5)
         self.assertTrue(out.slice(0, obs.num_rows).select(obs.schema.names).equals(obs))
         with tempfile.TemporaryDirectory() as tmp:
             traj_table = tables.trajectory_table(out, trajs)

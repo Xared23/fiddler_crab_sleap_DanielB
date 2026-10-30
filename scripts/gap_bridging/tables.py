@@ -15,13 +15,17 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
+from gap_bridging.config import BridgeConfig
+from gap_bridging.geometry import fill_confidence
 from gap_bridging.types import DECISIONS, SOURCES, Bridge, LinkDecision
 from pipeline_common import atomic_json, sha256
 
 RecoveryKey = tuple[str, int, str]
+BridgeInfo = tuple[int, str]          # (gap_frames, fill_confidence) of one bridge
 
 ADDED_FIELDS = (pa.field('trajectory_id', pa.string()), pa.field('source', pa.string()),
-                pa.field('bridge_id', pa.string()))
+                pa.field('bridge_id', pa.string()), pa.field('gap_frames', pa.int64()),
+                pa.field('fill_confidence', pa.string()))
 TRAJECTORY_SCHEMA = pa.schema([
     ('trajectory_id', pa.string()), ('video_id', pa.string()),
     ('start_frame', pa.int64()), ('end_frame', pa.int64()),
@@ -41,7 +45,8 @@ COMPLETE_NAME = 'GAP_BRIDGING_COMPLETE.json'
 # Observations
 # --------------------------------------------------------------------------- #
 def output_schema(input_schema: pa.Schema) -> pa.Schema:
-    """Return the input schema plus ``trajectory_id``, ``source``, ``bridge_id``."""
+    """Return the input schema plus the :data:`ADDED_FIELDS` (``trajectory_id``,
+    ``source``, ``bridge_id``, ``gap_frames``, ``fill_confidence``)."""
     clash = {f.name for f in ADDED_FIELDS}.intersection(input_schema.names)
     if clash:
         raise ValueError(f"input already has output columns: {sorted(clash)}")
@@ -51,8 +56,31 @@ def output_schema(input_schema: pa.Schema) -> pa.Schema:
     return schema
 
 
+def bridge_gap_info(bridge: Bridge, cfg: BridgeConfig | None = None) -> BridgeInfo:
+    """``(gap_frames, fill_confidence)`` of one bridge.
+
+    ``gap_frames = len(bridge.frames)``. The confidence is the one stored by
+    ``geometry.fill_bridge`` when present, else :func:`fill_confidence` under
+    ``cfg`` (default :class:`BridgeConfig`).
+    """
+    gap = len(bridge.frames)
+    confidence = bridge.fill_confidence or fill_confidence(gap, cfg or BridgeConfig())
+    return gap, confidence
+
+
+def bridge_info_table(bridges: Iterable[Bridge], cfg: BridgeConfig | None = None) -> dict[str, BridgeInfo]:
+    """``bridge_id -> (gap_frames, fill_confidence)`` for :func:`assemble_observations`."""
+    info: dict[str, BridgeInfo] = {}
+    for bridge in bridges:
+        if bridge.bridge_id in info:
+            raise ValueError(f"duplicate bridge_id {bridge.bridge_id!r}")
+        info[bridge.bridge_id] = bridge_gap_info(bridge, cfg)
+    return info
+
+
 def synthetic_table(pairs: Sequence[tuple[Bridge, pa.Table]], input_schema: pa.Schema,
-                    recovered: Mapping[RecoveryKey, str] | None = None) -> pa.Table:
+                    recovered: Mapping[RecoveryKey, str] | None = None,
+                    cfg: BridgeConfig | None = None) -> pa.Table:
     """Label synthetic bridge rows and drop the frames filled by a recovery.
 
     Parameters
@@ -65,12 +93,17 @@ def synthetic_table(pairs: Sequence[tuple[Bridge, pa.Table]], input_schema: pa.S
     recovered : mapping, optional
         Recovery keys ``(video_id, frame, trajectory_id)``; those frames are
         filled by a real detection and get no synthetic row.
+    cfg : BridgeConfig, optional
+        Confidence thresholds for bridges without a stored
+        ``fill_confidence`` (see :func:`bridge_gap_info`).
 
     Returns
     -------
     pa.Table
-        Rows in :func:`output_schema` with ``source='interpolated'`` and the
-        bridge's ``trajectory_id`` and ``bridge_id``; unsorted.
+        Rows in :func:`output_schema` with ``source='interpolated'``, the
+        bridge's ``trajectory_id`` and ``bridge_id``, ``gap_frames`` (the
+        bridge's missing-frame count, recovered frames included) and its
+        ``fill_confidence``; unsorted.
     """
     target = output_schema(input_schema)
     recovered = recovered or {}
@@ -82,9 +115,10 @@ def synthetic_table(pairs: Sequence[tuple[Bridge, pa.Table]], input_schema: pa.S
         keep = [(bridge.video_id, f, bridge.trajectory_id) not in recovered for f in frames]
         table = table.select(input_schema.names).cast(input_schema).filter(pa.array(keep, pa.bool_()))
         n = table.num_rows
-        table = (table.append_column(ADDED_FIELDS[0], pa.array([bridge.trajectory_id] * n, pa.string()))
-                 .append_column(ADDED_FIELDS[1], pa.array(['interpolated'] * n, pa.string()))
-                 .append_column(ADDED_FIELDS[2], pa.array([bridge.bridge_id] * n, pa.string())))
+        gap, confidence = bridge_gap_info(bridge, cfg)
+        added = (bridge.trajectory_id, 'interpolated', bridge.bridge_id, gap, confidence)
+        for field, value in zip(ADDED_FIELDS, added):
+            table = table.append_column(field, pa.array([value] * n, field.type))
         parts.append(table.cast(target))
     if not parts:
         return target.empty_table()
@@ -93,7 +127,8 @@ def synthetic_table(pairs: Sequence[tuple[Bridge, pa.Table]], input_schema: pa.S
 
 def assemble_observations(obs: pa.Table, trajectory_of_tracklet: dict[str, str],
                           recovered: dict[RecoveryKey, str], bridge_of_recovered: dict[RecoveryKey, str],
-                          synthetic: pa.Table | None) -> pa.Table:
+                          synthetic: pa.Table | None,
+                          bridge_info: Mapping[str, BridgeInfo] | None = None) -> pa.Table:
     """Build the output observation table.
 
     Parameters
@@ -108,14 +143,19 @@ def assemble_observations(obs: pa.Table, trajectory_of_tracklet: dict[str, str],
         ``(video_id, frame, trajectory_id) -> bridge_id`` for the same keys.
     synthetic : pa.Table or None
         Interpolated rows in :func:`output_schema` (see :func:`synthetic_table`).
+    bridge_info : mapping, optional
+        ``bridge_id -> (gap_frames, fill_confidence)`` (see
+        :func:`bridge_info_table`); must cover every recovering bridge. None
+        leaves ``gap_frames`` and ``fill_confidence`` null on recovered rows.
 
     Returns
     -------
     pa.Table
         Original rows in original order with ``trajectory_id`` (null for
-        unassigned rows not recovered), ``source`` (observed / recovered) and
-        ``bridge_id`` (null unless recovered) appended, then the synthetic rows
-        sorted by (video_id, frame, trajectory_id).
+        unassigned rows not recovered), ``source`` (observed / recovered),
+        ``bridge_id``, ``gap_frames`` and ``fill_confidence`` (null unless
+        recovered) appended, then the synthetic rows sorted by
+        (video_id, frame, trajectory_id).
     """
     target = output_schema(obs.schema)
     if set(recovered) != set(bridge_of_recovered):
@@ -123,6 +163,10 @@ def assemble_observations(obs: pa.Table, trajectory_of_tracklet: dict[str, str],
     for (video, frame, traj), det in recovered.items():
         if not det:
             raise ValueError(f"empty detection_id for recovery {(video, frame, traj)}")
+    if bridge_info is not None:
+        uncovered = set(bridge_of_recovered.values()) - set(bridge_info)
+        if uncovered:
+            raise ValueError(f"bridge_info lacks recovering bridges: {sorted(uncovered)[:5]}")
 
     keys = list(trajectory_of_tracklet)
     tidx = pc.index_in(obs['tracklet_id'], value_set=pa.array(keys, pa.string()))
@@ -150,11 +194,17 @@ def assemble_observations(obs: pa.Table, trajectory_of_tracklet: dict[str, str],
             if (r_video, r_frame) != (video, frame) or accepted is not False or tracklet is not None:
                 raise ValueError(f"detection {det!r} cannot be recovered at {video}/{frame}")
     rec_traj = pc.take(pa.array([key[2] for key, _ in items], pa.string()), ridx)
-    rec_bridge = pc.take(pa.array([bridge_of_recovered[key] for key, _ in items], pa.string()), ridx)
+    rec_bridge_ids = [bridge_of_recovered[key] for key, _ in items]
+    rec_bridge = pc.take(pa.array(rec_bridge_ids, pa.string()), ridx)
+    info = [bridge_info[b] if bridge_info is not None else (None, None) for b in rec_bridge_ids]
+    rec_gap = pc.take(pa.array([i[0] for i in info], pa.int64()), ridx)
+    rec_conf = pc.take(pa.array([i[1] for i in info], pa.string()), ridx)
 
-    out = (obs.append_column(ADDED_FIELDS[0], pc.coalesce(traj, rec_traj))
-           .append_column(ADDED_FIELDS[1], pc.if_else(is_rec, 'recovered', 'observed'))
-           .append_column(ADDED_FIELDS[2], rec_bridge))
+    out = obs
+    added = (pc.coalesce(traj, rec_traj), pc.if_else(is_rec, 'recovered', 'observed'), rec_bridge,
+             rec_gap, rec_conf)
+    for field, column in zip(ADDED_FIELDS, added):
+        out = out.append_column(field, column)
     out = out.cast(target)
     if synthetic is None or synthetic.num_rows == 0:
         return out
