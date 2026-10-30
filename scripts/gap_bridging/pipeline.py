@@ -6,7 +6,8 @@ End-to-end gap bridging of body-first tracklets (WP-D).
 ``run`` reads a published observation table, links tracklets across
 ``1..max_gap`` missing frames (per video), chains the links into
 trajectories, fills every bridged frame with a recovered rejected detection
-or an interpolated pose, checks the global invariants and writes
+or an interpolated pose (recovered and interpolated rows carry the bridge's
+``gap_frames`` and ``fill_confidence``), checks the global invariants and writes
 ``observations.parquet``, ``trajectories.parquet``, ``links.parquet`` and the
 ``GAP_BRIDGING_COMPLETE.json`` marker. The input is never modified.
 
@@ -247,8 +248,11 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
     Returns
     -------
     dict
-        Content of ``GAP_BRIDGING_COMPLETE.json``: ``config``, ``input``,
-        ``counts``, ``versions`` and ``outputs`` (sha256 and rows per file).
+        Content of ``GAP_BRIDGING_COMPLETE.json``: ``config``, ``gate``
+        (``gate_model`` and the active ``max_assignment_cost``,
+        ``unmatched_cost`` and ``minimum_cost_margin`` on that model's cost
+        scale), ``input``, ``counts``, ``versions`` and ``outputs`` (sha256
+        and rows per file).
 
     Raises
     ------
@@ -296,8 +300,9 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
 
     fps = cfg.fps if 'time_s' in obs.schema.names else None
     pairs = [(b, geometry.synthetic_rows(b, obs.schema, fps=fps)) for b in bridges]
-    synthetic = tables.synthetic_table(pairs, obs.schema, recovered)
-    observations = tables.assemble_observations(obs, trajectory_of, recovered, bridge_of, synthetic)
+    synthetic = tables.synthetic_table(pairs, obs.schema, recovered, cfg)
+    observations = tables.assemble_observations(obs, trajectory_of, recovered, bridge_of, synthetic,
+                                                tables.bridge_info_table(bridges, cfg))
     trajectory_table = tables.trajectory_table(observations, trajectories)
     check_invariants(tracklet_ids, trajectories, len(links), obs.num_rows, observations,
                      trajectory_table)
@@ -319,7 +324,8 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
               'tracklets': len(tracklet_ids)}
     if per_file is not None:
         source['files'] = per_file
-    summary = {'config': cfg.to_dict(), 'input': source, 'counts': counts,
+    gate = {'gate_model': cfg.gate_model, **cfg.cost_thresholds()}
+    summary = {'config': cfg.to_dict(), 'gate': gate, 'input': source, 'counts': counts,
                'versions': package_versions()}
     marker = tables.write_outputs(out_dir, observations, trajectory_table, links_table, summary,
                                   force)

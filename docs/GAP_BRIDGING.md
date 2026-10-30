@@ -17,14 +17,15 @@ i+2 or later. As a result, tracklet lengths in the published dataframe vary
 widely (demo clip: 1,181 tracklets, median length 3 frames).
 
 `scripts/bridge_gaps.py` links pairs of tracklets separated by 1 to `max_gap`
-missing frames (default 5). It fills each missing frame with either a real
+missing frames (default 5; the horizon sweep below recommends 15). It fills each missing frame with either a real
 detection the tracker had rejected (**recovered**) or a synthesized pose
 (**interpolated**). It writes new tables and an audit row for every candidate
 link. The input table is never modified, and its rows are carried into the
 output value- and type-identical (pyarrow `Table.equals`).
 
 Implementation: `scripts/gap_bridging/` (`geometry.py`, `candidates.py`,
-`chains.py`, `recover.py`, `tables.py`, `pipeline.py`).
+`chains.py`, `recover.py`, `tables.py`, `pipeline.py`; the evaluation tools
+`fit.py`, `holdout.py` and `figures.py`).
 Parameters: `configs/tracking/gap_bridging_v001.yaml`.
 Tests: `tests/test_gap_bridging_*.py`.
 
@@ -33,6 +34,13 @@ Tests: `tests/test_gap_bridging_*.py`.
 Notation: tracklet A ends at frame e and tracklet B starts at frame s, in the
 same video. `dt = s - e`, and the number of missing frames is `gap = dt - 1`.
 Units are native-image pixels, px/frame and integer frames.
+
+Steps 2 to 5 below describe the v001 **linear** gate model
+(`gate_model: linear`). The default is now the **sqrt** gate model, which
+replaces the gates, the cost and the thresholds of steps 2 to 5 and keeps the
+assignment, margin veto and chain-aware runner-up unchanged; see
+[Gate model v002](#gate-model-v002). Step 7 gained tangent damping for gaps
+longer than `prediction_horizon_frames`; see [Damped fill](#damped-fill).
 
 1. **Endpoints.** The method reads only accepted rows that carry a
    `tracklet_id`. For each tracklet it computes the following at the START and at
@@ -110,7 +118,9 @@ Units are native-image pixels, px/frame and integer frames.
 
    This is the cubic Hermite curve, which reproduces constant-velocity motion
    exactly. If either endpoint has an unknown velocity, both tangents are set to
-   the chord velocity, which makes the fill linear.
+   the chord velocity, which makes the fill linear. For `dt` above
+   `prediction_horizon_frames` the tangents are damped towards the chord
+   ([Damped fill](#damped-fill)).
 8. **Recovery.** At each bridged frame, the method takes the closest rejected row
    to `p(f)` that is within 8 px and meets these conditions:
    - `accepted_for_tracking == False`.
@@ -135,7 +145,12 @@ Units are native-image pixels, px/frame and integer frames.
 ## Parameters
 
 From `configs/tracking/gap_bridging_v001.yaml`. With no `--config`, the built-in
-defaults are used; they are identical to this file.
+defaults are used; they are identical to this file. The rows below are the v001
+parameters; the gate-model parameters are listed under
+[Gate model v002](#gate-model-v002). Under the default sqrt model the
+px-scale thresholds `max_assignment_cost`, `unmatched_cost` and
+`minimum_cost_margin` (and so `--margin`) are not used; their `*_sqrt`
+counterparts are.
 
 | Parameter | Default | Meaning |
 |---|---:|---|
@@ -153,6 +168,7 @@ defaults are used; they are identical to this file.
 | `recovery_radius_px` | 8.0 | Radius for adopting a rejected detection (CLI `--recovery-radius`) |
 | `recoverable_reasons` | 5 reasons (see method, step 8) | Rejection reasons eligible for recovery |
 | `fps` | 30000/1001 | Sets `time_s = frame / fps` on interpolated rows when the input has `time_s` |
+| `fill_confidence_gaps` | [5, 15] | `fill_confidence` of a bridge: `high` for gap ≤ 5, `medium` for gap ≤ 15, else `low` |
 
 ## Outputs
 
@@ -161,13 +177,15 @@ These files are written to `--out`. Each parquet is first written to
 outputs are refused unless `--force` is given.
 
 **`observations.parquet`**. All input rows in their original order, with the
-original columns unchanged, followed by three new columns:
+original columns unchanged, followed by five new columns:
 
 | Column | Type | Content |
 |---|---|---|
 | `trajectory_id` | string | Trajectory of the row. Null for rejected rows that were not recovered. |
 | `source` | string | `observed`, `recovered` or `interpolated` |
 | `bridge_id` | string | `<trajectory_id>/bNNN` for recovered and interpolated rows, otherwise null |
+| `gap_frames` | int64 | Number of missing frames of the row's bridge (recovered frames included), on recovered and interpolated rows; null on observed and unassigned rows |
+| `fill_confidence` | string | `high` / `medium` / `low` from `gap_frames` and `fill_confidence_gaps`, on recovered and interpolated rows; otherwise null |
 
 Interpolated rows come after the input rows, sorted by (video_id, frame,
 trajectory_id). Every column of an interpolated row is null except the
@@ -188,7 +206,7 @@ following:
 
 All scores are null on interpolated rows, and `tracklet_id` is null. A recovered
 row keeps all of its original values, including `accepted_for_tracking = False`
-and its `rejection_reason`. Only the three new columns mark it as adopted.
+and its `rejection_reason`. Only the five new columns mark it as adopted.
 
 **`trajectories.parquet`**. One row per trajectory, with these columns:
 `trajectory_id`, `video_id`, `start_frame`, `end_frame`, `n_observed`,
@@ -206,6 +224,9 @@ sum it directly; there is no need to parse `reason`.
 
 **`GAP_BRIDGING_COMPLETE.json`** contains:
 - `config`: the full parameter set.
+- `gate`: `gate_model` and the thresholds in force on that model's cost scale
+  (`max_assignment_cost`, `unmatched_cost`, `minimum_cost_margin`; the
+  `*_sqrt` values under sqrt).
 - `input`: `path`, `sha256`, `rows` and `tracklets`. For a directory input it
   also lists the `files` with their hashes, and `sha256` is the hash of the
   sorted listing `"<relpath>\t<sha256>\n"`.
@@ -289,8 +310,12 @@ time requests above are estimates and have not been measured.
 
 ## Demo results
 
-These numbers come from the default config (`gap_bridging_v001.yaml`) applied to
-`demo/crab_cam2_2_middle_300/observations.parquet`: 36,573 rows, 300 frames,
+These numbers come from the v001 config (`gap_bridging_v001.yaml` with
+`gate_model: linear`, i.e. the v001 default before the sqrt gate model) applied to
+`demo/crab_cam2_2_middle_300/observations.parquet`; the linear model reproduces
+them exactly. The current default (sqrt, `max_gap` 5) is the first row of the
+[sweep table](#horizon-sweep-results).
+Input: 36,573 rows, 300 frames,
 `Crab_Cam_2_2` frames 14250–14549. Input sha256
 `739c2daf087bd1967d53dcfd8d41653166d7d30b9cc713d5ba5203a41432e1ef`. The run took
 1.5 s, and a forced rerun gave byte-identical parquet files.
@@ -313,6 +338,7 @@ These numbers come from the default config (`gap_bridging_v001.yaml`) applied to
 | Bridged frames | 1,338 |
 | Recovered detections (all `low_body_score`; 45 of the 54 rejected rows are recoverable, the other 9 are `missing_position` with no body position) | 15 |
 | Interpolated rows | 1,323 |
+| `gap_frames` / `fill_confidence` on bridged rows | 1–5 (median 3) / all `high` (1,338 rows) |
 | Output rows (36,573 + 1,323) | 37,896 |
 | Rejected rows left unassigned | 39 |
 
@@ -338,3 +364,289 @@ The median length rises from 3 to 13 frames. The number of 1-frame units drops
 from 398 to 113, and the fraction of frames in units of 30 frames or more rises
 from 0.871 to 0.938. These are continuity statistics only; they do not measure
 identity accuracy.
+
+## Gate model v002
+
+**Why.** Crabs on the demo clip are nearly stationary across detection losses:
+the median per-frame shell step is 0.11 px, the 30-frame net displacement has a
+median of 1.4 px and a 99th percentile of 20 px. The v001 displacement gate
+grows linearly, `12 · dt` px, so at a 30-frame gap it admits any start within
+372 px: far more than any crab moves and enough to reach many neighbours. The
+particle-tracking literature closes gaps with a maximum frame gap, a search
+radius that grows sub-linearly with the gap and a gap-length cost penalty:
+u-track (Jaqaman et al. 2008, *Nature Methods* 5, 695,
+<https://pmc.ncbi.nlm.nih.gov/articles/PMC2747604/>, and the u-track
+documentation: the Brownian search radius grows as `sqrt(dt)`, with a
+gap-closing penalty), TrackMate's LAP trackers
+(<https://imagej.net/plugins/trackmate/trackers/lap-trackers>: gap-closing
+max distance and max frame gap), LapTrack (Fukai & Kawaguchi 2023,
+*Bioinformatics* 39, btac799,
+<https://academic.oup.com/bioinformatics/article/39/1/btac799/6887138>) and
+trackpy's `memory` (a particle may vanish for up to `memory` frames and is
+re-linked within `search_range`). Field observations of fiddler crabs
+(Brodie et al., <https://par.nsf.gov/servlets/purl/10454816>) put burrow
+retreats at a median of 2.7 min, so losses longer than 1 to 2 s (30 to 60
+frames) are a different regime that interpolation should not reach into.
+
+**Radius.** With `dt = s − e` (frames between the linked END and START):
+
+```text
+r(dt) = max(radius_min_px, radius_safety · (radius_r0_px + radius_k_px · sqrt(dt)))
+R     = r(dt) + max(|v_a|, |v_b|) · min(dt, h)          h = prediction_horizon_frames
+```
+
+`|v|` is an endpoint's clipped speed (0 when its velocity is unknown). The
+extension term lets a crab that is walking at either endpoint travel up to
+`h` frames' worth of its speed; beyond that, only the diffusive radius grows.
+With the defaults, `r = 6.59, 11.42, 18.65, 25.96, 36.42` px at
+`dt = 2, 6, 16, 31, 61` (gaps 1, 5, 15, 30, 60), versus `24 … 732` px for the
+linear gate.
+
+**Gates.** `dist = |p_b − p_a| <= R`, and `err <= prediction_error_ratio · R`
+(1.5), where `err` is the mean forward/backward prediction error with each
+velocity extrapolated over `min(dt, h)` frames, not the full `dt`.
+
+**Cost** (dimensionless, a fraction of the radius):
+
+```text
+c = [(1 − w) · dist + w · err] / R · (1 + gap_penalty)^(gap − 1) + w_s · min(|u_a − u_b|, cap) / cap
+```
+
+`w = motion_weight` (0.3), `w_s = shoulder_vector_weight` (0.15),
+`cap = shoulder_vector_cost_cap_px` (12), `gap = dt − 1`. A 1-frame gap has no
+penalty; with `gap_penalty = 0.06` a 30-frame gap costs 5.4 times as much at
+equal `dist / R`, which outweighs the larger radius (`r(31) / r(2) = 3.9`), so
+at equal pixel distance a short gap wins.
+
+**Thresholds** on this scale: `max_assignment_cost_sqrt = 1.0` (pairs above are
+`refused_gate` with reason `max_cost`), `unmatched_cost_sqrt = 0.6`,
+`minimum_cost_margin_sqrt = 0.25`. Assignment, margin veto, chain-aware
+runner-up and the audit labels are those of the method above.
+
+| Parameter | Default | Meaning |
+|---|---:|---|
+| `gate_model` | `sqrt` | `sqrt` (v002) or `linear` (v001, reproduces earlier results exactly) |
+| `radius_r0_px` | 0.00 | Fitted intercept `r0` (px) |
+| `radius_k_px` | 3.73 | Fitted `sqrt(dt)` coefficient `k` (px) |
+| `radius_safety` | 1.25 | Multiplies the fitted radius |
+| `radius_min_px` | 6.0 | Floor on `r(dt)` |
+| `prediction_error_ratio` | 1.5 | Prediction gate `err <= ratio · R` |
+| `prediction_horizon_frames` | 3 | Extrapolation cap `h`; also the fill damping horizon `H` |
+| `gap_penalty` | 0.06 | Cost factor `(1 + p)^(gap − 1)` |
+| `max_assignment_cost_sqrt` | 1.0 | Pairs above are not assignable |
+| `unmatched_cost_sqrt` | 0.6 | Cost of leaving an end or start unmatched |
+| `minimum_cost_margin_sqrt` | 0.25 | Veto when the runner-up is within this |
+| `fill_confidence_gaps` | [5, 15] | `high` ≤ 5 < `medium` ≤ 15 < `low` |
+
+**Fit.** `bridge_gaps.py fit` (`scripts/gap_bridging/fit.py`) takes every
+unbroken accepted tracklet (consecutive, unique frames), pools the net shell
+displacements `|p(f + dt) − p(f)|` over all frame pairs inside a tracklet, and
+takes their 99th percentile `D(dt)` for `dt = 1 … 60` (a `dt` with fewer than
+200 samples is dropped). It then fits `D(dt) = r0 + k · sqrt(dt)` by
+non-negative least squares (`scipy.optimize.nnls`). On the demo clip:
+`r0 = 0.00 px`, `k = 3.73 px`, RMSE 1.36 px over 60 values of `dt`
+(`D(1) = 2.5`, `D(5) = 6.1`, `D(30) = 19.8`, `D(60) = 30.7` px; 35,338 samples
+at `dt = 1`, 21,901 at `dt = 60`). These are the committed defaults. The fit
+under-shoots the measured quantile slightly for `dt > 45`, where the samples
+come from a few dozen long tracklets; `radius_safety` covers it
+([radius figure](#horizon-sweep-results)). Rerun the fit per dataset:
+
+```bash
+.venv/bin/python scripts/bridge_gaps.py fit \
+    --observations demo/crab_cam2_2_middle_300/observations.parquet \
+    [--max-dt 60] [--quantile 0.99] [--min-samples 200] [--write-yaml radius.yaml]
+```
+
+`--write-yaml` writes `radius_r0_px` and `radius_k_px` (2 decimals) as a
+config overlay that `--config` accepts.
+
+## Damped fill
+
+For a bridge with `dt > H` (`H = prediction_horizon_frames`), the Hermite
+tangents (method, step 7) are pulled towards the chord velocity
+`c = (p_b − p_a) / dt`:
+
+```text
+λ = min(1, H / dt)
+v_a' = c + λ · (v_a − c)        v_b' = c + λ · (v_b − c)
+```
+
+For `dt <= H` the tangents are unchanged (the v001 fill, bit for bit); as
+`dt → ∞` the fill tends to the uniform-time chord; a constant-velocity crab
+(`v_a = v_b = c`) is reproduced exactly at every `dt`. The deviation from the
+uniform-time chord is bounded by
+
+```text
+|p(t) − (p_a + t (p_b − p_a))| <= (4/27) · min(dt, H) · (|v_a − c| + |v_b − c|)
+```
+
+independent of the gap length (for `H = 3`, `(4/9) · (|v_a − c| + |v_b − c|)`
+px, e.g. 5.3 px when both tangents deviate from the chord by 6 px/frame), so a
+long fill never overshoots by the endpoint speed times the gap length. The linear fallback (unknown velocity) is unchanged.
+
+## Gap length and fill confidence columns
+
+Recovered and interpolated rows carry `gap_frames` (the bridge's
+missing-frame count, recovered frames included, so all rows of one bridge have
+the same value) and `fill_confidence` (`high` for gap ≤ 5, `medium` for
+≤ 15, `low` above; `fill_confidence_gaps`). Observed rows and unassigned
+rejected rows have nulls. Filter on these columns to keep only short fills,
+e.g. `fill_confidence == 'high'` keeps only fills of at most 5 frames.
+
+## Hold-out evaluation
+
+`scripts/gap_bridging/holdout.py` deletes runs of `g` consecutive frames from
+the interior of real tracklets and splits each tracklet in two, exactly as the
+adjacent-frame tracker would have done had the detections been missed:
+
+- Eligible tracklets have consecutive, unique accepted frames (no real gap
+  inside) and at least `max(40, g + 6)` frames; at least 3 frames are kept on
+  each side of the deleted run. A tracklet is planted at most once.
+- The draw is deterministic in `--seed`. For the gap lengths of one call the
+  plants of the shorter lengths do not depend on the longer ones, so the
+  sweep's horizons share their short-gap plants.
+- The planted table is bridged with `pipeline.run` and scored from
+  `links.parquet`: a plant is `recovered` when its left half is linked to its
+  right half, `false_link` when either half is linked to anything else, else
+  `missed`. `recall = recovered / planted`,
+  `precision = recovered / (recovered + false_link)` (NaN for 0/0).
+
+Caveats:
+
+- Plants come from long, unbroken tracklets, i.e. crabs the detector tracks
+  well, and these are mostly stationary or slow. Recall and precision are
+  therefore optimistic for walking crabs and for crabs in crowded spots.
+- A false link of an unplanted tracklet is not seen; precision covers only the
+  planted halves. `holdout_unplanted_links` counts the links among the rest.
+- 8 plants per gap length is thin: a per-gap precision of 1.0 from 8 plants
+  has a one-sided 95% lower bound of 0.69, and from 40 plants of 0.93.
+- The demo clip has 156 eligible tracklets, so several seeds reuse
+  tracklets; seeds are not independent samples.
+
+## Horizon sweep
+
+`bridge_gaps.py sweep` runs the pipeline at several horizons and, with
+`--holdout`, the hold-out at each (planted gap lengths capped at the
+horizon), then writes the tables and figures:
+
+```bash
+.venv/bin/python scripts/bridge_gaps.py sweep \
+    --observations demo/crab_cam2_2_middle_300/observations.parquet \
+    --out logs/gap_sweep --max-gaps 5,10,15,30,45,60 \
+    --holdout [--holdout-gaps 1,2,3,5,10,15,20,30,45,60] [--per-gap 8] [--seed 0] \
+    [--config YAML] [--video MP4] [--bridges-from N] [--no-figures] [--force]
+```
+
+Outputs under `--out`:
+
+- `max_gap_<N>/`: pipeline outputs per horizon; `holdout_<N>/`: hold-out
+  outputs (`planted_observations.parquet`, `holdout_truth.parquet`,
+  `bridged/`, `holdout_scores.csv`, `holdout_<N>.json`).
+- `sweep_summary.csv`: one row per horizon: `max_gap`, `links`,
+  `trajectories`, `mean_length`, `median_length`, `p90_length`, `units_len1`,
+  `frac_frames_in_units_ge_30`, `recovered`, `interpolated`,
+  `interpolated_{high,medium,low}`, `decision_<label>` for the four labels,
+  `holdout_planted`, `holdout_precision`, `holdout_recall`,
+  `holdout_unplanted_links`. Lengths are `end_frame − start_frame + 1` of the
+  trajectories (interpolated frames included).
+- `holdout_by_gap.csv`: long form `max_gap, gap, planted, recovered,
+  false_link, missed, recall, precision`.
+- `figures/`: `sweep.pdf` (links and trajectory length vs horizon),
+  `holdout.pdf` (precision and recall vs planted gap, one line per horizon),
+  `radius_fit.pdf` (measured 99th percentile, fit, configured `r(dt)`, legacy
+  `12 dt`), each with a PNG preview, and `bridges_max_gap_<N>_p<k>.png`
+  (20 rendered bridges with gap ≥ 10, five per page, cyan observed, yellow
+  recovered, magenta interpolated). The video defaults to the single `*.mp4`
+  next to a file input; `--bridges-from` picks the horizon (default the
+  largest).
+
+The full sweep with hold-out on the demo takes 45 s on a login node.
+
+### Horizon sweep results
+
+Demo clip, default config (sqrt gate, demo fit), `--per-gap 8 --seed 0`
+(`logs/gap_sweep/`, not committed):
+
+| `max_gap` | links | trajectories | mean L | median L | p90 L | 1-frame units | frames in units ≥ 30 | recovered | interpolated (high / medium / low) | refused_margin | refused_assignment | hold-out planted | precision | recall |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|
+| 5 | 638 | 543 | 69.6 | 13 | 300 | 116 | 0.933 | 19 | 1,273 (1,273 / 0 / 0) | 1 | 118 | 32 | 1.000 | 1.000 |
+| 10 | 715 | 466 | 82.7 | 18 | 300 | 86 | 0.949 | 19 | 2,006 (1,229 / 777 / 0) | 23 | 424 | 40 | 1.000 | 1.000 |
+| **15** | **755** | **426** | **91.7** | **24.5** | **300** | **78** | **0.956** | **19** | **2,535 (1,217 / 1,318 / 0)** | **24** | **714** | **48** | **1.000** | **1.000** |
+| 30 | 776 | 405 | 98.7 | 28 | 300 | 77 | 0.965 | 19 | 3,439 (1,159 / 1,290 / 990) | 48 | 1,526 | 64 | 1.000 | 0.969 |
+| 45 | 796 | 385 | 105.4 | 32 | 300 | 73 | 0.969 | 21 | 4,042 (1,170 / 1,290 / 1,582) | 44 | 2,167 | 72 | 1.000 | 0.944 |
+| 60 | 803 | 378 | 108.2 | 35 | 300 | 69 | 0.970 | 21 | 4,349 (1,174 / 1,290 / 1,885) | 43 | 2,471 | 80 | 1.000 | 0.863 |
+
+For comparison, the v001 linear gate at `max_gap` 5 gives 654 links and 527
+trajectories ([Demo results](#demo-results)). Links by gap at `max_gap` 60:
+593 at gaps 1–5, 101 at 6–10, 41 at 11–15, 46 at 16–30, 22 at 31–60. Links
+that ignored at least one chain-reachable competitor: 198 at `max_gap` 5, 568
+at 15, 687 at 30, 763 at 60.
+
+Hold-out per planted gap (seed 0, 8 plants each). Precision is 1.000 for every
+gap at every horizon (no false link); recall:
+
+| planted gap | 1 | 2 | 3 | 5 | 10 | 15 | 20 | 30 | 45 | 60 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| recall (every horizon ≥ gap) | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.875 | 0.875 | 0.750 | 0.125 |
+
+Because seed 0 alone shows no false link anywhere, it cannot separate the
+horizons. Four more seeds (1–4, same settings, `logs/gap_sweep_seeds/`) were
+pooled with seed 0, 40 plants per gap and horizon:
+
+| planted gap | 1–10 | 15 | 20 | 30 | 45 | 60 |
+|---|---:|---:|---:|---:|---:|---:|
+| recall | 1.000 | 0.975 | 0.850 | 0.750 | 0.675 | 0.375 |
+| precision | 1.000 | 1.000 | 1.000 | 0.968 (1 false link) | 1.000 | 1.000 |
+
+Pooled overall per horizon (precision / recall): 5: 1.000 / 1.000 (160
+plants); 10: 1.000 / 1.000 (200); 15: 1.000 / 0.996 (240); 30: 0.997 / 0.947
+(320); 45: 0.997 / 0.917 (360); 60: 0.997 / 0.863 (400). The one false link
+(seed 1, gap 30) is another tracklet that ended 21 frames before the planted
+right half and was linked to it at cost 0.93, while the true pair cost 1.22
+and failed `max_cost` (not inspected in the video: a neighbour or a duplicate
+detection of the same crab).
+
+Figures: `logs/gap_sweep/figures/sweep.pdf`, `holdout.pdf`,
+`radius_fit.pdf` and `bridges_max_gap_60_p1.png` … `_p4.png`. In the 20
+rendered bridges (gaps 10–40, inspected by eye at crop scale), the crab is
+visible and stationary throughout the gap in every row, often at a burrow mouth or half inside it, and the
+interpolated shell stays on it: the long losses on the demo are detector misses
+on still crabs, not crabs walking away.
+
+### Recommended default
+
+**`max_gap = 15`** (0.5 s). The rule was: the highest horizon whose overall
+hold-out precision is at least 0.95 and whose precision does not decline at the
+longest planted gaps. On seed 0 alone every horizon passes (precision 1.000
+throughout), which only shows that 8 plants per gap cannot resolve the
+question. With the five seeds pooled, precision first drops below 1 at a
+planted gap of 30 (0.968), so every horizon ≥ 30 shows a decline at its
+longest gaps; 15 is the highest horizon with precision 1.000 at every planted
+gap (240 plants, recall 0.996). It is also the knee of the sweep: going from 5
+to 15 adds 117 links (+18%) and raises the median trajectory length from 13 to
+24.5 frames, while going from 15 to 60 adds only 48 links but 1,885
+low-confidence interpolated rows, and hold-out recall at gap 60 is 0.375. It
+keeps fills inside the `high`/`medium` classes and well below the 1–2 s at
+which burrow retreats begin. The YAML default stays at 5 until this is
+confirmed on the full dataset (rerun `fit`, then the sweep with `--holdout`).
+
+### Residual risks
+
+- **Burrow clusters.** Neighbouring crabs at adjacent burrows sit within a few
+  radii of each other. The only hold-out false link was of this kind. The
+  chain-aware runner-up rule ignores more competitors as the horizon grows (198
+  links at 5, 568 at 15, 763 at 60), so a real ambiguity can go unvetoed more
+  often at long horizons.
+- **Crabs that keep walking beyond the horizon.** The sqrt radius admits at
+  most `h = 3` frames of directed motion; a crab that walks steadily through a
+  long loss is refused (missed, not mislinked). Hold-out plants are mostly
+  still crabs, so recall for walking crabs is not measured.
+- **Thin statistics beyond `dt` 30 on the demo.** The fit and the hold-out
+  rest on one 300-frame clip; above `dt` 30 the displacement samples come from
+  few long tracklets and the measured quantile exceeds the fit for
+  `dt > 45`. Refit and resweep on the full dataset before adopting a horizon
+  above 15.
+- **Interpolation inside burrow retreats.** A crab that retreats into its
+  burrow and re-emerges at the same spot within the horizon is bridged; the
+  interpolated pose is then a placeholder for an invisible crab. Filter on
+  `fill_confidence` or `gap_frames` when that matters.

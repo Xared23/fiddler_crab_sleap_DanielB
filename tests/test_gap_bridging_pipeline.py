@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 sys.path.insert(0, str(ROOT / 'tests'))
 
-from gap_bridging import pipeline, tables  # noqa: E402
+from gap_bridging import geometry, pipeline, tables  # noqa: E402
 from gap_bridging.config import BridgeConfig  # noqa: E402
 from gap_bridging.types import DECISIONS, NODES  # noqa: E402
 from gap_bridging_fixtures import (Crab, make_observations, node_positions,  # noqa: E402
@@ -31,6 +31,7 @@ DEMO = ROOT / 'demo/crab_cam2_2_middle_300/observations.parquet'
 PYTHON = ROOT / '.venv/bin/python'
 CLI = ROOT / 'scripts/bridge_gaps.py'
 CFG = BridgeConfig()
+LINEAR = BridgeConfig(gate_model='linear')
 OUTPUTS = tables.OUTPUT_NAMES
 
 
@@ -50,7 +51,10 @@ def write_parquet(table: pa.Table, directory: Path, name: str = 'observations.pa
     return path
 
 
-# Synthetic scene: three straight crabs far apart; gaps of 1..5 frames.
+# Synthetic scene: three straight crabs far apart; gaps of 1..5 frames. The default
+# scene walks at realistic speeds (<= 1 px/frame per component); the fast variant
+# (2 to 4 px/frame, faster than the demo crabs sustain) is run under the legacy
+# linear gate model only.
 #   crab 1: gap 1 at frame 8, gap 2 at frames 18-19
 #   crab 2: gap 4 at frames 10-13, gap 3 at frames 24-26 with frame 25 a planted
 #           low_body_score detection (rejected, on the true path)
@@ -60,14 +64,43 @@ SCENE_REJECT = {2: {25: 'low_body_score'}}
 SCENE_GAPS = {1: [[8], [18, 19]], 2: [[10, 11, 12, 13], [24, 25, 26]], 3: [[15, 16, 17, 18, 19]]}
 
 
-def scene_crabs() -> list[Crab]:
-    return [straight_crab(1, 0, 40, (100.0, 100.0), (2.0, 1.0)),
-            straight_crab(2, 0, 40, (900.0, 200.0), (-1.5, 2.0)),
-            straight_crab(3, 0, 40, (500.0, 1200.0), (0.5, -3.0))]
+def scene_crabs(fast: bool = False) -> list[Crab]:
+    if fast:
+        return [straight_crab(1, 0, 40, (100.0, 100.0), (2.0, 1.0)),
+                straight_crab(2, 0, 40, (900.0, 200.0), (-1.5, 2.0)),
+                straight_crab(3, 0, 40, (500.0, 1200.0), (0.5, -3.0))]
+    return [straight_crab(1, 0, 40, (100.0, 100.0), (1.0, 0.5)),
+            straight_crab(2, 0, 40, (900.0, 200.0), (-0.75, 1.0)),
+            straight_crab(3, 0, 40, (500.0, 1200.0), (0.25, -1.0))]
 
 
-def scene_table() -> pa.Table:
-    return make_observations(scene_crabs(), drop_frames=SCENE_DROPS, reject_frames=SCENE_REJECT)
+def scene_table(fast: bool = False) -> pa.Table:
+    return make_observations(scene_crabs(fast), drop_frames=SCENE_DROPS, reject_frames=SCENE_REJECT)
+
+
+def assert_gap_columns(case: unittest.TestCase, obs: pa.Table, cfg: BridgeConfig) -> int:
+    """Bridged rows carry their bridge's length and class; observed rows carry nulls.
+
+    Returns the number of bridged (recovered + interpolated) rows checked.
+    """
+    observed = obs.filter(pc.equal(obs['source'], 'observed'))
+    case.assertEqual(observed['gap_frames'].null_count, observed.num_rows)
+    case.assertEqual(observed['fill_confidence'].null_count, observed.num_rows)
+    bridged = obs.filter(pc.not_equal(obs['source'], 'observed'))
+    case.assertEqual(bridged['gap_frames'].null_count, 0)
+    case.assertEqual(bridged['fill_confidence'].null_count, 0)
+    rows: dict[str, list] = {}
+    for row in bridged.select(['bridge_id', 'frame', 'gap_frames', 'fill_confidence']).to_pylist():
+        rows.setdefault(row['bridge_id'], []).append(row)
+    for bridge_id, members in rows.items():
+        frames = sorted(r['frame'] for r in members)
+        # Every frame of a bridge is filled (recovered or interpolated), contiguously.
+        case.assertEqual(frames, list(range(frames[0], frames[-1] + 1)), bridge_id)
+        gap = len(frames)
+        case.assertEqual({r['gap_frames'] for r in members}, {gap}, bridge_id)
+        case.assertEqual({r['fill_confidence'] for r in members},
+                         {geometry.fill_confidence(gap, cfg)}, bridge_id)
+    return bridged.num_rows
 
 
 # --------------------------------------------------------------------------- #
@@ -107,8 +140,19 @@ class DemoRunTests(unittest.TestCase):
     def test_original_rows_unchanged(self):
         original = self.obs.slice(0, self.input.num_rows).select(self.input.schema.names)
         self.assertTrue(original.equals(self.input))
-        added = ['trajectory_id', 'source', 'bridge_id']
+        added = ['trajectory_id', 'source', 'bridge_id', 'gap_frames', 'fill_confidence']
         self.assertEqual(self.obs.schema.names, self.input.schema.names + added)
+
+    def test_gap_columns(self):
+        n = assert_gap_columns(self, self.obs, CFG)
+        counts = self.marker['counts']
+        self.assertEqual(n, counts['n_recovered'] + counts['n_interpolated'])
+        self.assertGreater(counts['n_recovered'], 0)
+        self.assertEqual(self.obs.schema.field('gap_frames').type, pa.int64())
+        self.assertEqual(self.obs.schema.field('fill_confidence').type, pa.string())
+
+    def test_marker_records_gate_model(self):
+        self.assertEqual(self.marker['gate'], {'gate_model': CFG.gate_model, **CFG.cost_thresholds()})
 
     def test_counts_consistent(self):
         counts = self.marker['counts']
@@ -154,17 +198,21 @@ class DemoRunTests(unittest.TestCase):
 # Synthetic end-to-end
 # --------------------------------------------------------------------------- #
 class SyntheticSceneTests(unittest.TestCase):
-    """Three straight crabs with gaps 1..5 and one planted rejected detection."""
+    """Three realistic-speed straight crabs, gaps 1..5, one planted rejected detection
+    (default sqrt gate model)."""
+
+    FAST = False
+    CONFIG = CFG
 
     @classmethod
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory()
         tmp = Path(cls._tmp.name)
-        cls.input = scene_table()
+        cls.input = scene_table(cls.FAST)
         cls.path = write_parquet(cls.input, tmp)
-        cls.marker = pipeline.run(cls.path, tmp / 'out', CFG)
+        cls.marker = pipeline.run(cls.path, tmp / 'out', cls.CONFIG)
         cls.obs, cls.traj, cls.links, _ = read_outputs(tmp / 'out')
-        cls.crabs = {c.crab_id: c for c in scene_crabs()}
+        cls.crabs = {c.crab_id: c for c in scene_crabs(cls.FAST)}
 
     @classmethod
     def tearDownClass(cls):
@@ -235,7 +283,7 @@ class SyntheticSceneTests(unittest.TestCase):
             self.assertEqual((row['instance_index'], row['raw_instance_id']), (-1, -1))
             self.assertEqual(row['detection_id'],
                              f"synthetic/f{row['frame']:06d}/{row['bridge_id']}")
-            self.assertAlmostEqual(row['time_s'], row['frame'] / CFG.fps, delta=1e-12)
+            self.assertAlmostEqual(row['time_s'], row['frame'] / self.CONFIG.fps, delta=1e-12)
             seen.add((by_traj[row['trajectory_id']], row['frame']))
         gap_frames = {(c, f) for c, gaps in SCENE_GAPS.items() for g in gaps for f in g}
         self.assertEqual(seen, gap_frames - {(2, 25)})
@@ -248,6 +296,22 @@ class SyntheticSceneTests(unittest.TestCase):
                         tail['trajectory_id'].to_pylist()))
         self.assertEqual(keys, sorted(keys))
         self.assertTrue(self.obs.slice(0, n).select(self.input.schema.names).equals(self.input))
+
+    def test_gap_columns(self):
+        n = assert_gap_columns(self, self.obs, self.CONFIG)
+        self.assertEqual(n, sum(len(f) for gaps in SCENE_GAPS.values() for f in gaps))
+        gaps = dict(zip(self.obs['bridge_id'].to_pylist(), self.obs['gap_frames'].to_pylist()))
+        gaps.pop(None, None)
+        self.assertEqual(sorted(gaps.values()), [1, 2, 3, 4, 5])
+        self.assertEqual(self.marker['gate']['gate_model'], self.CONFIG.gate_model)
+
+
+class LinearFastSceneTests(SyntheticSceneTests):
+    """The same scene with crabs walking 2 to 4 px/frame under the legacy linear gate:
+    the v001 path still re-links all five gaps."""
+
+    FAST = True
+    CONFIG = LINEAR
 
 
 class MaxGapZeroTests(unittest.TestCase):
@@ -362,16 +426,18 @@ def crab_scenes(draw):
 
     Observed runs between drops may be as short as 1 frame (flicker
     tracklets and skip pairs, where an end also reaches the tracklet after
-    next); the first and last frames are never dropped. Speeds <= 4 px/frame
-    keep every crab within 240 px of its start, i.e. > 100 px from every
-    other crab.
+    next); the first and last frames are never dropped. Velocity components
+    lie in [-1, 1] px/frame (realistic crab speeds; the sqrt gate is meant
+    to refuse sustained faster walking), with up to two turns at random
+    knots; every crab stays within 85 px of its start, i.e. > 500 px from
+    every other crab.
     """
     n_crabs = draw(st.integers(1, 4))
     crabs, drops = [], {}
     for c in range(1, n_crabs + 1):
         knots = sorted(draw(st.sets(st.integers(5, N_FRAMES - 6), max_size=2)))
         bounds = [0] + knots + [N_FRAMES - 1]
-        velocity = [draw(st.tuples(st.floats(-2.8, 2.8), st.floats(-2.8, 2.8)))
+        velocity = [draw(st.tuples(st.floats(-1.0, 1.0), st.floats(-1.0, 1.0)))
                     for _ in range(len(bounds) - 1)]
         positions = np.empty((N_FRAMES, 2))
         positions[0] = (300.0 + 700.0 * (c - 1), 300.0 + 350.0 * (c % 2))
