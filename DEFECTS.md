@@ -59,3 +59,23 @@
 - **Impact:** documentation only
 - **Regression test:** n/a (comment)
 - **Fix:** comment now says the cost divides by the extended radius R (fix wave, uncommitted)
+
+## D-007 — hold-out never plants a gap longer than the horizon, so the default rests on a blind spot
+- **Found:** 2026-10-31, final review of gap bridging v003 (C1, I3)
+- **Status:** fixed
+- **Where:** scripts/bridge_gaps.py `sweep` (`gaps = [g for g in holdout_gaps if 1 <= g <= horizon]`); pooling and rule only in an untracked /tmp script
+- **Symptom:** at horizon H no crab is absent longer than H, so a long absence linked to a neighbour within H is never scored; the shipped default 45 passed the rule although the sweep's only false link (seed 0, planted gap 60, linked at gap 38 in stage 4) is within reach of 45
+- **Repro:** `run_holdout` at max_gap 45, seed 0, gaps 1..60, `--per-gap 8 --decoys 4 --flicker 2` → plant t000042944 linked to t000043141 at gap 38, cost 0.86
+- **Impact:** default horizon chosen on unscored cases (45 instead of 30); the derivation was not reproducible from the repository
+- **Regression test:** tests/test_gap_bridging_holdout.py::RuleTests::test_false_link_at_38_under_45_fails_45_and_30_passes, ::RuleTests::test_capped_sweep_is_refused, ::RuleTests::test_false_link_from_a_plant_beyond_the_horizon, ::PoolTests; tests/test_gap_bridging_sweep.py::SweepTests::test_holdout_by_gap, ::SweepTests::test_pool_cli
+- **Fix:** the sweep plants every gap at every horizon (a plant beyond the horizon is a miss unless linked, and its links are false links); `holdout.pool_sweeps` / `holdout.apply_rule` and `bridge_gaps.py pool` pool seeds and apply the rule (refusing horizons scored on different gaps); default `max_gap` 45 → 30 in `BridgeConfig` and the YAML (fix wave, uncommitted)
+
+## D-008 — claw-side veto fires on Shoulder flips of one crab
+- **Found:** 2026-10-31, final review of gap bridging v003 (I1)
+- **Status:** fixed (guarded)
+- **Where:** scripts/gap_bridging/candidates.py `_cue_terms`
+- **Symptom:** the side sign `sign(u × w)` flips when the Shoulder keypoint jumps to the other end of the body axis; all 18 demo vetoes at max_gap 45 had antiparallel Shell→Shoulder and parallel Shell→Claw vectors, and one vetoed pair (41951→42378) is chained into one trajectory through a one-frame tracklet
+- **Repro:** demo, default config, max_gap 45 → 18 `refused_gate claw_side` rows before the fix
+- **Impact:** fragmentation (true links refused) wherever a fragment carries a flipped Shoulder; no link changed on the demo
+- **Regression test:** tests/test_gap_bridging_cues.py::AxisFlipTests (test_axis_reversed_claw_aligned_is_not_vetoed, test_genuine_opposite_claw_is_vetoed, test_true_turn_keeps_the_ordinary_rule, test_unknown_vectors_never_flip, test_suppression_iff_axis_reversed_and_claw_kept), ::DemoCueTests::test_cues_change_few_sqrt_decisions
+- **Fix:** `_axis_flip` (`u_a·u_b < 0` and `c_a·c_b > 0`) sets the side term to 0 and lifts the veto; such pairs that would have been vetoed get `; axis_flip` in their reason and are counted in marker `counts.claw_side_suppressed` (demo 45: 18 → 0 vetoes, 18 suppressed, link set unchanged). The rule also lifts the veto for different-handed crabs facing opposite ways (hold-out decoys), see docs/GAP_BRIDGING.md (fix wave, uncommitted)

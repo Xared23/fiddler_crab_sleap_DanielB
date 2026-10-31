@@ -159,10 +159,13 @@ class SweepTests(unittest.TestCase):
         self.assertEqual((int(short['trajectories']), int(full['trajectories'])), (7, 6))
         self.assertEqual(int(full['interpolated']), 4)
         self.assertEqual(int(full['interpolated_high']), 4)
-        self.assertEqual((int(short['holdout_planted']), int(full['holdout_planted'])), (2, 3))
+        # Every planted gap is scored at every horizon (C1): at horizon 2 the
+        # 3-frame plant is a miss, not left out.
+        self.assertEqual((int(short['holdout_planted']), int(full['holdout_planted'])), (3, 3))
+        self.assertAlmostEqual(float(short['holdout_recall']), 2.0 / 3.0)
+        self.assertEqual(float(full['holdout_recall']), 1.0)
         for row in rows:
             self.assertEqual(float(row['holdout_precision']), 1.0)
-            self.assertEqual(float(row['holdout_recall']), 1.0)
             self.assertEqual(int(row['decision_linked']), int(row['links']))
             # Six 60-frame crabs, all identities; nothing to recover at the ends.
             self.assertEqual((int(row['spurious']), int(row['n_recovered_tail']),
@@ -170,7 +173,7 @@ class SweepTests(unittest.TestCase):
             self.assertEqual(int(row['identity_starts']), int(row['identity_starts_filtered']))
             self.assertEqual(float(row['mean_length_filtered']), float(row['mean_length']))
             self.assertEqual(int(row['holdout_decoy_planted']), 0)
-        # Five 60-frame crabs are eligible: the plants take 2 (3), the flicker
+        # Five 60-frame crabs are eligible: the plants take 3, the flicker
         # singletons what is left, best effort; none ends spurious.
         self.assertEqual((int(short['holdout_flicker_planted']),
                           int(full['holdout_flicker_planted'])), (2, 2))
@@ -180,10 +183,12 @@ class SweepTests(unittest.TestCase):
     def test_holdout_by_gap(self):
         rows = read_csv(self.out / bridge_gaps.BY_GAP_NAME)
         self.assertEqual([(int(r['max_gap']), int(r['gap'])) for r in rows],
-                         [(2, 1), (2, 2), (5, 1), (5, 2), (5, 3)])
+                         [(2, 1), (2, 2), (2, 3), (5, 1), (5, 2), (5, 3)])
         self.assertEqual(list(rows[0]), list(bridge_gaps.BY_GAP_COLUMNS))
         for row in rows:
-            self.assertEqual((int(row['planted']), int(row['recovered'])), (1, 1))
+            beyond = int(row['gap']) > int(row['max_gap'])        # planted beyond the horizon
+            self.assertEqual((int(row['planted']), int(row['recovered']), int(row['missed']),
+                              int(row['false_link'])), (1, 0 if beyond else 1, int(beyond), 0))
             self.assertEqual(int(row['flicker_recovered']), int(row['flicker_planted']))
             self.assertEqual(int(row['flicker_spurious']), 0)
         self.assertEqual(sum(int(r['flicker_planted']) for r in rows), 4)
@@ -197,6 +202,27 @@ class SweepTests(unittest.TestCase):
 
     def test_refuses_overwrite(self):
         self.assertEqual(bridge_gaps.main(self.args), 1)
+
+    def test_pool_cli(self):
+        # Pooling one sweep twice doubles every count; precision stays 1.0 at every
+        # gap, so the rule picks the highest horizon.
+        out = self.out / 'pooled'
+        code = bridge_gaps.main(['pool', '--sweeps', str(self.out), str(self.out),
+                                 '--out', str(out)])
+        self.assertEqual(code, 0)
+        by_gap = read_csv(out / bridge_gaps.POOLED_GAP_NAME)
+        single = read_csv(self.out / bridge_gaps.BY_GAP_NAME)
+        self.assertEqual(list(by_gap[0]), list(bridge_gaps.POOLED_GAP_COLUMNS))
+        for pooled, row in zip(by_gap, single):
+            self.assertEqual(int(pooled['planted']), 2 * int(row['planted']))
+            self.assertEqual(int(pooled['recovered']), 2 * int(row['recovered']))
+        horizons = read_csv(out / bridge_gaps.POOLED_HORIZON_NAME)
+        self.assertEqual([(int(r['max_gap']), r['rule_pass']) for r in horizons],
+                         [(2, 'True'), (5, 'True')])
+        self.assertEqual(bridge_gaps.main(['pool', '--sweeps', str(self.out), '--out', str(out)]),
+                         1)                                  # refuses to overwrite
+        chosen, _ = bridge_gaps.pool([self.out], out, force=True)
+        self.assertEqual(chosen, 5)
 
 
 class CliCompatibilityTests(unittest.TestCase):

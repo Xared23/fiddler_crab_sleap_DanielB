@@ -15,7 +15,9 @@ truth: per gap length, how many planted pairs were re-linked (recovered), how
 many planted halves were linked to something else (false_link) and how many
 were left alone (missed), plus the decoy and flicker outcomes.
 ``run_holdout`` plants, runs :func:`gap_bridging.pipeline.run` and writes the
-scores.
+scores. ``pool_sweeps`` sums the per-gap counts of several sweeps (seeds) and
+``apply_rule`` picks the highest horizon whose pooled precision meets a floor
+at every planted gap (``bridge_gaps.py pool``).
 
 All table work is pyarrow; rows and columns not touched by planting are kept
 byte-identical.
@@ -29,10 +31,11 @@ Sam
 # ============================================================
 
 # ----- standard library -----
+import csv
 import json
 import math
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 # ----- numerics -----
 import numpy as np
@@ -40,6 +43,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.csv as pacsv
 import pyarrow.parquet as pq
+from scipy.stats import beta
 
 # ----- local modules -----
 from gap_bridging import geometry, pipeline
@@ -74,6 +78,10 @@ TRUTH_NAME = 'holdout_truth.parquet'
 SCORES_NAME = 'holdout_scores.csv'
 BRIDGED_DIR = 'bridged'
 NEW_INCOMING_REASON = 'no_candidate'
+POOL_COUNTS = ('planted', 'recovered', 'false_link', 'missed', 'decoy_planted',
+               'decoy_recovered', 'decoy_false_link', 'flicker_planted', 'flicker_recovered',
+               'flicker_spurious')
+POOL_LEVEL = 0.95             # one-sided confidence of the exact precision lower bound
 
 # ============================================================
 # PLANTING
@@ -684,3 +692,169 @@ def run_holdout(observations_path: Path, out_dir: Path, cfg: BridgeConfig,
         raise RuntimeError("scores table lacks the per-gap or overall rows")
     (out_dir / json_name).write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
     return summary
+
+
+# ============================================================
+# POOLING AND THE HORIZON RULE
+# ============================================================
+
+
+def precision_lower_bound(successes: int, trials: int, level: float = POOL_LEVEL) -> float:
+    """One-sided exact (Clopper-Pearson) lower bound of a binomial proportion.
+
+    ``successes`` of ``trials``; NaN when ``trials == 0``, 0 when
+    ``successes == 0``. With ``successes == trials == n`` it equals
+    ``(1 - level)^(1/n)``.
+    """
+    if not 0 <= successes <= trials or not 0.0 < level < 1.0:
+        raise ValueError(f"need 0 <= successes <= trials and 0 < level < 1, got "
+                         f"{successes}, {trials}, {level}")
+    if trials == 0:
+        return math.nan
+    if successes == 0:
+        return 0.0
+    return float(beta.ppf(1.0 - level, successes, trials - successes + 1))
+
+
+def read_by_gap(path: Path) -> List[dict]:
+    """Rows of a ``holdout_by_gap.csv`` (``bridge_gaps.py sweep``), counts as int."""
+    with open(path, newline='') as handle:
+        rows = list(csv.DictReader(handle))
+    for row in rows:
+        missing = [name for name in ('max_gap', 'gap') + POOL_COUNTS if name not in row]
+        if missing:
+            raise ValueError(f"{path}: columns {missing} missing")
+    return [{name: int(row[name]) for name in ('max_gap', 'gap') + POOL_COUNTS} for row in rows]
+
+
+def pool_sweeps(sweeps: Sequence[Sequence[dict]],
+                level: float = POOL_LEVEL) -> Tuple[List[dict], List[dict]]:
+    """
+    Pool the per-gap hold-out counts of several sweeps (one per seed).
+
+    Parameters
+    ----------
+    sweeps : sequence of sequence of dict
+        Per sweep, the rows of its ``holdout_by_gap.csv`` (:func:`read_by_gap`):
+        ``max_gap``, ``gap`` and the :data:`POOL_COUNTS`. Every sweep must hold
+        the same ``(max_gap, gap)`` keys, each once.
+    level : float
+        Confidence of ``precision_lower`` (:func:`precision_lower_bound`).
+
+    Returns
+    -------
+    by_gap : list of dict
+        One row per ``(max_gap, gap)``, ascending: the summed counts, ``links
+        = recovered + false_link``, ``recall = recovered / planted``,
+        ``precision = recovered / links`` (NaN on a zero denominator) and
+        ``precision_lower``. ``planted``, ``recovered`` and ``false_link``
+        cover plants and decoy targets, so a decoy target linked to its donor
+        (``decoy_false_link``) counts as a false link; a plant whose gap
+        exceeds the horizon can only be ``missed`` or ``false_link``.
+    by_horizon : list of dict
+        One row per ``max_gap``, ascending: the counts summed over gaps, the
+        same ratios and bound, and ``n_gaps``.
+
+    Raises
+    ------
+    ValueError
+        If no sweep is given, the sweeps hold different keys, a key repeats,
+        or the counts are inconsistent (``recovered + false_link + missed !=
+        planted`` or a decoy count exceeds its plant count).
+    """
+    if not sweeps:
+        raise ValueError("no sweeps to pool")
+    keys = None
+    pooled: Dict[Tuple[int, int], Dict[str, int]] = {}
+    for k, rows in enumerate(sweeps):
+        own = [(int(r['max_gap']), int(r['gap'])) for r in rows]
+        if len(set(own)) != len(own):
+            raise ValueError(f"sweep {k} repeats a (max_gap, gap) row")
+        if keys is None:
+            keys = set(own)
+        elif set(own) != keys:
+            raise ValueError(f"sweep {k} has (max_gap, gap) rows {sorted(set(own) ^ keys)} "
+                             "not shared by the first sweep")
+        for key, row in zip(own, rows):
+            acc = pooled.setdefault(key, dict.fromkeys(POOL_COUNTS, 0))
+            for name in POOL_COUNTS:
+                acc[name] += int(row[name])
+
+    def ratios(acc: Dict[str, int]) -> dict:
+        if acc['recovered'] + acc['false_link'] + acc['missed'] != acc['planted'] \
+                or acc['decoy_false_link'] > acc['false_link'] \
+                or acc['decoy_recovered'] > acc['recovered'] \
+                or acc['decoy_planted'] > acc['planted']:
+            raise ValueError(f"inconsistent hold-out counts {acc}")
+        links = acc['recovered'] + acc['false_link']
+        return {'links': links, 'recall': _ratio(acc['recovered'], acc['planted']),
+                'precision': _ratio(acc['recovered'], links),
+                'precision_lower': precision_lower_bound(acc['recovered'], links, level)}
+
+    by_gap = [{'max_gap': h, 'gap': g, **acc, **ratios(acc)}
+              for (h, g), acc in sorted(pooled.items())]
+    by_horizon = []
+    for horizon in sorted({h for h, _ in pooled}):
+        rows = [r for r in by_gap if r['max_gap'] == horizon]
+        total = {name: sum(r[name] for r in rows) for name in POOL_COUNTS}
+        by_horizon.append({'max_gap': horizon, **total, **ratios(total), 'n_gaps': len(rows)})
+    return by_gap, by_horizon
+
+
+def apply_rule(by_gap: Sequence[dict], by_horizon: Sequence[dict],
+               rule_precision: float = 1.0) -> Tuple[Optional[int], List[dict]]:
+    """
+    The highest horizon whose pooled precision is ``>= rule_precision`` at every planted gap.
+
+    A gap with no link (precision NaN) passes; a gap with false links and no
+    recovery has precision 0. Plants longer than the horizon count: their
+    misses lower recall, and any false link from or to their halves fails the
+    gap. The rule therefore needs every horizon to have been scored on the
+    same planted gaps (the sweep plants every gap at every horizon).
+
+    Parameters
+    ----------
+    by_gap, by_horizon : sequence of dict
+        Output of :func:`pool_sweeps`.
+    rule_precision : float
+        Precision floor in ``[0, 1]``.
+
+    Returns
+    -------
+    chosen : int or None
+        The chosen horizon; None when no horizon passes.
+    table : list of dict
+        ``by_horizon`` rows with ``min_gap_precision`` (NaN when no gap has a
+        link), ``rule_pass`` and ``failing_gaps`` (``"gap:precision"`` joined
+        by spaces).
+
+    Raises
+    ------
+    ValueError
+        If ``rule_precision`` is outside ``[0, 1]`` or the horizons were scored
+        on different planted gaps.
+    """
+    if not 0.0 <= rule_precision <= 1.0:
+        raise ValueError(f"rule_precision must be in [0, 1], got {rule_precision}")
+    gaps_of: Dict[int, List[dict]] = {}
+    for row in by_gap:
+        gaps_of.setdefault(int(row['max_gap']), []).append(row)
+    gap_sets = {h: tuple(sorted(int(r['gap']) for r in rows)) for h, rows in gaps_of.items()}
+    if len(set(gap_sets.values())) > 1:
+        raise ValueError(f"horizons were scored on different planted gaps {gap_sets}; "
+                         "re-run the sweep so every gap is planted at every horizon")
+    table = []
+    for row in by_horizon:
+        rows = gaps_of.get(int(row['max_gap']), [])
+        if not rows:
+            raise ValueError(f"horizon {row['max_gap']} has no per-gap rows")
+        scored = [r for r in rows if not math.isnan(r['precision'])]
+        failing = [r for r in scored if r['precision'] < rule_precision]
+        table.append({**row,
+                      'min_gap_precision': min((r['precision'] for r in scored),
+                                               default=math.nan),
+                      'rule_pass': not failing,
+                      'failing_gaps': ' '.join(f"{r['gap']}:{r['precision']:.3f}"
+                                               for r in failing)})
+    passing = [int(r['max_gap']) for r in table if r['rule_pass']]
+    return (max(passing) if passing else None), table

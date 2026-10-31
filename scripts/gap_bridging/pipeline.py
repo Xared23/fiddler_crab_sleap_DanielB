@@ -314,7 +314,9 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
         sqrt prefilter radius; ``n_recovered_tail`` tail detections;
         ``spurious_trajectories``; ``identity_starts`` and
         ``identity_starts_identity_only``, trajectories starting after their
-        video's first frame, all and identities only), ``versions`` and
+        video's first frame, all and identities only; ``claw_side_suppressed``,
+        audit rows that would have been claw-side vetoed but for an axis flip,
+        reason suffix ``'; axis_flip'``), ``versions`` and
         ``outputs`` (sha256 and rows per file).
 
     Raises
@@ -407,6 +409,8 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
         'spurious_trajectories': int(n_spurious),
         'identity_starts': int(starts['all']),
         'identity_starts_identity_only': int(starts['identity']),
+        'claw_side_suppressed': int(sum(r.endswith('; ' + candidates.AXIS_FLIP_NOTE)
+                                        for r in links_table['reason'].to_pylist())),
     }
     if (counts['n_recovered'] != len(recovered) or counts['n_interpolated'] != synthetic.num_rows
             or counts['n_recovered_tail'] != len(tail_rows)):

@@ -629,6 +629,158 @@ class FlickerPropertyTests(unittest.TestCase):
 
 
 # ============================================================
+# POOLING AND THE HORIZON RULE
+# ============================================================
+
+
+def by_gap_row(max_gap: int, gap: int, planted: int, recovered: int, false_link: int,
+               decoy_planted: int = 0, decoy_recovered: int = 0,
+               decoy_false_link: int = 0) -> dict:
+    """One hand-built ``holdout_by_gap.csv`` row (no flicker singletons)."""
+    return {'max_gap': max_gap, 'gap': gap, 'planted': planted, 'recovered': recovered,
+            'false_link': false_link, 'missed': planted - recovered - false_link,
+            'decoy_planted': decoy_planted, 'decoy_recovered': decoy_recovered,
+            'decoy_false_link': decoy_false_link, 'flicker_planted': 0,
+            'flicker_recovered': 0, 'flicker_spurious': 0}
+
+
+def horizon_sweep(false_at_38_under_45: int = 1) -> List[dict]:
+    """Horizons 30 and 45 scored on the same planted gaps 5, 30, 38 and 60.
+
+    Under 30 the plants of 38 and 60 frames are beyond the horizon: missed.
+    Under 45 the 38-frame plants are bridged, one of them (by default) to the
+    wrong crab; the 60-frame plants stay missed.
+    """
+    return [by_gap_row(30, 5, 8, 8, 0), by_gap_row(30, 30, 8, 6, 0),
+            by_gap_row(30, 38, 8, 0, 0), by_gap_row(30, 60, 8, 0, 0),
+            by_gap_row(45, 5, 8, 8, 0), by_gap_row(45, 30, 8, 6, 0),
+            by_gap_row(45, 38, 8, 8 - false_at_38_under_45 - 1, false_at_38_under_45),
+            by_gap_row(45, 60, 8, 0, 0)]
+
+
+class PoolTests(unittest.TestCase):
+    """``holdout.pool_sweeps`` sums counts and recomputes the ratios from the sums."""
+
+    def test_pooling_arithmetic(self):
+        a = [by_gap_row(5, 1, 8, 8, 0, 4, 4, 0), by_gap_row(5, 10, 8, 0, 0, 4, 0, 0)]
+        b = [by_gap_row(5, 1, 8, 7, 1, 4, 3, 1), by_gap_row(5, 10, 8, 0, 0, 2, 0, 0)]
+        by_gap, by_horizon = holdout.pool_sweeps([a, b])
+        g1, g10 = by_gap
+        self.assertEqual((g1['planted'], g1['recovered'], g1['false_link'], g1['missed']),
+                         (16, 15, 1, 0))
+        self.assertEqual((g1['decoy_planted'], g1['decoy_recovered'], g1['decoy_false_link']),
+                         (8, 7, 1))
+        self.assertEqual(g1['links'], 16)
+        self.assertEqual(g1['precision'], 15 / 16)       # of the sums, not the mean of 1 and 7/8
+        self.assertEqual(g1['recall'], 15 / 16)
+        self.assertTrue(math.isnan(g10['precision']) and math.isnan(g10['precision_lower']))
+        self.assertEqual((g10['recall'], g10['links'], g10['decoy_planted']), (0.0, 0, 6))
+        h, = by_horizon
+        self.assertEqual((h['max_gap'], h['planted'], h['recovered'], h['false_link'],
+                          h['missed'], h['links'], h['n_gaps']), (5, 32, 15, 1, 16, 16, 2))
+        self.assertEqual((h['precision'], h['recall']), (15 / 16, 15 / 32))
+
+    def test_decoy_false_link_lowers_precision(self):
+        # A decoy target linked to its donor is a false link of the target.
+        by_gap, _ = holdout.pool_sweeps([[by_gap_row(15, 3, 12, 11, 1, 4, 3, 1)]])
+        self.assertEqual(by_gap[0]['precision'], 11 / 12)
+        with self.assertRaises(ValueError):            # more decoy false links than false links
+            holdout.pool_sweeps([[by_gap_row(15, 3, 12, 12, 0, 4, 3, 1)]])
+
+    def test_exact_lower_bound(self):
+        self.assertAlmostEqual(holdout.precision_lower_bound(34, 34), 0.05 ** (1 / 34), places=12)
+        self.assertAlmostEqual(holdout.precision_lower_bound(60, 60), 0.05 ** (1 / 60), places=12)
+        self.assertAlmostEqual(holdout.precision_lower_bound(8, 9), 0.57086, places=5)
+        self.assertEqual(holdout.precision_lower_bound(0, 5), 0.0)
+        self.assertTrue(math.isnan(holdout.precision_lower_bound(0, 0)))
+        with self.assertRaises(ValueError):
+            holdout.precision_lower_bound(3, 2)
+        by_gap, _ = holdout.pool_sweeps([[by_gap_row(45, 45, 60, 34, 0)]])
+        self.assertAlmostEqual(by_gap[0]['precision_lower'], 0.05 ** (1 / 34), places=12)
+
+    def test_invalid_inputs(self):
+        row = by_gap_row(5, 1, 8, 8, 0)
+        for sweeps in ([], [[row], [row, by_gap_row(5, 2, 8, 8, 0)]], [[row, row]],
+                       [[dict(row, missed=1)]]):
+            with self.assertRaises(ValueError):
+                holdout.pool_sweeps(sweeps)
+
+    @settings(deadline=None, max_examples=60)
+    @given(st.lists(st.lists(st.tuples(st.integers(0, 6), st.integers(0, 6), st.integers(0, 6)),
+                             min_size=3, max_size=3), min_size=1, max_size=5))
+    def test_pooled_counts_are_sums(self, sweeps):
+        tables = [[by_gap_row(10, gap, r + f + m, r, f) for gap, (r, f, m) in zip((1, 5, 10), s)]
+                  for s in sweeps]
+        by_gap, by_horizon = holdout.pool_sweeps(tables)
+        pooled_rev, _ = holdout.pool_sweeps(tables[::-1])
+        self.assertEqual([r['planted'] for r in by_gap], [r['planted'] for r in pooled_rev])
+        for k, row in enumerate(by_gap):
+            for name in holdout.POOL_COUNTS:
+                self.assertEqual(row[name], sum(t[k][name] for t in tables))
+            if row['links']:
+                self.assertEqual(row['precision'], row['recovered'] / row['links'])
+        self.assertEqual(by_horizon[0]['planted'], sum(r['planted'] for r in by_gap))
+
+
+class RuleTests(unittest.TestCase):
+    """``holdout.apply_rule``: highest horizon with precision >= the floor at every planted gap."""
+
+    def test_false_link_at_38_under_45_fails_45_and_30_passes(self):
+        chosen, table = holdout.apply_rule(*holdout.pool_sweeps([horizon_sweep()]))
+        self.assertEqual(chosen, 30)
+        h30, h45 = table
+        self.assertEqual((h30['max_gap'], h30['rule_pass'], h30['failing_gaps']), (30, True, ''))
+        self.assertEqual((h45['max_gap'], h45['rule_pass'], h45['failing_gaps']),
+                         (45, False, '38:0.857'))
+        self.assertEqual(h45['min_gap_precision'], 6 / 7)
+        # Plants beyond the horizon count as misses: same planted total at both horizons.
+        self.assertEqual((h30['planted'], h30['missed'], h45['planted']), (32, 18, 32))
+
+    def test_without_the_false_link_45_is_chosen(self):
+        chosen, table = holdout.apply_rule(*holdout.pool_sweeps([horizon_sweep(0)]))
+        self.assertEqual(chosen, 45)
+        self.assertTrue(all(r['rule_pass'] for r in table))
+
+    def test_false_link_from_a_plant_beyond_the_horizon(self):
+        rows = horizon_sweep(0)
+        rows[-1] = by_gap_row(45, 60, 8, 0, 1)         # 60-frame plant linked to another crab
+        chosen, table = holdout.apply_rule(*holdout.pool_sweeps([rows]))
+        self.assertEqual((chosen, table[1]['failing_gaps']), (30, '60:0.000'))
+
+    def test_false_link_pooled_over_seeds(self):
+        clean = horizon_sweep(0)
+        chosen, _ = holdout.apply_rule(*holdout.pool_sweeps([clean, clean, horizon_sweep(1)]))
+        self.assertEqual(chosen, 30)
+
+    def test_rule_precision_floor(self):
+        pooled = holdout.pool_sweeps([horizon_sweep()])
+        self.assertEqual(holdout.apply_rule(*pooled, rule_precision=0.85)[0], 45)
+        self.assertEqual(holdout.apply_rule(*pooled, rule_precision=0.0)[0], 45)
+        with self.assertRaises(ValueError):
+            holdout.apply_rule(*pooled, rule_precision=1.5)
+
+    def test_no_passing_horizon(self):
+        rows = [by_gap_row(5, 1, 8, 7, 1)]
+        self.assertEqual(holdout.apply_rule(*holdout.pool_sweeps([rows]))[0], None)
+
+    def test_capped_sweep_is_refused(self):
+        # A v003 sweep capped at the horizon (gap 38 not planted under 30) cannot be ruled on.
+        rows = [r for r in horizon_sweep() if not (r['max_gap'] == 30 and r['gap'] > 30)]
+        with self.assertRaises(ValueError):
+            holdout.apply_rule(*holdout.pool_sweeps([rows]))
+
+    def test_read_by_gap_round_trip(self):
+        rows = horizon_sweep()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'holdout_by_gap.csv'
+            with open(path, 'w', newline='') as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(rows[0]) + ['recall'])
+                writer.writeheader()
+                writer.writerows([dict(r, recall=0.5) for r in rows])
+            self.assertEqual(holdout.read_by_gap(path), rows)
+
+
+# ============================================================
 # DEMO
 # ============================================================
 

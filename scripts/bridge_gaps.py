@@ -16,10 +16,14 @@ Subcommands (``run`` is the default, so the v001 invocation still works)::
         --observations demo/crab_cam2_2_middle_300/observations.parquet
 
     # sweep the horizon max_gap, with frame-deletion hold-out (plus decoys and
-    # flicker singletons) and figures
+    # flicker singletons) and figures; every planted gap is scored at every horizon
     .venv/bin/python scripts/bridge_gaps.py sweep \\
         --observations demo/crab_cam2_2_middle_300/observations.parquet \\
         --out logs/gap_sweep --max-gaps 5,10,15,30,45,60 --holdout --decoys 4 --flicker 2
+
+    # pool the hold-out of several sweeps (seeds) and apply the horizon rule
+    .venv/bin/python scripts/bridge_gaps.py pool \\
+        --sweeps logs/gap_sweep logs/gap_sweep_seeds/seed_1 --out logs/gap_sweep_seeds
 
     # export interpolated frames as weak labels (fine-tuning candidates)
     .venv/bin/python scripts/bridge_gaps.py export \\
@@ -54,7 +58,7 @@ import pyarrow.compute as pc  # noqa: E402
 import pyarrow.parquet as pq  # noqa: E402
 
 # ----- local modules -----
-from gap_bridging import export, fit, identity, pipeline, tables  # noqa: E402
+from gap_bridging import export, fit, holdout, identity, pipeline, tables  # noqa: E402
 from gap_bridging.config import BridgeConfig, load_config  # noqa: E402
 from gap_bridging.types import DECISIONS  # noqa: E402
 
@@ -62,7 +66,7 @@ from gap_bridging.types import DECISIONS  # noqa: E402
 # CONSTANTS
 # ============================================================
 
-COMMANDS = ('run', 'fit', 'sweep', 'export')
+COMMANDS = ('run', 'fit', 'sweep', 'pool', 'export')
 DEFAULT_MAX_GAPS = (5, 10, 15, 30, 45, 60)
 DEFAULT_HOLDOUT_GAPS = (1, 2, 3, 5, 10, 15, 20, 30, 45, 60)
 SUMMARY_NAME = 'sweep_summary.csv'
@@ -84,6 +88,13 @@ SUMMARY_COLUMNS = (('max_gap', 'links', 'trajectories', 'mean_length', 'median_l
 BY_GAP_COLUMNS = ('max_gap', 'gap', 'planted', 'recovered', 'false_link', 'missed', 'recall',
                   'precision', 'decoy_planted', 'decoy_recovered', 'decoy_false_link',
                   'flicker_planted', 'flicker_recovered', 'flicker_spurious')
+POOLED_GAP_NAME = 'pooled_by_gap.csv'
+POOLED_HORIZON_NAME = 'pooled_by_horizon.csv'
+POOLED_GAP_COLUMNS = (('max_gap', 'gap') + holdout.POOL_COUNTS
+                      + ('links', 'recall', 'precision', 'precision_lower'))
+POOLED_HORIZON_COLUMNS = (('max_gap',) + holdout.POOL_COUNTS
+                          + ('links', 'recall', 'precision', 'precision_lower', 'n_gaps',
+                             'min_gap_precision', 'rule_pass', 'failing_gaps'))
 
 # ============================================================
 # HELPERS
@@ -225,8 +236,11 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
     cfg : BridgeConfig
         Base configuration.
     holdout_run : bool
-        Run :func:`gap_bridging.holdout.run_holdout` per horizon, with the
-        planted gap lengths ``holdout_gaps`` capped at the horizon.
+        Run :func:`gap_bridging.holdout.run_holdout` per horizon with every
+        planted gap length of ``holdout_gaps``, also those longer than the
+        horizon: such a plant is scored like any other (recovered only if
+        linked, a link from or to its halves is a false link), so a crab gone
+        longer than the horizon tests the horizon's precision too.
     holdout_gaps, per_gap, seed, decoys, flicker
         Hold-out planting parameters (see :func:`gap_bridging.holdout.plant_gaps`).
     force : bool
@@ -244,7 +258,6 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
     list of dict
         The ``sweep_summary.csv`` rows.
     """
-    from gap_bridging import holdout
     out = Path(out)
     max_gaps = sorted(set(int(g) for g in max_gaps))
     if not max_gaps:
@@ -264,7 +277,7 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
                     'holdout_recall': math.nan, 'holdout_unplanted_links': -1,
                     'holdout_decoy_planted': 0, 'holdout_decoy_false_link': 0,
                     'holdout_flicker_planted': 0, 'holdout_flicker_spurious': 0})
-        gaps = [g for g in holdout_gaps if 1 <= g <= horizon]
+        gaps = [g for g in holdout_gaps if g >= 1]          # every gap at every horizon (C1)
         if holdout_run and gaps:
             print(f"[sweep] max_gap {horizon}: hold-out gaps {gaps} x {per_gap}", flush=True)
             result = holdout.run_holdout(observations, out / f'holdout_{horizon}', run_cfg, gaps,
@@ -295,6 +308,47 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
         make_figures(observations, out, cfg, holdout_run and bool(by_gap_rows), video,
                      bridges_from if bridges_from is not None else max_gaps[-1])
     return summary_rows
+
+
+def pool(sweep_dirs: list[Path], out: Path, rule_precision: float = 1.0,
+         force: bool = False) -> tuple[int | None, list[dict]]:
+    """Pool the hold-out of several sweeps and apply the horizon rule.
+
+    Reads ``holdout_by_gap.csv`` of every sweep directory, sums the counts
+    (:func:`gap_bridging.holdout.pool_sweeps`), writes ``pooled_by_gap.csv``
+    and ``pooled_by_horizon.csv`` under ``out``, applies
+    :func:`gap_bridging.holdout.apply_rule` (highest horizon with pooled
+    precision ``>= rule_precision`` at every planted gap; decoy false links
+    and plants beyond the horizon counted) and prints the per-horizon table.
+
+    Returns
+    -------
+    (chosen, table)
+        The chosen horizon (None when none passes) and the per-horizon rows.
+    """
+    out = Path(out)
+    for name in (POOLED_GAP_NAME, POOLED_HORIZON_NAME):
+        if (out / name).exists() and not force:
+            raise FileExistsError(f"outputs already exist in {out}: {name}; use --force")
+    if not sweep_dirs:
+        raise ValueError("no sweep directories given")
+    sweeps = [holdout.read_by_gap(Path(d) / BY_GAP_NAME) for d in sweep_dirs]
+    by_gap, by_horizon = holdout.pool_sweeps(sweeps)
+    chosen, table = holdout.apply_rule(by_gap, by_horizon, rule_precision)
+    out.mkdir(parents=True, exist_ok=True)
+    write_csv(out / POOLED_GAP_NAME, POOLED_GAP_COLUMNS, by_gap)
+    write_csv(out / POOLED_HORIZON_NAME, POOLED_HORIZON_COLUMNS, table)
+    print(f"[pool] {len(sweeps)} sweeps: {', '.join(str(d) for d in sweep_dirs)}", flush=True)
+    print(f"{'max_gap':>7} {'planted':>7} {'links':>5} {'false':>5} {'recall':>7} "
+          f"{'precision':>9} {'lower95':>7} {'pass':>5}  failing gaps", flush=True)
+    for r in table:
+        print(f"{r['max_gap']:7d} {r['planted']:7d} {r['links']:5d} {r['false_link']:5d} "
+              f"{r['recall']:7.4f} {r['precision']:9.4f} {r['precision_lower']:7.4f} "
+              f"{str(r['rule_pass']):>5}  {r['failing_gaps']}", flush=True)
+    print(f"[pool] rule: highest horizon with pooled precision >= {rule_precision:g} at every "
+          f"planted gap: {chosen}", flush=True)
+    print(f"[pool] wrote {out / POOLED_GAP_NAME} and {out / POOLED_HORIZON_NAME}", flush=True)
+    return chosen, table
 
 
 def make_figures(observations: Path, out: Path, cfg: BridgeConfig, with_holdout: bool,
@@ -335,7 +389,7 @@ def make_figures(observations: Path, out: Path, cfg: BridgeConfig, with_holdout:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Argument parser with the ``run``, ``fit``, ``sweep`` and ``export`` subcommands."""
+    """Argument parser with the ``run``, ``fit``, ``sweep``, ``pool`` and ``export`` subcommands."""
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0].strip(),
                                      epilog=__doc__.split('\n\n', 1)[1].rsplit('\n\nSam', 1)[0],
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -374,7 +428,7 @@ def build_parser() -> argparse.ArgumentParser:
     sw.add_argument('--config', type=Path, default=None, help='base YAML config')
     sw.add_argument('--holdout', action='store_true', help='run the frame-deletion hold-out')
     sw.add_argument('--holdout-gaps', type=int_list, default=list(DEFAULT_HOLDOUT_GAPS),
-                    help='planted gap lengths, capped at each horizon')
+                    help='planted gap lengths, all planted and scored at every horizon')
     sw.add_argument('--per-gap', type=int, default=8, help='planted tracklets per gap length')
     sw.add_argument('--seed', type=int, default=0, help='hold-out seed')
     sw.add_argument('--decoys', type=int, default=0,
@@ -389,6 +443,16 @@ def build_parser() -> argparse.ArgumentParser:
                     help='horizon whose bridges are rendered (default the largest)')
     sw.add_argument('--no-figures', action='store_true', help='skip the figures')
     sw.add_argument('--force', action='store_true', help='overwrite existing outputs')
+
+    po = sub.add_parser('pool', help='pool the hold-out of several sweeps (seeds) and apply '
+                                     'the horizon rule')
+    po.add_argument('--sweeps', type=Path, nargs='+', required=True,
+                    help='sweep directories holding holdout_by_gap.csv')
+    po.add_argument('--out', type=Path, required=True,
+                    help='receives pooled_by_gap.csv and pooled_by_horizon.csv')
+    po.add_argument('--rule-precision', type=float, default=1.0,
+                    help='precision floor at every planted gap (default 1.0)')
+    po.add_argument('--force', action='store_true', help='overwrite existing outputs')
 
     ex = sub.add_parser('export', help='export interpolated frames as weak labels '
                                        '(fine-tuning candidates, not labels)')
@@ -436,6 +500,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == 'fit':
             fit_command(args.observations, args.max_dt, args.quantile, args.min_samples,
                         args.write_yaml)
+        elif args.command == 'pool':
+            pool(args.sweeps, args.out, args.rule_precision, args.force)
         elif args.command == 'export':
             marker = export.run(args)
             print(f"[export] {marker['counts']['rows']} weak-label rows -> {args.out}",

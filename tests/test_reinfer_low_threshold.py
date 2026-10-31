@@ -37,6 +37,8 @@ class ReinferCliTests(unittest.TestCase):
         for flag in ('--video', '--start', '--stop', '--out', '--centroid-threshold',
                      '--keypoint-threshold', '--baseline-config', '--dry-run'):
             self.assertIn(flag, result.stdout)
+        # The frame-number caveat for derive_tracks is part of the help.
+        self.assertIn('derive_tracks requires start == 0', ' '.join(result.stdout.split()))
 
     def test_dry_run_reports_missing_checkpoints(self):
         result = self.dry()

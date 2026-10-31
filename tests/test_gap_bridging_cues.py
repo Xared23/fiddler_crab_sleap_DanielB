@@ -13,7 +13,9 @@ ignores the cues. Example tests pin the sign convention, the medians of short
 tracklets and the veto; Hypothesis tests check symmetry, the zero terms of
 unknown cues, the veto conditions, that a vetoed pair is never linked nor
 chain-reachable, and that ``appearance_cues=False`` equals a run without cue
-values. A demo test compares cues on and off at ``max_gap = 15``.
+values. ``AxisFlipTests`` pin the axis-flip rule (a reversed Shell->Shoulder
+axis with the claw in place is a Shoulder flip: no veto, side term 0, reason
+suffix ``axis_flip``). A demo test compares cues on and off at ``max_gap = 15``.
 
 Sam
 10/2026
@@ -36,7 +38,7 @@ import numpy as np
 import pyarrow.parquet as pq
 
 # ----- testing -----
-from hypothesis import given, settings, strategies as st
+from hypothesis import assume, given, settings, strategies as st
 
 # ----- local modules -----
 ROOT = Path(__file__).resolve().parents[1]
@@ -134,6 +136,27 @@ def cue_scenes(draw, max_tracklets: int = 10) -> Tuple[List[Endpoint], List[Endp
     cues = {e.tracklet_id: draw(cue_values()) for e in ends}
     return ([with_cues(e, **cues[e.tracklet_id]) for e in ends],
             [with_cues(s, **cues[s.tracklet_id]) for s in starts])
+
+
+def posed(p: Endpoint, heading: float, claw: Tuple[float, float]) -> Endpoint:
+    """Copy of ``p`` with ``heading`` and the body-frame claw offset ``claw``."""
+    offsets = np.array(p.offsets, dtype=float)
+    offsets[candidates.CLAW] = claw
+    return replace(p, heading=float(heading), offsets=offsets)
+
+
+def body_claw(heading: float, image_claw: Tuple[float, float]) -> Tuple[float, float]:
+    """Body-frame offset whose image-frame direction at ``heading`` is ``image_claw``."""
+    c, s = math.cos(heading), math.sin(heading)
+    x, y = image_claw
+    return (c * x + s * y, -s * x + c * y)
+
+
+def pair_full(a: Endpoint, b: Endpoint, cfg: BridgeConfig) -> Tuple[float, float, bool, bool]:
+    """``candidates._cue_terms_full`` for the single pair (a, b)."""
+    size, side, veto, supp = candidates._cue_terms_full([a], [b], np.array([0]), np.array([0]),
+                                                        cfg)
+    return float(size[0]), float(side[0]), bool(veto[0]), bool(supp[0])
 
 
 def pair_terms(a: Endpoint, b: Endpoint, cfg: BridgeConfig) -> Tuple[float, float, bool]:
@@ -384,6 +407,87 @@ class CueLinkingTests(unittest.TestCase):
         self.assertEqual(d[('A', 'B')].n_chain_ignored, 0)
 
 
+class AxisFlipTests(unittest.TestCase):
+    """A reversed body axis with the claw in place is a Shoulder flip, not a claw side."""
+
+    CLAW_IMAGE = (40.0, -14.0)
+
+    def pair(self, heading_b: float, claw_b_image: Tuple[float, float], side_b: float
+             ) -> Tuple[Endpoint, Endpoint]:
+        a = posed(with_cues(ep('A', 10, (0., 0.), (1., 0.)), 22.0, 10, -1.0, 10), 0.0,
+                  body_claw(0.0, self.CLAW_IMAGE))
+        b = posed(with_cues(ep('B', 12, (2., 0.), (1., 0.)), 22.0, 10, side_b, 10), heading_b,
+                  body_claw(heading_b, claw_b_image))
+        return a, b
+
+    def test_axis_reversed_claw_aligned_is_not_vetoed(self):
+        # u_a = (1, 0), u_b = (-1, 0); claws both at image (40, -14): the side sign
+        # flips (-1 -> +1) only because the axis did.
+        a, b = self.pair(math.pi, self.CLAW_IMAGE, side_b=1.0)
+        self.assertTrue(bool(candidates._axis_flip([a], [b], np.array([0]), np.array([0]))[0]))
+        size, side, veto, supp = pair_full(a, b, CUES)
+        self.assertEqual((side, veto, supp), (0.0, False, True))
+        links, decisions = link_tracklets([a], [b], CUES)
+        d = decisions[0]
+        self.assertEqual(links, [('A', 'B')])
+        self.assertEqual(d.decision, 'linked')
+        self.assertTrue(d.reason.endswith('; axis_flip'), d.reason)
+        self.assertEqual(d.side_term, 0.0)
+        # Same cost as with agreeing sides: the side term is dropped entirely.
+        same = link_tracklets([a], [replace(b, claw_side=-1.0)], CUES)[1][0]
+        self.assertEqual(d.cost, same.cost)
+        self.assertFalse(same.reason.endswith('axis_flip'))      # no veto to lift
+
+    def test_genuine_opposite_claw_is_vetoed(self):
+        # Axes aligned, claws mirrored across the axis: a different claw side.
+        a, b = self.pair(0.0, (40.0, 14.0), side_b=1.0)
+        self.assertFalse(bool(candidates._axis_flip([a], [b], np.array([0]), np.array([0]))[0]))
+        self.assertEqual(pair_full(a, b, CUES)[1:], (1.0, True, False))
+        links, decisions = link_tracklets([a], [b], CUES)
+        self.assertEqual(links, [])
+        self.assertEqual((decisions[0].decision, decisions[0].reason), ('refused_gate', 'claw_side'))
+
+    def test_true_turn_keeps_the_ordinary_rule(self):
+        # Axis and claw both reversed (a 180-degree turn): no flip; the whole-tracklet
+        # sides decide as before.
+        a, b = self.pair(math.pi, (-40.0, 14.0), side_b=-1.0)
+        self.assertFalse(bool(candidates._axis_flip([a], [b], np.array([0]), np.array([0]))[0]))
+        self.assertEqual(pair_full(a, b, CUES)[1:], (0.0, False, False))
+        opposite = replace(b, claw_side=1.0)
+        self.assertEqual(pair_full(a, opposite, CUES)[1:], (1.0, True, False))
+        self.assertEqual(link_tracklets([a], [opposite], CUES)[1][0].reason, 'claw_side')
+
+    def test_unknown_vectors_never_flip(self):
+        a, b = self.pair(math.pi, self.CLAW_IMAGE, side_b=1.0)
+        for x, y in ((replace(a, heading=math.nan), b),
+                     (a, posed(b, math.pi, (math.nan, math.nan))),
+                     (posed(a, 0.0, (0.0, 0.0)), b)):
+            self.assertEqual(pair_full(x, y, CUES)[2:], (True, False))
+
+    @settings(deadline=None, max_examples=300)
+    @given(st.floats(-math.pi, math.pi), st.floats(-math.pi, math.pi),
+           st.floats(-math.pi, math.pi), st.floats(-math.pi, math.pi),
+           cue_values(), cue_values())
+    def test_suppression_iff_axis_reversed_and_claw_kept(self, ha, hb, ca, cb, x, y):
+        claw_a = (30.0 * math.cos(ca), 30.0 * math.sin(ca))     # body-frame claw offsets
+        claw_b = (30.0 * math.cos(cb), 30.0 * math.sin(cb))
+        a = posed(with_cues(ep('A', 10, (0., 0.)), **x), ha, claw_a)
+        b = posed(with_cues(ep('B', 14, (1., 0.)), **y), hb, claw_b)
+        dot_u = math.cos(ha - hb)
+        dot_c = math.cos((ha + ca) - (hb + cb))
+        assume(abs(dot_u) > 1e-9 and abs(dot_c) > 1e-9)       # off the decision boundary
+        flip = dot_u < 0 and dot_c > 0
+        self.assertEqual(bool(candidates._axis_flip([a], [b], np.array([0]), np.array([0]))[0]),
+                         flip)
+        size, side, veto, supp = pair_full(a, b, CUES)
+        exp_size, exp_side, exp_veto = expected_terms(a, b, CUES)
+        self.assertAlmostEqual(size, exp_size, places=12)
+        self.assertEqual(supp, exp_veto and flip)
+        self.assertEqual(veto, exp_veto and not flip)
+        self.assertAlmostEqual(side, 0.0 if flip else exp_side, places=12)
+        self.assertEqual(pair_full(b, a, CUES), (size, side, veto, supp))     # symmetric
+
+
 class CueLinkingPropertyTests(unittest.TestCase):
 
     @settings(deadline=None, max_examples=200)
@@ -486,7 +590,12 @@ class DemoCueTests(unittest.TestCase):
                          [(d.tracklet_a, d.tracklet_b) for d in off])
         changed = [(x, y) for x, y in zip(on, off) if x.decision != y.decision]
         vetoed = [d for d in on if d.reason == 'claw_side']
-        self.assertTrue(1 <= len(vetoed) <= 10, len(vetoed))
+        lifted = [d for d in on if d.reason.endswith('; axis_flip')]
+        # Every confident opposite-side pair on the demo is a Shoulder flip (axis
+        # reversed, claw in place): the axis-flip rule lifts all of them.
+        self.assertEqual(len(vetoed), 0, vetoed)
+        self.assertTrue(1 <= len(lifted) <= 10, len(lifted))
+        self.assertTrue(all(d.side_term == 0.0 for d in lifted))
         self.assertLessEqual(len(changed), 15)
         self.assertLessEqual(len(set(links_on) ^ set(links_off)), 6)
         self.assertTrue(all(math.isfinite(d.size_term) and math.isfinite(d.side_term) for d in on))

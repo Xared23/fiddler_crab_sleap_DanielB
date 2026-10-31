@@ -4,8 +4,12 @@
 # Submit from the repository root (the job's root is the submit directory; the log
 # directory must exist before submission):
 #   mkdir -p logs/reinfer_low_threshold
-#   VIDEO=crab_vids/Crab_Cam_2_2.mp4 START=14250 STOP=14550 \
-#     OUT=predictions/reinfer_low_threshold/cam2_2_014250 sbatch jobs/reinfer_low_threshold.sh
+#   VIDEO=crab_vids/Crab_Cam_2_2.mp4 START=0 STOP=300 \
+#     OUT=predictions/reinfer_low_threshold/cam2_2_000000 sbatch jobs/reinfer_low_threshold.sh
+# The output SLP keeps the video's frame numbers (START .. STOP-1).
+# prediction_finalize.derive_tracks requires frame_idx == index (frames 0..n-1), so
+# it consumes the output unchanged only when START == 0; for START > 0 cut the
+# range into its own clip first (as the demo was) or renumber the frames.
 # or pass the Python arguments directly:
 #   sbatch jobs/reinfer_low_threshold.sh --video ... --start ... --stop ... --out ...
 # Optional env: CENTROID_THRESHOLD (0.05), KEYPOINT_THRESHOLD (0.2), BASELINE_CONFIG.

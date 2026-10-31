@@ -17,7 +17,7 @@ i+2 or later. As a result, tracklet lengths in the published dataframe vary
 widely (demo clip: 1,181 tracklets, median length 3 frames).
 
 `scripts/bridge_gaps.py` links pairs of tracklets separated by 1 to `max_gap`
-missing frames (default 45 since v003; v001/v002 shipped 5 and v002 recommended 15; see
+missing frames (default 30 since v003; v001/v002 shipped 5 and v002 recommended 15; see
 [Default horizon (v003)](#default-horizon-v003)). It fills each missing frame with either a real
 detection the tracker had rejected (**recovered**) or a synthesized pose
 (**interpolated**). It writes new tables and an audit row for every candidate
@@ -288,8 +288,9 @@ sum it directly; there is no need to parse `reason`.
   audit row; `pruned_by_radius`: pairs inside the time window but beyond
   `R_max`, which were not enumerated; always 0 under linear),
   `spurious_trajectories`, `identity_starts` (trajectories starting after
-  their video's first frame) and `identity_starts_identity_only` (the same,
-  identities only).
+  their video's first frame), `identity_starts_identity_only` (the same,
+  identities only) and `claw_side_suppressed` (audit rows that would have
+  been claw-side vetoed but for an axis flip; reason suffix `; axis_flip`).
 - `versions`: the numpy, scipy and pyarrow versions.
 - `outputs`: the `sha256` and `rows` of each parquet.
 
@@ -662,8 +663,9 @@ Caveats:
 ## Horizon sweep
 
 `bridge_gaps.py sweep` runs the pipeline at several horizons and, with
-`--holdout`, the hold-out at each (planted gap lengths capped at the
-horizon), then writes the tables and figures:
+`--holdout`, the hold-out at each (every planted gap length at every horizon
+since the v003 fix wave; before, they were capped at the horizon), then
+writes the tables and figures:
 
 ```bash
 .venv/bin/python scripts/bridge_gaps.py sweep \
@@ -794,7 +796,7 @@ losses on the demo are detector misses on still crabs, not crabs walking away.
 ### Recommended default
 
 *Superseded by [Default horizon (v003)](#default-horizon-v003): with the
-appearance cues and the decoy hold-out the default is now 45. The v002
+appearance cues and the decoy hold-out the default is now 30. The v002
 reasoning is kept below.*
 
 **`max_gap = 15`** (0.5 s), unchanged by staged linking. The rule: the
@@ -851,7 +853,7 @@ one-frame units with median instance score 0.33):
 - appearance cues: refuse links between visibly different crabs.
 
 It also adds decoys and flicker singletons to the hold-out and re-derives the
-default horizon (now **45**, see [Default horizon (v003)](#default-horizon-v003)).
+default horizon (now **30**, see [Default horizon (v003)](#default-horizon-v003)).
 Every v003 stage can be switched off from the config (`tail_recovery`,
 `appearance_cues`), and the identity filter only adds a column. With
 `gate_model: linear` the cues are ignored, so the linear golden test (D-003)
@@ -920,8 +922,8 @@ The sweep reports both variants of every count. On the demo:
 | 5 | 542 | 95 | 419 / 326 | 115 / 20 | 69.8 / 84.4 | 13 / 20 |
 | 10 | 441 | 61 | 318 / 258 | 81 / 20 | 87.5 / 101.4 | 21 / 31.5 |
 | 15 | 399 | 52 | 276 / 225 | 70 / 18 | 98.1 / 112.6 | 28 / 40 |
-| 30 | 354 | 47 | 231 / 185 | 63 / 16 | 113.2 / 130.4 | 51.5 / 78 |
-| **45** | **339** | **44** | **216 / 173** | **59 / 15** | **119.9 / 137.6** | **61 / 100** |
+| **30** | **354** | **47** | **231 / 185** | **63 / 16** | **113.2 / 130.4** | **51.5 / 78** |
+| 45 | 339 | 44 | 216 / 173 | 59 / 15 | 119.9 / 137.6 | 61 / 100 |
 | 60 | 333 | 41 | 210 / 170 | 56 / 15 | 123.0 / 140.1 | 64 / 105 |
 
 Every spurious unit is one frame long. The one-frame units left as
@@ -958,7 +960,13 @@ stored identically on the START and END endpoints:
   `DEFAULT_OFFSETS`) gives −1; its mirror image gives +1. The statistic needs
   no heading, and it is invariant under rotation and translation and flips
   under reflection. On the demo it is consistent in 96% of long trajectories,
-  with a 48/52 split across crabs.
+  with a 48/52 split across crabs. That agreement is measured inside
+  tracklets, where the tracker already enforces Shoulder continuity (the final
+  review counted 31 Shell→Shoulder reversals in 35,301 consecutive frames), so
+  it overstates how reliable the sign is across a gap (see the axis-flip rule
+  below). The project docs list the Claw as an untrusted keypoint and not an
+  association feature (`docs/PREDICTION_V007_BEST.md`); v003 departs from that
+  deliberately, as a soft cost term plus a veto guarded by the axis-flip rule.
 
 Under the sqrt model (`appearance_cues: true`), each candidate pair (END a,
 START b) gets two terms:
@@ -983,24 +991,59 @@ cost, like the Shoulder term. The audit table records them (`size_term`,
 `refused_gate` with reason `claw_side` and cost NaN. The veto ranks after the
 `displacement` and `prediction_error` gates and before `max_cost`. A vetoed
 pair is neither assignable nor chain-reachable, and it is no runner-up.
-On the demo at `max_gap` 15 there are three vetoes (tracklet ids
-`…/t0000NNNNN`; the first is a 31-frame tracklet with side −1 against a
-5-frame tracklet with side +1):
 
-| pair | gap | size term | outcome without cues |
+**Axis-flip rule** (`candidates._axis_flip`, fix wave I1). The side sign
+`sign(u × w)` also flips when the Shoulder keypoint lands on the other end of
+the body axis while the claw stays where it was. Per endpoint, `u = (cos h,
+sin h)` is the image-frame Shell→Shoulder unit vector (`h` =
+`Endpoint.heading`) and `c` the image-frame Shell→Claw unit vector
+(`R(h)·offsets[claw]`, normalised). When `u_a·u_b < 0` and `c_a·c_b > 0` (axis
+reversed, claw in place) the pair is treated as a Shoulder flip of one crab:
+its `side_term` is 0 and it is not vetoed. A pair that passed the motion gates
+and would otherwise have been vetoed keeps its ordinary decision with
+`; axis_flip` appended to its reason, and the marker counts it as
+`counts.claw_side_suppressed`. An unknown heading or claw offset means no
+flip. A genuine 180° turn (axis **and** claw reversed) and a genuine
+opposite-claw pair (axes aligned) keep the ordinary rule.
+
+On the demo the rule removes **every** veto: `claw_side` refusals were
+1 / 1 / 3 / 11 / 18 / 25 at horizons 5 / 10 / 15 / 30 / 45 / 60 and are now
+0, with `claw_side_suppressed` equal to the old count at every horizon. The
+earlier 18 vetoes at `max_gap` 45 were therefore Shoulder flips, not
+different-handed crabs: all had antiparallel Shell→Shoulder and parallel
+Shell→Claw vectors at the gap boundary. For example, 41951 → 42378 (gap 5,
+shells 4 px apart) is one crab that the pipeline chains anyway, through the
+one-frame tracklet 42365. With the rule, 16 of the 18 pairs are
+`refused_gate max_cost` and 2 are `refused_assignment` (41951 → 42378: the
+assignment chose another pair; 42346 → 42491: endpoint linked at stage 1).
+The link set is identical with and without the rule at 30, 45 and 60 (827,
+842 and 848 links); the side term drops to 0 on 217, 308 and 406 audit rows
+without changing any other decision. The three former vetoes at `max_gap` 15
+(tracklet ids `…/t0000NNNNN`):
+
+| pair | gap | size term | outcome now (axis flip) |
 |---|---:|---:|---|
 | 41951 → 42378 | 5 | 1.74 | `refused_assignment` |
 | 42409 → 42525 | 14 | 0.66 | `refused_gate max_cost` |
 | 42600 → 42661 | 15 | 0.41 | `refused_gate max_cost` |
 
-Only the first veto was a live decision. Overall, the cues change the demo at
-`max_gap` 15 from 781 links / 400 trajectories (cues off) to 782 / 399. At
-`max_gap` 45 they change it from 843 / 338 to 842 / 339, with 18 `claw_side`
-refusals (sweep: 1 / 1 / 3 / 11 / 18 / 25 at horizons 5 to 60). On the v002
-hold-out draw (no decoys, seeds 0–4), the cues remove the one false link
-of v002 (seed 1, planted gap 30), which becomes a miss. Recoveries change at
-two gaps: 34 → 36 of 40 at gap 20 and 30 → 29 at gap 30. Every other count is
-unchanged.
+The rule cannot tell a Shoulder flip from two different-handed crabs that
+face opposite ways with their claws pointing the same way in the image. The
+hold-out decoys show this: decoy donors are different crabs chosen for
+differing cues, and at horizon 30 the rule lifts the veto on 56 of the 94
+target–donor pairs the old veto refused. No decoy was linked (the size term
+and the margin veto still refuse them), but 7 decoy targets at planted gaps
+≤ 30 that the veto used to recover became margin-refused misses (2 each at
+gaps 3 and 5, 1 at gap 20, 2 at gap 30). The veto now fires only on
+axis-aligned opposite-claw pairs; none occurs on the demo.
+
+Overall, the cues change the demo at `max_gap` 15 from 781 links / 400
+trajectories (cues off) to 782 / 399, and at `max_gap` 45 from 843 / 338 to
+842 / 339 (soft terms only). On the v002 hold-out draw (no decoys, seeds 0–4),
+the cues remove the one false link of v002 (seed 1, planted gap 30), which
+becomes a miss. Re-run with the axis-flip rule and every gap scored at every
+horizon (scratch), this draw still has precision 1.000 at every planted gap
+at horizons 30, 45 and 60 (304, 331 and 346 links).
 
 ### Decoys and flicker singletons
 
@@ -1089,52 +1132,87 @@ for that (no checkpoints, raw videos or GPU here):
 
 ### v003 results
 
-Demo clip, default config except `max_gap`. Sweep with
-`--per-gap 8 --decoys 4 --flicker 2 --seed 0` in `logs/gap_sweep/`, seeds 1–4
-in `logs/gap_sweep_seeds/seed_<k>/`, pooled in
+Demo clip, default config except `max_gap`. The commands (fix wave):
+
+```bash
+.venv/bin/python scripts/bridge_gaps.py sweep \
+    --observations demo/crab_cam2_2_middle_300/observations.parquet \
+    --out logs/gap_sweep --max-gaps 5,10,15,30,45,60 --holdout \
+    --per-gap 8 --decoys 4 --flicker 2 --force          # seed 0, with figures
+# seeds k = 1..4: the same with --seed k --no-figures --out logs/gap_sweep_seeds/seed_k
+.venv/bin/python scripts/bridge_gaps.py pool \
+    --sweeps logs/gap_sweep logs/gap_sweep_seeds/seed_1 logs/gap_sweep_seeds/seed_2 \
+             logs/gap_sweep_seeds/seed_3 logs/gap_sweep_seeds/seed_4 \
+    --out logs/gap_sweep_seeds --rule-precision 1.0 --force
+```
+
+`pool` (`holdout.pool_sweeps`, `holdout.apply_rule`) writes
 `logs/gap_sweep_seeds/pooled_by_gap.csv` and `pooled_by_horizon.csv` (not
-committed). The `refused_gate` column counts `claw_side` refusals too:
+committed) and prints the per-horizon table and the chosen horizon. The
+`refused_gate` column has no `claw_side` refusal left; the bracket gives the
+pairs whose veto the axis-flip rule lifted (`claw_side_suppressed`):
 
-| `max_gap` | links | trajectories | mean L | median L | 1-frame units | frames in units ≥ 30 | recovered | tail | interpolated (low) | refused_assignment | refused_gate (`claw_side`) |
+| `max_gap` | links | trajectories | mean L | median L | 1-frame units | frames in units ≥ 30 | recovered | tail | interpolated (low) | refused_assignment | refused_gate (axis flips lifted) |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---|
-| 5 | 639 | 542 | 69.8 | 13 | 115 | 0.934 | 19 | 3 | 1,278 (0) | 117 | 68 (1) |
-| 10 | 740 | 441 | 87.5 | 21 | 81 | 0.952 | 19 | 3 | 2,046 (0) | 420 | 120 (1) |
-| 15 | 782 | 399 | 98.1 | 28 | 70 | 0.959 | 19 | 3 | 2,581 (0) | 707 | 185 (3) |
-| 30 | 827 | 354 | 113.2 | 51.5 | 63 | 0.974 | 19 | 3 | 3,546 (965) | 1,512 | 377 (11) |
-| **45** | **842** | **339** | **119.9** | **61** | **59** | **0.978** | **21** | **1** | **4,100 (1,519)** | **2,142** | **638 (18)** |
-| 60 | 848 | 333 | 123.0 | 64 | 56 | 0.979 | 21 | 1 | 4,403 (1,822) | 2,436 | 1,137 (25) |
+| 5 | 639 | 542 | 69.8 | 13 | 115 | 0.934 | 19 | 3 | 1,278 (0) | 118 | 67 (1) |
+| 10 | 740 | 441 | 87.5 | 21 | 81 | 0.952 | 19 | 3 | 2,046 (0) | 421 | 119 (1) |
+| 15 | 782 | 399 | 98.1 | 28 | 70 | 0.959 | 19 | 3 | 2,581 (0) | 708 | 184 (3) |
+| **30** | **827** | **354** | **113.2** | **51.5** | **63** | **0.974** | **19** | **3** | **3,546 (965)** | **1,514** | **375 (11)** |
+| 45 | 842 | 339 | 119.9 | 61 | 59 | 0.978 | 21 | 1 | 4,100 (1,519) | 2,144 | 636 (18) |
+| 60 | 848 | 333 | 123.0 | 64 | 56 | 0.979 | 21 | 1 | 4,403 (1,822) | 2,438 | 1,135 (25) |
 
-`refused_margin` is 0 at every horizon (v002: 1). Pooled hold-out over seeds
-0–4. Per gap, 40 plants plus 20 decoy targets (60 scored pairs) and 10 flicker
-singletons. At planted gap 60: 47 scored pairs, 7 decoys and 4 flickers (pool
-limit):
+Links, trajectories and every length statistic are unchanged by the
+axis-flip rule; only the former `claw_side` rows moved to `max_cost` or
+`refused_assignment`. `refused_margin` is 0 at every horizon (v002: 1).
+
+**Hold-out, every gap scored at every horizon** (fix wave C1). The sweep now
+plants all ten gap lengths at every horizon. A plant longer than the horizon
+is scored like any other: recovered only if its halves are linked to each
+other, a false link if either half is linked to anything else, otherwise a
+miss. Pooled over seeds 0–4, each gap length has 40 plants plus 20 decoy
+targets (60 scored pairs) and 10 flicker singletons; at planted gap 60 the
+pool limit gives 47 scored pairs, 7 decoys and 4 flickers. For a gap within
+the horizon the counts are the same at every horizon that covers it.
+"links" counts the recovered plus falsely linked pairs, the denominator of
+precision; "lower 95%" is the one-sided exact (Clopper–Pearson) bound
+computed by `pool` from those links:
 
 | planted gap | 1 | 2 | 3 | 5 | 10 | 15 | 20 | 30 | 45 | 60 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| recall | 1.000 | 0.983 | 0.983 | 0.983 | 1.000 | 0.950 | 0.900 | 0.783 | 0.567 | 0.170 |
-| precision | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.889 (1 false link) |
-| decoys recovered / planted | 20/20 | 19/20 | 20/20 | 19/20 | 20/20 | 19/20 | 17/20 | 16/20 | 10/20 | 0/7 |
+| recall (horizon ≥ gap) | 1.000 | 0.983 | 0.950 | 0.950 | 1.000 | 0.950 | 0.883 | 0.750 | 0.567 | 0.170 |
+| links (of which decoy targets) | 60 (20) | 59 (19) | 57 (18) | 57 (17) | 60 (20) | 57 (19) | 53 (16) | 45 (14) | 34 (10) | 9 (0) |
+| precision (horizon ≥ gap) | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.889 |
+| lower 95% (all links) | 0.951 | 0.950 | 0.949 | 0.949 | 0.951 | 0.949 | 0.945 | 0.936 | 0.916 | 0.571 |
+| lower 95% (plants only) | 0.928 | 0.928 | 0.926 | 0.928 | 0.928 | 0.924 | 0.922 | 0.908 | 0.883 | – |
+| decoys recovered / planted | 20/20 | 19/20 | 18/20 | 17/20 | 20/20 | 19/20 | 16/20 | 14/20 | 10/20 | 0/7 |
 | decoy false links | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | flickers recovered / planted | 10/10 | 10/10 | 10/10 | 10/10 | 10/10 | 9/10 | 9/10 | 6/10 | 5/10 | 1/4 |
-| flickers spurious | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
-The values are the same at every horizon that covers the gap. Per horizon:
+Plants beyond the horizon: under every horizon up to 30 none of the 107
+scored pairs at gaps 45 and 60 was linked to anything (all misses). Under
+horizon 45, one plant at gap 60 was linked to another crab (precision 0 at
+gap 60, 1 link). The only flicker flagged spurious is one at gap 30 under
+horizons 5–15 (beyond the horizon, as expected). Per horizon:
 
-| `max_gap` | scored pairs | pooled precision | pooled recall | decoy false links | precision 1.0 at every gap |
-|---:|---:|---:|---:|---:|:---:|
-| 5 | 240 | 1.000 | 0.988 | 0 | yes |
-| 10 | 300 | 1.000 | 0.990 | 0 | yes |
-| 15 | 360 | 1.000 | 0.983 | 0 | yes |
-| 30 | 480 | 1.000 | 0.948 | 0 | yes |
-| **45** | **540** | **1.000** | **0.906** | **0** | **yes** |
-| 60 | 587 | 0.998 | 0.847 | 0 | no (gap 60: 0.889) |
+| `max_gap` | scored pairs | links | false links | pooled precision (lower 95%) | pooled recall | decoy false links | precision 1.0 at every gap |
+|---:|---:|---:|---:|---|---:|---:|:---:|
+| 5 | 587 | 233 | 0 | 1.000 (0.987) | 0.397 | 0 | yes |
+| 10 | 587 | 293 | 0 | 1.000 (0.990) | 0.499 | 0 | yes |
+| 15 | 587 | 350 | 0 | 1.000 (0.991) | 0.596 | 0 | yes |
+| **30** | **587** | **448** | **0** | **1.000 (0.993)** | **0.763** | **0** | **yes** |
+| 45 | 587 | 483 | 1 | 0.998 (0.990) | 0.821 | 0 | no (gap 60: 0.000) |
+| 60 | 587 | 491 | 1 | 0.998 (0.990) | 0.835 | 0 | no (gap 60: 0.889) |
 
-No decoy was ever linked. The one false link (seed 0, a plant at gap 60) is
-a stage-4 link at gap 38 from the plant's left half to another crab's
-tracklet. Its cost is 0.86: the size term 2.27 corresponds to about 7 px of
-carapace difference, and the claw sides were unknown. The true pair (gap 60,
-cost 6.6) failed `max_cost`. A size difference that large adds only 0.23 to
-the cost, so the size cue alone does not refuse it.
+Recall per horizon now counts every plant beyond the horizon as a miss, so it
+is not comparable with the v003 values before the fix wave.
+
+No decoy was ever linked. The one false link (seed 0, plant
+`t000042944`, planted gap 60) is a stage-4 link at gap 38 from the plant's
+left half to another crab's tracklet `t000043141`. It is the same link under
+horizons 45 and 60. Its cost is 0.86: the size term 2.27 corresponds to about
+7 px of carapace difference, and the claw sides were unknown. The true pair
+(gap 60, cost 6.6) failed `max_cost`. A size difference that large adds only
+0.23 to the cost, so the size cue alone does not refuse it.
 
 Figures: `logs/gap_sweep/figures/sweep.pdf` (dashed: identities only),
 `start_curve.pdf`, `holdout.pdf`, `radius_fit.pdf` and
@@ -1142,43 +1220,70 @@ Figures: `logs/gap_sweep/figures/sweep.pdf` (dashed: identities only),
 
 ### Default horizon (v003)
 
-**`max_gap = 45`** (1.5 s), in `BridgeConfig` and
-`configs/tracking/gap_bridging_v001.yaml`. The rule: the highest horizon
-whose pooled hold-out precision is 1.0 at every planted gap, counting decoy
-false links.
+**`max_gap = 30`** (1.0 s), in `BridgeConfig` and
+`configs/tracking/gap_bridging_v001.yaml`. The rule
+(`holdout.apply_rule`, `bridge_gaps.py pool --rule-precision 1.0`): the
+highest horizon whose pooled hold-out precision is 1.0 at every planted gap,
+with decoy false links counted and with every planted gap, also those longer
+than the horizon, scored at every horizon.
 
-- With decoys, pooled over seeds 0–4: 1.000 at every gap for horizons 5, 10,
-  15, 30 and 45. At horizon 60, gap 60 drops to 0.889. Hence 45.
-- On the v002 draw (no decoys, seeds 0–4, 40 plants per gap) with the v003
-  code: cues on gives precision 1.000 at every gap up to 60; cues off
-  reproduces v002's false link at gap 30 (0.968). So cues on also passes
-  45 and higher.
+- With decoys, pooled over seeds 0–4: precision 1.000 at every planted gap
+  for horizons 5, 10, 15 and 30. At horizon 45 a 60-frame plant is linked at
+  gap 38 to another crab (gap 60: precision 0, 1 link); at 60 the same link
+  gives 0.889 at gap 60 (8 recovered, 1 false). Hence **30**.
+- Before the fix wave the sweep planted only gaps up to the horizon, so this
+  false link could not be scored under 45, and the rule returned 45 (the
+  earlier derivation, "at horizon 60, gap 60 drops to 0.889; hence 45", was
+  wrong in substance). `apply_rule` now refuses horizons scored on different
+  planted gaps.
+- On the v002 draw (no decoys, seeds 0–4, 40 plants per gap) with the fix-wave
+  code: cues on gives precision 1.000 at every planted gap at horizons 30, 45
+  and 60; cues off reproduces v002's false link at gap 30 (0.968). This draw
+  alone does not separate 30 from 45; the decoy draw does.
 
-What 45 buys over 15 on the demo:
+What 30 buys over 15 on the demo:
 
-- +60 links (782 → 842) and −60 trajectories (399 → 339).
-- Median trajectory length 28 → 61 frames; 100 frames for identities only.
-- Identity starts 276 → 216 (225 → 173 for identities only).
+- +45 links (782 → 827) and −45 trajectories (399 → 354).
+- Median trajectory length 28 → 51.5 frames; 78 frames for identities only.
+- Identity starts 276 → 231 (225 → 185 for identities only).
 
 What it costs:
 
-- 1,519 interpolated rows with `fill_confidence = 'low'` (bridges of 16–45
-  frames), 37% of the 4,100.
-- Hold-out recall of 0.78 at gap 30 and 0.57 at gap 45. Long losses are mostly
+- 965 interpolated rows with `fill_confidence = 'low'` (bridges of 16–30
+  frames), 27% of the 3,546.
+- Hold-out recall of 0.88 at gap 20 and 0.75 at gap 30. Long losses are mostly
   missed rather than mislinked.
 
-Keep only short fills with `fill_confidence in ('high', 'medium')` or
-`gap_frames <= 15`, or run with `--max-gap 15` for the v002 behaviour.
+45 remains a candidate pending the full-dataset sweep: it adds 15 links on
+the demo but admits the one long-absence mislink above. Keep only short
+fills with `fill_confidence in ('high', 'medium')` or `gap_frames <= 15`, or
+run with `--max-gap 15` for the horizon v002 recommended (v002 shipped 5).
 
 ### Residual risks (v003)
 
-- **Thin evidence at long gaps.** The default rests on 60 scored pairs per gap
-  from one 300-frame clip, with plants reused across seeds (156 eligible
-  tracklets). Precision 1.0 from 60 pairs has a one-sided 95% lower bound of
-  0.95. Above `dt` 45 the measured displacement quantile exceeds the radius
-fit (few long tracklets). Re-run `fit` and the
-  decoy sweep on the full dataset before relying on 45 there.
-- **Burrow retreats.** At 1.5 s the horizon reaches into the 1–2 s range at
+- **Thin evidence at long gaps.** The default rests on one 300-frame clip.
+  Precision is recovered / (recovered + false links), so its bound depends on
+  the number of links, not of scored pairs. With no false link, the one-sided
+  exact 95% lower bound per gap is 0.951 / 0.950 / 0.949 / 0.949 / 0.951 /
+  0.949 / 0.945 / 0.936 from 60 / 59 / 57 / 57 / 60 / 57 / 53 / 45 links at
+  gaps 1 / 2 / 3 / 5 / 10 / 15 / 20 / 30, and 0.916 from 34 links at gap 45.
+  These bounds are optimistic for three reasons:
+  - Decoys only add successes. Decoy targets are chosen to differ in
+    appearance from their donor, so by construction they can end recovered or
+    missed, and on this clip none was ever linked to its donor. Without the
+    decoy targets the plant-only bounds are 0.908 at gap 30 (31 links) and
+    0.883 at gap 45 (24 links).
+  - The seeds are not independent. All five redraw from the same 156 eligible
+    tracklets, so the same crabs and frames recur across seeds.
+  - The hold-out does not measure the veto's false refusals. Plant halves
+    come from long, high-score tracklets with Shoulder continuity enforced, so
+    they cannot produce a cross-gap Shoulder flip; how often the claw-side
+    veto (or the axis-flip rule) refuses a true link is unmeasured.
+
+  Above `dt` 45 the measured displacement quantile also exceeds the radius fit
+  (few long tracklets). Re-run `fit` and the decoy sweep, then `pool`, on the
+  full dataset before relying on 30, let alone 45, there.
+- **Burrow retreats.** At 1.0 s the horizon reaches the 1–2 s range at
   which burrow retreats begin. A crab that disappears into its burrow and
   re-emerges is bridged with a placeholder pose (`low` confidence), and a
   neighbour emerging from the same burrow can be linked instead.
@@ -1186,7 +1291,9 @@ fit (few long tracklets). Re-run `fit` and the
   difference and unknown claw sides. Only the claw side has a hard veto.
   Claw waving can flip the side sign within a tracklet (4% of long
   trajectories fall below 0.9 agreement); the veto needs 0.9 over 5 frames
-  on both sides.
+  on both sides. With the axis-flip rule the veto no longer fires on the
+  demo, and it is lifted for most different-handed decoy donors too, so on
+  this clip the claw side acts as a soft term only.
 - **Decoys translate real rows.** They test the appearance cues, not motion
   plausibility. A real neighbour with the same size and side is not covered.
 - **Tail adoption at burrow clusters.** A tail can adopt a neighbour's

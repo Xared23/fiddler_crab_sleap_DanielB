@@ -9,7 +9,11 @@ config over frames ``start .. stop - 1`` of one video and writes, under
 
 - ``<video stem>.frames_<start:06d>_<stop-1:06d>.predictions.slp``: every
   predicted instance, untracked, ``PredictedInstance.score`` = centroid score,
-  frame indices as in the video file (``start .. stop - 1``);
+  frame indices as in the video file (``start .. stop - 1``). Because
+  ``prediction_finalize.derive_tracks`` requires ``frame_idx == index``
+  (frames ``0 .. n - 1``), it consumes this SLP unchanged only when
+  ``start == 0``; for ``start > 0`` cut the range into its own clip first (as
+  the demo was) or renumber the frames;
 - ``raw_candidates.npz``: every centroid slot with keypoints, landmark scores,
   centroid positions and scores, ``frame`` and ``slot``;
 - ``RUN_MANIFEST.json``: arguments, baseline config, thresholds, sha256 of the
@@ -64,7 +68,12 @@ EXIT_MISSING = 2
 def build_parser() -> argparse.ArgumentParser:
     """Command-line parser."""
     parser = argparse.ArgumentParser(
-        description='Re-infer frames start..stop-1 of one video at a low centroid threshold.')
+        description='Re-infer frames start..stop-1 of one video at a low centroid threshold.',
+        epilog='The output SLP keeps the video frame numbers (start..stop-1). '
+               'prediction_finalize.derive_tracks requires start == 0 (frame_idx == index), '
+               'so for start > 0 cut the range into its own clip (as the demo was) or '
+               'renumber the frames first. Example: --video crab_vids/Crab_Cam_2_2.mp4 '
+               '--start 0 --stop 300 --out predictions/reinfer_low_threshold/cam2_2_000000')
     parser.add_argument('--video', type=Path, required=True, help='video file (mp4)')
     parser.add_argument('--start', type=int, required=True, help='first frame (inclusive)')
     parser.add_argument('--stop', type=int, required=True, help='last frame + 1 (exclusive)')

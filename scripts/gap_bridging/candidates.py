@@ -33,7 +33,11 @@ carapace size and claw side on each Endpoint add
 ``size_weight * size_term + claw_side_weight * side_term`` to the cost
 (``_cue_terms``), and a confident claw-side mismatch refuses the pair with
 gate ``claw_side`` (after the motion gates, before ``max_cost``); such a pair
-is neither assignable nor chain-reachable. The linear model ignores the cues.
+is neither assignable nor chain-reachable. A pair whose Shell->Shoulder axis
+reverses across the gap while its Shell->Claw direction is kept (``_axis_flip``)
+is a Shoulder flip, not a different claw side: its side term is 0 and it is not
+vetoed; when it would otherwise have been vetoed its audit reason gains
+``; axis_flip``. The linear model ignores the cues.
 
 The assignment is solved per connected component of the assignable-pair graph;
 non-candidate cells are never chosen at the optimum, so this equals the global
@@ -60,7 +64,7 @@ from scipy.sparse.csgraph import connected_components
 
 # ----- local modules -----
 from gap_bridging.config import BridgeConfig
-from gap_bridging.types import SHOULDER, Endpoint, LinkDecision
+from gap_bridging.types import NODES, SHOULDER, Endpoint, LinkDecision
 
 # ============================================================
 # CONSTANTS
@@ -71,6 +75,8 @@ GATE_DISPLACEMENT = 'displacement'
 GATE_PREDICTION = 'prediction_error'
 GATE_MAX_COST = 'max_cost'
 GATE_CLAW_SIDE = 'claw_side'
+AXIS_FLIP_NOTE = 'axis_flip'
+CLAW = NODES.index('claw')
 
 
 # ============================================================
@@ -325,8 +331,58 @@ def _sqrt_extended_radius(cfg: BridgeConfig, dt: np.ndarray, speed: np.ndarray) 
     return out
 
 
+def _axis_unit_vectors(points: List[Endpoint]) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Image-frame unit vectors Shell->Shoulder ``u`` and Shell->Claw ``c`` per endpoint.
+
+    ``u = (cos h, sin h)`` with ``h = Endpoint.heading``; ``c = R(h) @
+    offsets[claw]``, normalised. Rows are NaN when the heading is unknown, and
+    ``c`` also when the claw offset is unknown or zero.
+    """
+    u = np.full((len(points), 2), np.nan)
+    c = np.full((len(points), 2), np.nan)
+    for k, p in enumerate(points):
+        h = float(p.heading)
+        if not math.isfinite(h):
+            continue
+        cos_h, sin_h = math.cos(h), math.sin(h)
+        u[k] = (cos_h, sin_h)
+        off = np.asarray(p.offsets, dtype=float)[CLAW]
+        claw = np.array([cos_h * off[0] - sin_h * off[1], sin_h * off[0] + cos_h * off[1]])
+        norm = float(np.linalg.norm(claw))
+        if np.all(np.isfinite(claw)) and norm > 0.0:
+            c[k] = claw / norm
+    return u, c
+
+
+def _axis_flip(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
+               cols: np.ndarray) -> np.ndarray:
+    """
+    Pairs whose body axis reverses across the gap while the claw stays put.
+
+    True iff ``u_a . u_b < 0`` and ``c_a . c_b > 0`` (``_axis_unit_vectors`` of
+    END ``a = ends[rows]`` and START ``b = starts[cols]``): the Shell->Shoulder
+    axis reversed but the Shell->Claw direction did not, which is a Shoulder
+    keypoint flip of one crab, not a claw on the other side. False when any
+    vector is unknown. Symmetric in a and b.
+    """
+    ua, ca = (x[rows] for x in _axis_unit_vectors(ends))
+    ub, cb = (x[cols] for x in _axis_unit_vectors(starts))
+    with np.errstate(invalid='ignore'):
+        flip = (np.sum(ua * ub, axis=1) < 0.0) & (np.sum(ca * cb, axis=1) > 0.0)
+    assert flip.shape == rows.shape
+    return flip
+
+
 def _cue_terms(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
                cols: np.ndarray, cfg: BridgeConfig) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """``(size_term, side_term, side_veto)`` of :func:`_cue_terms_full`."""
+    size_term, side_term, side_veto, _ = _cue_terms_full(ends, starts, rows, cols, cfg)
+    return size_term, side_term, side_veto
+
+
+def _cue_terms_full(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
+                    cols: np.ndarray, cfg: BridgeConfig) -> Tuple[np.ndarray, ...]:
     """
     Appearance cue terms of each candidate pair (END ``a = ends[rows]``, START ``b = starts[cols]``).
 
@@ -340,9 +396,13 @@ def _cue_terms(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
       factor keeps a few-frame side estimate from carrying the full weight and
       is 1 once both sides have ``n_s >= k``;
     * ``side_veto`` iff both ``|s| >= claw_side_confidence``, both
-      ``n_s >= claw_side_min_frames`` and ``s_a s_b < 0``.
+      ``n_s >= claw_side_min_frames`` and ``s_a s_b < 0``;
+    * axis flip (``_axis_flip``: ``u_a . u_b < 0`` and ``c_a . c_b > 0``): the
+      claw-side sign reversed because the Shoulder flipped, so ``side_term = 0``
+      and ``side_veto = False``; ``suppressed`` marks the pairs whose veto was
+      lifted this way.
 
-    All three are symmetric under exchanging the cue values of a and b.
+    All four are symmetric under exchanging a and b.
 
     Parameters
     ----------
@@ -355,8 +415,9 @@ def _cue_terms(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
 
     Returns
     -------
-    (size_term, side_term, side_veto) : tuple of np.ndarray
-        Float terms in ``[0, size_cost_cap]`` and ``[0, 1]`` and a bool veto mask.
+    (size_term, side_term, side_veto, suppressed) : tuple of np.ndarray
+        Float terms in ``[0, size_cost_cap]`` and ``[0, 1]``, the bool veto
+        mask and the bool mask of vetoes lifted by an axis flip.
     """
     def cues(points: List[Endpoint], idx: np.ndarray) -> Tuple[np.ndarray, ...]:
         size = np.array([float(p.size_px) for p in points], dtype=float).reshape(-1)[idx]
@@ -377,20 +438,27 @@ def _cue_terms(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
     sided = (nsa > 0) & (nsb > 0)
     product = sa * sb
     weight = np.minimum(1.0, nsa / need) * np.minimum(1.0, nsb / need)   # commutative: exactly symmetric
-    side_term = np.where(sided, np.maximum(0.0, -product) * weight, 0.0)
-    side_veto = ((np.abs(sa) >= conf) & (np.abs(sb) >= conf) & (nsa >= need) & (nsb >= need)
-                 & (product < 0))
-    assert size_term.shape == side_term.shape == side_veto.shape == rows.shape
-    return size_term, side_term, side_veto
+    flip = _axis_flip(ends, starts, rows, cols)
+    side_term = np.where(sided & ~flip, np.maximum(0.0, -product) * weight, 0.0)
+    raw_veto = ((np.abs(sa) >= conf) & (np.abs(sb) >= conf) & (nsa >= need) & (nsb >= need)
+                & (product < 0))
+    side_veto = raw_veto & ~flip
+    suppressed = raw_veto & flip
+    assert size_term.shape == side_term.shape == side_veto.shape == suppressed.shape == rows.shape
+    return size_term, side_term, side_veto, suppressed
 
 
 def _cue_columns(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
-                 cols: np.ndarray, cfg: BridgeConfig) -> Tuple[np.ndarray, np.ndarray]:
-    """``(size_term, side_term)`` for the audit rows; NaN under linear or with cues off."""
+                 cols: np.ndarray, cfg: BridgeConfig) -> Tuple[np.ndarray, ...]:
+    """``(size_term, side_term, suppressed)`` for the audit rows.
+
+    NaN, NaN and False under linear or with cues off.
+    """
     if cfg.gate_model != 'sqrt' or not cfg.appearance_cues:
-        return np.full(len(rows), np.nan), np.full(len(rows), np.nan)
-    size_term, side_term, _ = _cue_terms(ends, starts, rows, cols, cfg)
-    return size_term, side_term
+        return (np.full(len(rows), np.nan), np.full(len(rows), np.nan),
+                np.zeros(len(rows), dtype=bool))
+    size_term, side_term, _, suppressed = _cue_terms_full(ends, starts, rows, cols, cfg)
+    return size_term, side_term, suppressed
 
 
 def _pair_costs_sqrt(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
@@ -759,8 +827,11 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConf
         at an earlier stage, the reason is ``endpoint vetoed at stage s`` and
         the runner-up is the vetoed pair's cost. A pair refused by the
         claw-side veto is ``refused_gate`` with reason ``claw_side`` and NaN
-        cost. ``size_term``/``side_term`` hold the cue terms added to the
-        cost (NaN under linear or with ``appearance_cues`` off).
+        cost. A pair that passes the motion gates and would have been vetoed
+        but for an axis flip (``_axis_flip``) gets ``'; axis_flip'`` appended
+        to its reason, whatever its decision. ``size_term``/``side_term`` hold
+        the cue terms added to the cost (NaN under linear or with
+        ``appearance_cues`` off).
 
     Raises
     ------
@@ -785,7 +856,8 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConf
         return [], []
     scale = cfg.cost_thresholds()
     dt, cost, gate = _pair_costs(ends, starts, rows, cols, cfg)
-    size_term, side_term = _cue_columns(ends, starts, rows, cols, cfg)
+    size_term, side_term, suppressed = _cue_columns(ends, starts, rows, cols, cfg)
+    suppressed = suppressed & ((gate == '') | (gate == GATE_MAX_COST))   # would have been vetoed
     ids = (np.array([e.tracklet_id for e in ends], dtype=object),
            np.array([b.tracklet_id for b in starts], dtype=object))
     gated = _motion_gated(rows, cols, gate, ids)
@@ -824,6 +896,8 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConf
     decisions: List[LinkDecision] = []
     for k, (decision, c, ru, reason, n_chain) in enumerate(labels):
         a, b = ends[rows[k]].tracklet_id, starts[cols[k]].tracklet_id
+        if suppressed[k]:
+            reason = f"{reason}; {AXIS_FLIP_NOTE}"
         decisions.append(LinkDecision(a, b, int(dt[k]) - 1, c, ru, decision, reason, int(n_chain),
                                       int(stage_of[k]), float(size_term[k]), float(side_term[k])))
         if decision == 'linked':

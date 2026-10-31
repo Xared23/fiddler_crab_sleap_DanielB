@@ -1,10 +1,11 @@
 # Gap bridging between body-first tracklets (post-processing, v001).
 # Distances are native-image pixels; velocities px/frame. See docs/GAP_BRIDGING.md.
-# max_gap 45 (v003): highest horizon whose pooled hold-out precision (demo, seeds 0-4,
-# 8 plants + 4 decoys + 2 flicker singletons per gap) is 1.0 at every planted gap;
-# see docs/GAP_BRIDGING.md, 'Default horizon (v003)'. Bridges of 16-45 frames are
+# max_gap 30 (v003): highest horizon whose pooled hold-out precision (demo, seeds 0-4,
+# 8 plants + 4 decoys + 2 flicker singletons per gap, every gap 1-60 planted and scored
+# at every horizon) is 1.0 at every planted gap; `bridge_gaps.py pool`, see
+# docs/GAP_BRIDGING.md, 'Default horizon (v003)'. Bridges of 16-30 frames are
 # fill_confidence 'low': filter on fill_confidence / gap_frames when that matters.
-max_gap: 45
+max_gap: 30
 velocity_window: 3
 max_velocity_px_per_frame: 6.0
 max_body_displacement_px: 12.0
