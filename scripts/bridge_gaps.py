@@ -70,7 +70,7 @@ import pyarrow.compute as pc  # noqa: E402
 import pyarrow.parquet as pq  # noqa: E402
 
 # ----- local modules -----
-from gap_bridging import compare, export, fit, holdout, identity, pipeline, tables, train  # noqa: E402
+from gap_bridging import audit, compare, export, fit, holdout, identity, pipeline, tables, train  # noqa: E402
 from gap_bridging.config import BridgeConfig, load_config  # noqa: E402
 from gap_bridging.types import DECISIONS  # noqa: E402
 
@@ -78,7 +78,7 @@ from gap_bridging.types import DECISIONS  # noqa: E402
 # CONSTANTS
 # ============================================================
 
-COMMANDS = ('run', 'fit', 'sweep', 'pool', 'export', 'train', 'compare')
+COMMANDS = ('run', 'fit', 'sweep', 'pool', 'export', 'train', 'compare', 'audit')
 DEFAULT_MAX_GAPS = (5, 10, 15, 30, 45, 60)
 DEFAULT_HOLDOUT_GAPS = (1, 2, 3, 5, 10, 15, 20, 30, 45, 60)
 SUMMARY_NAME = 'sweep_summary.csv'
@@ -487,6 +487,10 @@ def build_parser() -> argparse.ArgumentParser:
     cp = sub.add_parser('compare', help='pool sweeps per variant on a tracklet fold and check '
                                         'the promotion rule (v004)')
     compare.add_arguments(cp)
+
+    au = sub.add_parser('audit', help='render links a candidate run gained and lost against a '
+                                      'current run on the video (v005 visual audit)')
+    audit.add_arguments(au)
     return parser
 
 
@@ -545,6 +549,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[train] threshold {manifest.threshold:.6f}; train {manifest.n_train} "
                   f"({manifest.n_positive_train} positive), test {manifest.n_test} "
                   f"({manifest.n_positive_test} positive) -> {args.out}", flush=True)
+        elif args.command == 'audit':
+            print(audit.summary_line(audit.run_from_args(args)), flush=True)
         elif args.command == 'compare':
             args.command_line = ' '.join(['bridge_gaps.py'] + (argv if argv is not None
                                                                 else sys.argv[1:]))

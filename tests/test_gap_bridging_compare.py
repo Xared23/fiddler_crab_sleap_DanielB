@@ -491,7 +491,7 @@ class TruthSchemaToleranceTests(unittest.TestCase):
 
     def test_extra_column_is_ignored(self):
         got, ref = self._rescore_with(
-            lambda t: t.append_column('profile', pa.array(['standard'] * t.num_rows)))
+            lambda t: t.append_column('future_column', pa.array(['x'] * t.num_rows)))
         self.assertEqual(self._counts(got), self._counts(ref))
 
 
