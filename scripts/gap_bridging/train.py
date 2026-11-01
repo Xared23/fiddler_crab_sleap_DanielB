@@ -1,0 +1,605 @@
+#!/usr/bin/env python3
+
+"""
+Train the learned link scorer from hold-out sweeps (v004, ``bridge_gaps.py train``).
+
+Data. Every ``holdout_<h>/`` of a sweep directory (``bridge_gaps.py sweep
+--holdout``) holds the candidate pairs of the planted run
+(``bridged/pair_features.parquet``) and the planted truth
+(``holdout_truth.parquet``). :func:`gap_bridging.labels.label_pairs` labels
+each pair (positive: rejoins a planted gap; negative: touches a planted half
+but is not its partner; unlabelled otherwise) and assigns the train/test
+fold from the original tracklet id; :func:`gap_bridging.labels.dedupe_pairs`
+keeps one row per pair across the sweep's horizons. Only motion-gated pairs
+(``gate`` ``''`` or ``'max_cost'``, i.e. those the assignment can see) with a
+label are kept; optionally the negatives whose START is a decoy donor are
+dropped (``drop_donor_negatives``).
+
+Model. A ``HistGradientBoostingClassifier`` with the monotonic constraints of
+:data:`gap_bridging.features.MONOTONIC` (P(link) non-increasing in distance,
+error, gap, the cue terms and the hand cost), shallow trees and no early
+stopping. Out-of-fold (OOF) probabilities on the train fold come from
+``StratifiedGroupKFold`` grouped by the planted original tracklet (all pairs
+of one plant, decoy or flicker stay in one fold); a calibrator (isotonic or
+sigmoid) is fitted on them, then the classifier is refit on the whole train
+fold.
+
+Threshold. The smallest calibrated OOF probability at which the OOF
+precision reaches ``target_precision`` (recall maximal under that
+constraint). Calibration and threshold both use the OOF predictions, which
+is slightly optimistic; the test fold is reported at pair level in the
+manifest, and the promotion decision uses the test fold through the full
+pipeline (hold-out sweep with ``cost_model: learned``).
+
+Outputs: the model and manifest (:func:`gap_bridging.scorer.save_scorer`),
+``<model stem>_metrics.csv`` (per planted gap length, test fold or OOF) and
+optionally the config overlay (``--write-config``).
+
+Sam
+11/2026
+"""
+from __future__ import annotations
+
+# ============================================================
+# IMPORTS
+# ============================================================
+
+# ----- standard library -----
+import argparse
+import csv
+from dataclasses import asdict, dataclass, replace
+from datetime import datetime, timezone
+import hashlib
+import math
+import os
+from pathlib import Path
+import re
+import subprocess
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+# ----- numerics -----
+import numpy as np
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.parquet as pq
+import yaml
+
+# ----- local modules -----
+from gap_bridging import features, holdout, labels
+from gap_bridging.scorer import (CALIBRATIONS, LinkScorer, ScorerManifest, SigmoidCalibrator,
+                                 calibrated_probability, manifest_path, save_scorer)
+
+# ============================================================
+# CONSTANTS
+# ============================================================
+
+#: Gates whose pairs reach the assignment (motion gates passed).
+TRAIN_GATES = ('', 'max_cost')
+DONOR_ROLE = 'decoy_donor'
+HOLDOUT_DIR_RE = re.compile(r'^holdout_(\d+)$')
+SWEEP_HINT = ("rerun `bridge_gaps.py sweep --holdout` (pair-feature export is on by "
+              "default since v004)")
+METRICS_FIELDS = ('fold', 'gap_frames', 'n', 'n_pos', 'precision', 'recall',
+                  'mean_p_pos', 'mean_p_neg')
+THRESHOLD_FLOOR = 1e-12          # learned_min_probability must be in (0, 1]
+OOF_NOTE = ("calibration and threshold use train-fold out-of-fold predictions (slightly "
+            "optimistic); promotion uses the test fold through the full pipeline")
+ROOT = Path(__file__).resolve().parents[2]
+
+# ============================================================
+# PARAMETERS
+# ============================================================
+
+
+@dataclass(frozen=True)
+class TrainParams:
+    """Classifier, cross-validation and threshold settings."""
+    seed: int = 0
+    max_depth: int = 3
+    max_iter: int = 200
+    learning_rate: float = 0.05
+    min_samples_leaf: int = 20
+    l2_regularization: float = 1.0
+    n_splits: int = 5
+    calibration: str = 'isotonic'           # or 'sigmoid'
+    target_precision: float = 1.0
+    drop_donor_negatives: bool = False
+
+    def __post_init__(self) -> None:
+        if self.calibration not in CALIBRATIONS:
+            raise ValueError(f"calibration must be one of {CALIBRATIONS}")
+        if self.n_splits < 2 or self.max_depth < 1 or self.max_iter < 1 or self.min_samples_leaf < 1:
+            raise ValueError("n_splits must be >= 2; max_depth, max_iter, min_samples_leaf >= 1")
+        if not 0 < self.learning_rate or self.l2_regularization < 0:
+            raise ValueError("learning_rate must be > 0 and l2_regularization >= 0")
+        if not 0 < self.target_precision <= 1:
+            raise ValueError("target_precision must be in (0, 1]")
+
+
+# ============================================================
+# DATA
+# ============================================================
+
+
+def holdout_dirs(sweep_dir: Path) -> List[Tuple[int, Path]]:
+    """``(horizon, dir)`` of the completed ``holdout_<h>/`` runs of a sweep, by horizon.
+
+    A directory counts when it contains ``holdout_<h>.json`` (written last by
+    :func:`gap_bridging.holdout.run_holdout`).
+    """
+    sweep_dir = Path(sweep_dir)
+    found = []
+    for child in sweep_dir.iterdir() if sweep_dir.is_dir() else ():
+        match = HOLDOUT_DIR_RE.match(child.name)
+        if match and child.is_dir() and (child / f'{child.name}.json').is_file():
+            found.append((int(match.group(1)), child))
+    return sorted(found)
+
+
+def collect_training_rows(sweep_dirs: Sequence[Path], salt: str = labels.DEFAULT_SALT,
+                          test_fraction: float = labels.DEFAULT_TEST_FRACTION,
+                          drop_donor_negatives: bool = False) -> pa.Table:
+    """Labelled, deduplicated, motion-gated pairs of several sweeps.
+
+    Parameters
+    ----------
+    sweep_dirs : sequence of Path
+        Sweep directories (``bridge_gaps.py sweep --holdout``), e.g. one per seed.
+    salt, test_fraction
+        Fold assignment (:func:`gap_bridging.labels.fold_of`).
+    drop_donor_negatives : bool
+        Drop negatives whose START half is a decoy donor.
+
+    Returns
+    -------
+    pa.Table
+        :data:`gap_bridging.labels.LABELLED_SCHEMA` plus a string column
+        ``sweep`` (the sweep directory); labels 0 and 1 only.
+
+    Raises
+    ------
+    FileNotFoundError
+        If a sweep has no completed hold-out or a hold-out has no pair features.
+    """
+    if not sweep_dirs:
+        raise ValueError("no sweep directories given")
+    parts = []
+    for sweep_dir in sweep_dirs:
+        runs = holdout_dirs(Path(sweep_dir))
+        if not runs:
+            raise FileNotFoundError(f"no completed holdout_<h>/ directory in {sweep_dir}; "
+                                    f"{SWEEP_HINT}")
+        tables, horizons = [], []
+        for horizon, run_dir in runs:
+            feature_path = run_dir / holdout.BRIDGED_DIR / features.PAIR_FEATURES_NAME
+            if not feature_path.is_file():
+                raise FileNotFoundError(f"pair features not found: {feature_path}; {SWEEP_HINT}")
+            pairs = pq.read_table(feature_path)
+            truth = pq.read_table(run_dir / holdout.TRUTH_NAME)
+            tables.append(labels.label_pairs(pairs, truth, salt, test_fraction))
+            horizons.append(horizon)
+        table = labels.dedupe_pairs(tables, horizons)
+        keep = pc.and_(pc.is_in(table['gate'], value_set=pa.array(TRAIN_GATES)),
+                       pc.not_equal(table['label'], labels.UNLABELLED))
+        if drop_donor_negatives:
+            donor_negative = pc.and_(pc.equal(table['label'], labels.NEGATIVE),
+                                     pc.equal(pc.fill_null(table['role_b'], ''), DONOR_ROLE))
+            keep = pc.and_(keep, pc.invert(donor_negative))
+        table = table.filter(pc.fill_null(keep, False))
+        table = table.append_column('sweep', pa.array([str(sweep_dir)] * table.num_rows,
+                                                      pa.string()))
+        parts.append(table)
+    return pa.concat_tables(parts).combine_chunks()
+
+
+def _groups(table: pa.Table) -> np.ndarray:
+    """Planted original id per row (``original_a``, else ``original_b``)."""
+    groups = pc.coalesce(table['original_a'], table['original_b'])
+    assert groups.null_count == 0, "every labelled pair must touch a planted half"
+    return np.asarray(groups.to_pylist(), dtype=object)
+
+
+def split_folds(table: pa.Table) -> Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """``fold -> (X, y, groups)`` for ``'train'``, ``'test'`` and any other fold present.
+
+    ``X`` is ``(n, F)`` from :func:`gap_bridging.features.feature_matrix`,
+    ``y`` the int labels and ``groups`` the planted original ids. A fold
+    with no rows gives empty arrays.
+    """
+    present = set(table['fold'].to_pylist()) if table.num_rows else set()
+    names = ['train', 'test'] + sorted(f for f in present if f not in ('train', 'test'))
+    folds = {}
+    for name in names:
+        part = table.filter(pc.equal(table['fold'], name)) if table.num_rows else table
+        X = (features.feature_matrix(part) if part.num_rows
+             else np.zeros((0, len(features.FEATURE_NAMES))))
+        y = part['label'].to_numpy().astype(np.int64) if part.num_rows else np.zeros(0, np.int64)
+        groups = _groups(part) if part.num_rows else np.zeros(0, dtype=object)
+        assert X.shape == (part.num_rows, len(features.FEATURE_NAMES))
+        folds[name] = (np.asarray(X, dtype=float), y, groups)
+    return folds
+
+
+# ============================================================
+# MODEL
+# ============================================================
+
+
+def effective_splits(y: np.ndarray, groups: np.ndarray, n_splits: int) -> int:
+    """Number of CV splits actually used: ``min(n_splits, groups per class)``.
+
+    ``StratifiedGroupKFold`` needs every class in at least ``n_splits``
+    groups for every fold to see both classes; with fewer, the split count
+    falls back to the smallest number of groups holding a class.
+
+    Raises
+    ------
+    ValueError
+        If ``y`` has one class or some class lies in fewer than 2 groups.
+    """
+    y = np.asarray(y)
+    classes = np.unique(y)
+    if classes.size < 2:
+        raise ValueError(f"training needs both labels, got {classes.tolist()}")
+    per_class = min(len(set(np.asarray(groups)[y == c].tolist())) for c in classes)
+    if per_class < 2:
+        raise ValueError(f"each label must occur in >= 2 groups for cross-validation, got {per_class}")
+    return int(min(n_splits, per_class))
+
+
+def _classifier(params: TrainParams) -> Any:
+    """Unfitted monotonic gradient-boosted classifier."""
+    from sklearn.ensemble import HistGradientBoostingClassifier
+
+    return HistGradientBoostingClassifier(
+        max_depth=params.max_depth, max_iter=params.max_iter, learning_rate=params.learning_rate,
+        min_samples_leaf=params.min_samples_leaf, l2_regularization=params.l2_regularization,
+        monotonic_cst=[features.MONOTONIC.get(n, 0) for n in features.FEATURE_NAMES],
+        early_stopping=False, random_state=params.seed)
+
+
+def fit_scorer(X: np.ndarray, y: np.ndarray, groups: np.ndarray,
+               params: TrainParams) -> Tuple[Any, Any, np.ndarray]:
+    """Fit classifier and calibrator; return ``(hgb, calibrator, p_oof_calibrated)``.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        ``(n, F)`` features (NaN allowed).
+    y : np.ndarray
+        ``(n,)`` labels 0/1.
+    groups : np.ndarray
+        ``(n,)`` group ids (planted original tracklet); never split across folds.
+    params : TrainParams
+
+    Returns
+    -------
+    hgb
+        Classifier refit on all rows.
+    calibrator
+        ``IsotonicRegression`` or :class:`gap_bridging.scorer.SigmoidCalibrator`
+        fitted on the raw OOF probabilities.
+    p_oof : np.ndarray
+        ``(n,)`` calibrated OOF probabilities.
+    """
+    from sklearn.isotonic import IsotonicRegression
+    from sklearn.model_selection import StratifiedGroupKFold
+
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y).astype(np.int64)
+    groups = np.asarray(groups)
+    assert X.ndim == 2 and X.shape[1] == len(features.FEATURE_NAMES), f"bad X shape {X.shape}"
+    assert X.shape[0] == y.shape[0] == groups.shape[0], "X, y, groups lengths differ"
+    assert set(np.unique(y).tolist()) <= {0, 1}, "labels must be 0/1"
+    k = effective_splits(y, groups, params.n_splits)
+    cv = StratifiedGroupKFold(n_splits=k, shuffle=True, random_state=params.seed)
+    p_raw = np.full(y.shape[0], np.nan)
+    for fit_idx, oof_idx in cv.split(X, y, groups):
+        if np.unique(y[fit_idx]).size < 2:          # degenerate fold: constant prior
+            p_raw[oof_idx] = float(np.mean(y[fit_idx]))
+            continue
+        model = _classifier(params).fit(X[fit_idx], y[fit_idx])
+        p_raw[oof_idx] = model.predict_proba(X[oof_idx])[:, 1]
+    assert np.all(np.isfinite(p_raw)), "every row must get an out-of-fold prediction"
+    if params.calibration == 'isotonic':
+        calibrator = IsotonicRegression(y_min=0.0, y_max=1.0, increasing=True, out_of_bounds='clip')
+        calibrator.fit(p_raw, y)
+    else:
+        calibrator = SigmoidCalibrator.fit(p_raw, y, seed=params.seed)
+    hgb = _classifier(params).fit(X, y)
+    p_oof = np.clip(np.asarray(calibrator.predict(p_raw), dtype=float), 0.0, 1.0)
+    return hgb, calibrator, p_oof
+
+
+# ============================================================
+# THRESHOLD AND METRICS
+# ============================================================
+
+
+def choose_threshold(p: np.ndarray, y: np.ndarray, target_precision: float) -> float:
+    """Lowest probability threshold whose precision reaches the target.
+
+    The smallest ``t`` among the unique values of ``p`` with
+    ``precision({p >= t}) >= target_precision`` (so recall is maximal under
+    the constraint). If no ``t`` qualifies: just above the highest negative
+    (``nextafter(max p[y == 0], inf)``); with no negatives at all, the
+    smallest positive probability.
+    """
+    p = np.asarray(p, dtype=float)
+    y = np.asarray(y).astype(np.int64)
+    if p.size == 0 or p.shape != y.shape:
+        raise ValueError("p and y must be non-empty and of equal shape")
+    if not np.any(y == 0):
+        return float(np.min(p[y == 1]))
+    p_sorted = np.sort(p)
+    p_pos = np.sort(p[y == 1])
+    candidates = np.unique(p)
+    n_at_least = p.size - np.searchsorted(p_sorted, candidates, side='left')
+    tp_at_least = p_pos.size - np.searchsorted(p_pos, candidates, side='left')
+    ok = tp_at_least >= target_precision * n_at_least - 1e-9 * n_at_least
+    ok &= n_at_least > 0
+    ok &= tp_at_least > 0
+    if np.any(ok):
+        return float(candidates[np.argmax(ok)])
+    return float(np.nextafter(np.max(p[y == 0]), np.inf))
+
+
+def _ratio(num: float, den: float) -> float:
+    return float(num) / float(den) if den else math.nan
+
+
+def _roc_auc(p: np.ndarray, y: np.ndarray) -> float:
+    """Mann-Whitney ROC AUC (ties count one half); NaN with one class."""
+    from scipy.stats import rankdata
+
+    n_pos = int(np.sum(y == 1))
+    n_neg = int(np.sum(y == 0))
+    if n_pos == 0 or n_neg == 0:
+        return math.nan
+    ranks = rankdata(p)
+    return float((np.sum(ranks[y == 1]) - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg))
+
+
+def metrics(p: np.ndarray, y: np.ndarray, threshold: float) -> Dict[str, float]:
+    """Pair-level metrics of probabilities ``p`` against labels ``y``.
+
+    Keys: ``n``, ``n_pos``, ``threshold``, ``precision``, ``recall``, ``f1``
+    (predicted positive when ``p >= threshold``; NaN for 0/0), ``log_loss``
+    (``p`` clipped to ``[1e-12, 1 - 1e-12]``), ``brier`` and ``roc_auc``
+    (NaN with one class).
+    """
+    p = np.asarray(p, dtype=float)
+    y = np.asarray(y).astype(np.int64)
+    assert p.shape == y.shape, "p and y must have equal shape"
+    predicted = p >= threshold
+    tp = int(np.sum(predicted & (y == 1)))
+    fp = int(np.sum(predicted & (y == 0)))
+    fn = int(np.sum(~predicted & (y == 1)))
+    precision = _ratio(tp, tp + fp)
+    recall = _ratio(tp, tp + fn)
+    f1 = _ratio(2 * tp, 2 * tp + fp + fn)
+    if p.size:
+        q = np.clip(p, 1e-12, 1 - 1e-12)
+        log_loss = float(-np.mean(y * np.log(q) + (1 - y) * np.log1p(-q)))
+        brier = float(np.mean((p - y) ** 2))
+    else:
+        log_loss = brier = math.nan
+    return {'n': int(p.size), 'n_pos': int(np.sum(y == 1)), 'threshold': float(threshold),
+            'precision': precision, 'recall': recall, 'f1': f1, 'log_loss': log_loss,
+            'brier': brier, 'roc_auc': _roc_auc(p, y)}
+
+
+def per_gap_metrics(table: pa.Table, p: np.ndarray, threshold: float) -> List[dict]:
+    """Metrics per planted gap length (``gap_frames``), ascending.
+
+    Each dict: ``gap_frames``, ``n``, ``n_pos``, ``precision``, ``recall``
+    (at ``threshold``), ``mean_p_pos``, ``mean_p_neg`` (NaN when empty).
+    """
+    p = np.asarray(p, dtype=float)
+    assert p.shape == (table.num_rows,), "one probability per row"
+    gaps = table['gap_frames'].to_numpy() if table.num_rows else np.zeros(0, np.int64)
+    y = table['label'].to_numpy().astype(np.int64) if table.num_rows else np.zeros(0, np.int64)
+    rows = []
+    for gap in np.unique(gaps):
+        sel = gaps == gap
+        m = metrics(p[sel], y[sel], threshold)
+        pos, neg = p[sel & (y == 1)], p[sel & (y == 0)]
+        rows.append({'gap_frames': int(gap), 'n': m['n'], 'n_pos': m['n_pos'],
+                     'precision': m['precision'], 'recall': m['recall'],
+                     'mean_p_pos': float(np.mean(pos)) if pos.size else math.nan,
+                     'mean_p_neg': float(np.mean(neg)) if neg.size else math.nan})
+    return rows
+
+
+# ============================================================
+# PROVENANCE
+# ============================================================
+
+
+def table_sha256(table: pa.Table) -> str:
+    """Content hash of a table: column names, types, null masks and values in row order.
+
+    Independent of chunking and Parquet encoding.
+    """
+    digest = hashlib.sha256()
+    for name in table.column_names:
+        column = table[name].combine_chunks() if table.num_rows else table[name]
+        digest.update(f'{name}\x00{column.type}\x00{table.num_rows}\x00'.encode())
+        mask = np.asarray(pc.is_null(column).to_numpy(zero_copy_only=False), dtype=np.uint8)
+        digest.update(mask.tobytes())
+        if pa.types.is_floating(column.type) or pa.types.is_integer(column.type):
+            values = pc.fill_null(column, 0).to_numpy(zero_copy_only=False)
+            digest.update(np.ascontiguousarray(values).tobytes())
+        else:
+            values = ['' if v is None else str(v) for v in column.to_pylist()]
+            digest.update('\x1f'.join(values).encode())
+    return digest.hexdigest()
+
+
+def git_commit() -> str:
+    """``git rev-parse HEAD`` of the repository, or ``''``."""
+    try:
+        result = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True,
+                                text=True, timeout=10, check=True)
+    except (OSError, subprocess.SubprocessError):
+        return ''
+    return result.stdout.strip()
+
+
+def metrics_csv_path(model_path: Path) -> Path:
+    """``<model stem>_metrics.csv`` beside the model."""
+    model_path = Path(model_path)
+    return model_path.with_name(model_path.stem + '_metrics.csv')
+
+
+def _write_metrics_csv(path: Path, fold: str, rows: List[dict]) -> None:
+    with open(path, 'w', newline='') as fh:
+        writer = csv.DictWriter(fh, fieldnames=list(METRICS_FIELDS))
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({'fold': fold, **row})
+
+
+def write_overlay(config_path: Path, model_path: Path, threshold: float, created: str) -> None:
+    """Create or update a config overlay to use the scorer at ``model_path``.
+
+    Sets ``cost_model: learned``, ``scorer_path`` (relative to the YAML's
+    directory, POSIX) and ``learned_min_probability``; other keys are kept.
+    Comments of an existing file are replaced by one header line.
+    """
+    config_path = Path(config_path)
+    values: dict = {}
+    if config_path.is_file():
+        values = yaml.safe_load(config_path.read_text()) or {}
+        if not isinstance(values, dict):
+            raise ValueError(f"{config_path} is not a YAML mapping")
+    rel = os.path.relpath(Path(model_path).resolve(), config_path.resolve().parent)
+    values.update({'cost_model': 'learned', 'scorer_path': Path(rel).as_posix(),
+                   'learned_min_probability': float(threshold)})
+    header = (f"# Written by `bridge_gaps.py train` on {created}: learned link scorer overlay; "
+              f"scorer_path is relative to this file.\n")
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(header + yaml.safe_dump(values, sort_keys=False))
+
+
+# ============================================================
+# COMMAND
+# ============================================================
+
+
+def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = TrainParams(),
+                  salt: str = labels.DEFAULT_SALT,
+                  test_fraction: float = labels.DEFAULT_TEST_FRACTION,
+                  write_config: Optional[Path] = None, force: bool = False) -> ScorerManifest:
+    """Collect, fit, threshold, evaluate and save a scorer.
+
+    Parameters
+    ----------
+    sweeps : sequence of Path
+        Sweep directories with hold-out runs and pair features.
+    out : Path
+        Model file (``.joblib``); the manifest and ``<stem>_metrics.csv`` go beside it.
+    params : TrainParams
+    salt, test_fraction
+        Fold assignment.
+    write_config : Path, optional
+        Config overlay to create or update (:func:`write_overlay`).
+    force : bool
+        Overwrite an existing model, manifest and metrics CSV.
+
+    Returns
+    -------
+    ScorerManifest
+        The saved manifest. The threshold is clipped into ``[1e-12, 1]``
+        (the range ``learned_min_probability`` accepts).
+    """
+    import sklearn
+
+    out = Path(out)
+    csv_path = metrics_csv_path(out)
+    existing = [str(p) for p in (out, manifest_path(out), csv_path) if p.exists()]
+    if existing and not force:
+        raise FileExistsError(f"training outputs already exist (use --force): {existing}")
+    table = collect_training_rows(sweeps, salt, test_fraction, params.drop_donor_negatives)
+    folds = split_folds(table)
+    X_train, y_train, g_train = folds['train']
+    X_test, y_test, _ = folds['test']
+    if y_train.size == 0:
+        raise ValueError("the train fold is empty")
+    print(f"[train] {table.num_rows} pairs from {len(sweeps)} sweep(s): train {y_train.size} "
+          f"({int(y_train.sum())} positive), test {y_test.size} ({int(y_test.sum())} positive)",
+          flush=True)
+    hgb, calibrator, p_oof = fit_scorer(X_train, y_train, g_train, params)
+    raw_threshold = choose_threshold(p_oof, y_train, params.target_precision)
+    threshold = float(min(max(raw_threshold, THRESHOLD_FLOOR), 1.0))
+    if threshold != raw_threshold:
+        print(f"[train] threshold {raw_threshold!r} clipped to {threshold!r}", flush=True)
+    oof_metrics = metrics(p_oof, y_train, threshold)
+    if y_test.size:
+        p_test = calibrated_probability(hgb, calibrator, X_test)
+        test_metrics = metrics(p_test, y_test, threshold)
+        gap_fold, gap_table, gap_p = 'test', table.filter(pc.equal(table['fold'], 'test')), p_test
+    else:
+        test_metrics = {}
+        gap_fold, gap_table, gap_p = 'oof', table.filter(pc.equal(table['fold'], 'train')), p_oof
+    hyper = asdict(params)
+    hyper.update({'n_splits_used': effective_splits(y_train, g_train, params.n_splits),
+                  'note': OOF_NOTE})
+    manifest = ScorerManifest(
+        sklearn_version=sklearn.__version__, feature_names=tuple(features.FEATURE_NAMES),
+        monotonic_cst=tuple(features.MONOTONIC.get(n, 0) for n in features.FEATURE_NAMES),
+        hyperparameters=hyper, calibration=params.calibration, threshold=threshold,
+        training_data_sha256=table_sha256(table), n_train=int(y_train.size),
+        n_test=int(y_test.size), n_positive_train=int(y_train.sum()),
+        n_positive_test=int(y_test.sum()), oof_metrics=oof_metrics, test_metrics=test_metrics,
+        salt=salt, test_fraction=float(test_fraction), sweeps=tuple(str(s) for s in sweeps),
+        created=datetime.now(timezone.utc).isoformat(timespec='seconds'), git_commit=git_commit())
+    save_scorer(LinkScorer(hgb, calibrator, manifest), out, force=force)
+    _write_metrics_csv(csv_path, gap_fold, per_gap_metrics(gap_table, gap_p, threshold))
+    print(f"[train] threshold {threshold:.6g}; OOF precision {oof_metrics['precision']:.4f} "
+          f"recall {oof_metrics['recall']:.4f}; test {test_metrics or 'none'}", flush=True)
+    print(f"[train] wrote {out}, {manifest_path(out)}, {csv_path}", flush=True)
+    if write_config is not None:
+        write_overlay(write_config, out, threshold, manifest.created)
+        print(f"[train] wrote config overlay {write_config}", flush=True)
+    return manifest
+
+
+# ============================================================
+# COMMAND LINE (for bridge_gaps.py)
+# ============================================================
+
+
+def add_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the ``train`` subcommand's options to ``parser``."""
+    d = TrainParams()
+    parser.add_argument('--sweeps', type=Path, nargs='+', required=True,
+                        help='sweep directories with holdout_<h>/bridged/pair_features.parquet')
+    parser.add_argument('--out', type=Path, required=True, help='model file (.joblib)')
+    parser.add_argument('--write-config', type=Path, default=None,
+                        help='config overlay to create or update with the scorer')
+    parser.add_argument('--salt', default=labels.DEFAULT_SALT)
+    parser.add_argument('--test-fraction', type=float, default=labels.DEFAULT_TEST_FRACTION)
+    parser.add_argument('--seed', type=int, default=d.seed)
+    parser.add_argument('--max-depth', type=int, default=d.max_depth)
+    parser.add_argument('--max-iter', type=int, default=d.max_iter)
+    parser.add_argument('--learning-rate', type=float, default=d.learning_rate)
+    parser.add_argument('--min-samples-leaf', type=int, default=d.min_samples_leaf)
+    parser.add_argument('--l2-regularization', type=float, default=d.l2_regularization)
+    parser.add_argument('--n-splits', type=int, default=d.n_splits)
+    parser.add_argument('--calibration', choices=CALIBRATIONS, default=d.calibration)
+    parser.add_argument('--target-precision', type=float, default=d.target_precision)
+    parser.add_argument('--drop-donor-negatives', action='store_true')
+    parser.add_argument('--force', action='store_true', help='overwrite existing outputs')
+
+
+def run_from_args(args: argparse.Namespace) -> ScorerManifest:
+    """Run :func:`train_command` from parsed :func:`add_arguments` options."""
+    params = replace(TrainParams(), seed=args.seed, max_depth=args.max_depth,
+                     max_iter=args.max_iter, learning_rate=args.learning_rate,
+                     min_samples_leaf=args.min_samples_leaf,
+                     l2_regularization=args.l2_regularization, n_splits=args.n_splits,
+                     calibration=args.calibration, target_precision=args.target_precision,
+                     drop_donor_negatives=args.drop_donor_negatives)
+    return train_command(args.sweeps, args.out, params, args.salt, args.test_fraction,
+                         args.write_config, args.force)
