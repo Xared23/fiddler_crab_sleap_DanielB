@@ -1,4 +1,7 @@
-"""Per-pair feature export for the learned link scorer (v004).
+#!/usr/bin/env python3
+
+"""
+Per-pair feature export for the learned link scorer (v004).
 
 One row per enumerated candidate pair, in the enumeration order of
 :func:`gap_bridging.candidates.link_tracklets` (ENDs sorted by (frame,
@@ -9,15 +12,47 @@ counts). Rival counts use the pair's own ``dt`` as the window, so every value
 is identical at every horizon that enumerates the pair; this is what lets the
 trainer deduplicate pairs across horizons.
 
-Interface stub written by the orchestrator; WP-F fills the functions.
+Features are always computed under the sqrt gate model with the hand cost
+(``cost_model='hand'``), whatever ``cfg.cost_model`` says, so a table written
+by a learned-cost run carries the same columns as a hand-cost run. Notes on
+individual columns:
+
+* ``shoulder`` is the dimensionless ``min(|du|, cap) / cap`` that the sqrt
+  cost multiplies by ``shoulder_vector_weight`` (``candidates._pair_geometry``
+  returns the capped value in px); like the cost it is 0, not NaN, when either
+  shoulder vector is unknown.
+* ``size_term`` and ``side_term`` are the hand cue terms of
+  ``candidates._cue_terms_full`` (the side term carries the claw-frame
+  confidence weight and is 0 on an axis flip), but NaN where a side has no
+  size (claw-side) frames, where the hand cost uses 0. They are computed even
+  when ``cfg.appearance_cues`` is off; ``hand_cost`` then omits them.
+* ``hand_cost`` is the sqrt cost of every pair, finite also where a gate
+  failed; ``links.parquet`` reports NaN for gate-refused pairs (including
+  ``claw_side``), this column keeps the value.
+* Ratios over a zero radius (only with ``radius_min_px = 0`` and a zero
+  fitted radius) are NaN rather than inf.
+
+Sam
+11/2026
 """
+
+# ============================================================
+# IMPORTS
+# ============================================================
+
+# ----- standard library -----
 from __future__ import annotations
 
+import math
+from dataclasses import replace
 from typing import List, Sequence, Tuple
 
+# ----- numerics -----
 import numpy as np
 import pyarrow as pa
 
+# ----- local modules -----
+from gap_bridging import candidates, geometry
 from gap_bridging.config import BridgeConfig
 from gap_bridging.types import Endpoint
 
@@ -69,13 +104,69 @@ PAIR_FEATURES_NAME = 'pair_features.parquet'
 
 
 # ============================================================
-# FUNCTIONS (WP-F)
+# HELPERS
+# ============================================================
+
+
+def _ratio(num: np.ndarray, den: np.ndarray) -> np.ndarray:
+    """``num / den`` elementwise; NaN where the quotient is not finite."""
+    with np.errstate(divide='ignore', invalid='ignore'):
+        out = np.asarray(num, dtype=float) / np.asarray(den, dtype=float)
+    return np.where(np.isfinite(out), out, np.nan)
+
+
+def _side_cues(points: List[Endpoint], idx: np.ndarray) -> Tuple[np.ndarray, ...]:
+    """Per-pair ``(size_px, size_n, claw_side, claw_side_n, n_frames)`` of one side."""
+    size = np.array([float(p.size_px) for p in points], dtype=float).reshape(-1)[idx]
+    size_n = np.array([int(p.size_n) for p in points], dtype=float).reshape(-1)[idx]
+    side = np.array([float(p.claw_side) for p in points], dtype=float).reshape(-1)[idx]
+    side_n = np.array([int(p.claw_side_n) for p in points], dtype=float).reshape(-1)[idx]
+    n_frames = np.array([int(p.n_frames) for p in points], dtype=float).reshape(-1)[idx]
+    return size, size_n, side, side_n, n_frames
+
+
+def _rival_counts(group: np.ndarray, dt: np.ndarray, ok: np.ndarray) -> np.ndarray:
+    """
+    Number of other motion-gated pairs sharing a group with ``dt' <= dt``.
+
+    Parameters
+    ----------
+    group : np.ndarray
+        ``(n,)`` int64 END (or START) index of each pair.
+    dt : np.ndarray
+        ``(n,)`` int64 frame separation, ``>= 2``.
+    ok : np.ndarray
+        ``(n,)`` bool, the pair passes both motion gates and the claw-side veto.
+
+    Returns
+    -------
+    np.ndarray
+        ``(n,)`` float64 count over pairs ``q != k`` with ``group[q] ==
+        group[k]``, ``ok[q]`` and ``dt[q] <= dt[k]``; ``O(n log n)`` through
+        one sorted key ``group * span + dt``.
+    """
+    assert group.shape == dt.shape == ok.shape
+    if group.size == 0:
+        return np.zeros(0, dtype=float)
+    span = int(dt.max()) + 1
+    key = group.astype(np.int64) * span + dt.astype(np.int64)
+    gated = np.sort(key[ok])
+    upto = np.searchsorted(gated, key, side='right')
+    first = np.searchsorted(gated, group.astype(np.int64) * span, side='left')
+    count = upto - first - ok.astype(np.int64)
+    assert np.all(count >= 0), "rival count must be non-negative"
+    return count.astype(float)
+
+
+# ============================================================
+# FEATURES
 # ============================================================
 
 
 def pair_features(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
                   cols: np.ndarray, cfg: BridgeConfig) -> Tuple[np.ndarray, np.ndarray]:
-    """Feature matrix and first failing motion gate for candidate pairs.
+    """
+    Feature matrix and first failing motion gate for candidate pairs.
 
     Parameters
     ----------
@@ -89,21 +180,180 @@ def pair_features(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray
     Returns
     -------
     X : np.ndarray
-        ``(n, len(FEATURE_NAMES))`` float64 in :data:`FEATURE_NAMES` order.
+        ``(n, len(FEATURE_NAMES))`` float64 in :data:`FEATURE_NAMES` order;
+        NaN where a value is unknown, never inf.
     gate : np.ndarray
-        ``(n,)`` object: first failing gate per pair ('' when none fails;
-        'displacement', 'prediction_error', 'claw_side' or 'max_cost').
+        ``(n,)`` object: first failing gate per pair under the hand cost (''
+        when none fails; 'displacement', 'prediction_error', 'claw_side' or
+        'max_cost').
+
+    Raises
+    ------
+    ValueError
+        If ``cfg.gate_model`` is not ``'sqrt'`` or ``rows``/``cols`` differ in
+        length.
     """
-    raise NotImplementedError("WP-F")
+    if cfg.gate_model != 'sqrt':
+        raise ValueError(f"pair features need gate_model 'sqrt', got {cfg.gate_model!r}")
+    rows = np.asarray(rows, dtype=np.int64)
+    cols = np.asarray(cols, dtype=np.int64)
+    if rows.shape != cols.shape or rows.ndim != 1:
+        raise ValueError("rows and cols must be 1-d arrays of equal length")
+    n = rows.size
+    out = np.full((n, len(FEATURE_NAMES)), np.nan)
+    if n == 0:
+        return out, np.full(0, '', dtype=object)
+    cfg_hand = replace(cfg, cost_model='hand')
+    cap = float(cfg_hand.shoulder_vector_cost_cap_px)
+    dt, dist, err, shoulder_px = candidates._pair_geometry(
+        ends, starts, rows, cols, cfg_hand.prediction_horizon_frames, cap)
+    _, va, ka = (x[rows] for x in candidates._stack(ends))
+    _, vb, kb = (x[cols] for x in candidates._stack(starts))
+    speed_a = np.where(ka, np.linalg.norm(va, axis=1), 0.0)
+    speed_b = np.where(kb, np.linalg.norm(vb, axis=1), 0.0)
+    radius = candidates._sqrt_extended_radius(cfg_hand, dt, np.maximum(speed_a, speed_b))
+    dt_cost, hand_cost, gate = candidates._pair_costs_sqrt(ends, starts, rows, cols, cfg_hand)
+    assert np.array_equal(dt, dt_cost), "geometry and cost disagree on dt"
+
+    heading_a = np.array([float(p.heading) for p in ends], dtype=float).reshape(-1)[rows]
+    heading_b = np.array([float(p.heading) for p in starts], dtype=float).reshape(-1)[cols]
+    heading_change = np.abs(geometry.wrap_angle(heading_b - heading_a))
+
+    size_a, size_n_a, side_a, side_n_a, n_frames_a = _side_cues(ends, rows)
+    size_b, size_n_b, side_b, side_n_b, n_frames_b = _side_cues(starts, cols)
+    size_term, side_term, _, _ = candidates._cue_terms_full(ends, starts, rows, cols, cfg_hand)
+    sized = (size_n_a > 0) & (size_n_b > 0) & np.isfinite(size_a) & np.isfinite(size_b)
+    known_a, known_b = side_n_a > 0, side_n_b > 0
+    sided = known_a & known_b
+
+    ok = (gate == '') | (gate == candidates.GATE_MAX_COST)
+    values = {
+        'gap': (dt - 1).astype(float),
+        'dist': dist,
+        'err': err,
+        'radius': radius,
+        'dist_over_radius': _ratio(dist, radius),
+        'err_over_radius': _ratio(err, radius),
+        'speed_a': speed_a,
+        'speed_b': speed_b,
+        'vel_known_a': ka.astype(float),
+        'vel_known_b': kb.astype(float),
+        'shoulder': (shoulder_px / cap) if cap > 0 else np.zeros(n),
+        'heading_change': heading_change,
+        'size_term': np.where(sized, size_term, np.nan),
+        'size_diff': np.where(sized, np.abs(size_a - size_b), np.nan),
+        'side_product': np.where(sided, side_a * side_b, np.nan),
+        'side_term': np.where(sided, side_term, np.nan),
+        'abs_side_a': np.where(known_a, np.abs(side_a), np.nan),
+        'abs_side_b': np.where(known_b, np.abs(side_b), np.nan),
+        'size_n_a': size_n_a,
+        'size_n_b': size_n_b,
+        'claw_side_n_a': side_n_a,
+        'claw_side_n_b': side_n_b,
+        'n_frames_a': n_frames_a,
+        'n_frames_b': n_frames_b,
+        'n_rival_starts': _rival_counts(rows, dt, ok),
+        'n_rival_ends': _rival_counts(cols, dt, ok),
+        'axis_flip': candidates._axis_flip(ends, starts, rows, cols).astype(float),
+        'hand_cost': np.where(np.isfinite(hand_cost), hand_cost, np.nan),
+    }
+    assert set(values) == set(FEATURE_NAMES), "every feature must be computed"
+    for j, name in enumerate(FEATURE_NAMES):
+        column = np.asarray(values[name], dtype=float)
+        assert column.shape == (n,), f"feature {name} must be per pair"
+        out[:, j] = column
+    assert out.shape == (n, len(FEATURE_NAMES))
+    assert not np.isinf(out).any(), "features must not be infinite"
+    return out, gate
 
 
 def pair_feature_table(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConfig,
                        video_id: str) -> pa.Table:
-    """Enumerate the video's candidate pairs exactly as ``link_tracklets`` and
-    return one :data:`PAIR_FEATURES_SCHEMA` row per pair, in enumeration order."""
-    raise NotImplementedError("WP-F")
+    """
+    Feature rows of every candidate pair of one video, in ``link_tracklets`` order.
+
+    Parameters
+    ----------
+    ends, starts : list of Endpoint
+        One END and one START per tracklet of the video, in any order.
+    cfg : BridgeConfig
+        ``max_gap``, gate and cue parameters (sqrt gate model).
+    video_id : str
+        Written to the ``video_id`` column.
+
+    Returns
+    -------
+    pa.Table
+        :data:`PAIR_FEATURES_SCHEMA`; one row per pair enumerated by
+        ``link_tracklets`` (same R_max prefilter, same order), so row k
+        matches decision k. ``tracklet_a`` is the END's id, ``tracklet_b``
+        the START's, ``gap_frames = dt - 1``. Empty when ``max_gap == 0``
+        or no pair is enumerated.
+
+    Raises
+    ------
+    ValueError
+        As ``link_tracklets`` (mixed videos, duplicate ids per side), or if
+        the gate model is not sqrt.
+    """
+    if ends is None or starts is None or cfg is None:
+        raise ValueError("ends, starts and cfg are required")
+    candidates._check_inputs(ends, starts)
+    if cfg.gate_model != 'sqrt':
+        raise ValueError(f"pair features need gate_model 'sqrt', got {cfg.gate_model!r}")
+    if cfg.max_gap == 0 or not ends or not starts:
+        return PAIR_FEATURES_SCHEMA.empty_table()
+    ends = sorted(ends, key=candidates._sort_key)
+    starts = sorted(starts, key=candidates._sort_key)
+    rows, cols, _ = candidates._enumerate_pairs(ends, starts, cfg.max_gap,
+                                                candidates._prune_radius(ends, starts, cfg))
+    if rows.size == 0:
+        return PAIR_FEATURES_SCHEMA.empty_table()
+    X, gate = pair_features(ends, starts, rows, cols, cfg)
+    gap = X[:, FEATURE_NAMES.index('gap')].astype(np.int64)
+    assert np.all((gap >= 1) & (gap <= cfg.max_gap)), "enumerated gaps must lie in 1..max_gap"
+    columns = {
+        'video_id': pa.array([str(video_id)] * rows.size, type=pa.string()),
+        'tracklet_a': pa.array([str(ends[r].tracklet_id) for r in rows], type=pa.string()),
+        'tracklet_b': pa.array([str(starts[c].tracklet_id) for c in cols], type=pa.string()),
+        'gap_frames': pa.array(gap, type=pa.int64()),
+        'gate': pa.array([str(g) for g in gate], type=pa.string()),
+    }
+    for j, name in enumerate(FEATURE_NAMES):
+        columns[name] = pa.array(X[:, j], type=pa.float64())
+    table = pa.Table.from_pydict(columns, schema=PAIR_FEATURES_SCHEMA)
+    assert table.num_rows == rows.size
+    return table
 
 
 def feature_matrix(table: pa.Table, names: Sequence[str] = FEATURE_NAMES) -> np.ndarray:
-    """``(n, len(names))`` float64 matrix of the named columns of a features table."""
-    raise NotImplementedError("WP-F")
+    """
+    ``(n, len(names))`` float64 matrix of the named columns of a features table.
+
+    Parameters
+    ----------
+    table : pa.Table
+        A :data:`PAIR_FEATURES_SCHEMA` table (or any table with the columns).
+    names : sequence of str
+        Columns in matrix order (default :data:`FEATURE_NAMES`).
+
+    Returns
+    -------
+    np.ndarray
+        Float64 matrix; nulls become NaN.
+
+    Raises
+    ------
+    ValueError
+        If a named column is missing.
+    """
+    names = list(names)
+    missing = [name for name in names if name not in table.schema.names]
+    if missing:
+        raise ValueError(f"features table has no column(s) {missing}")
+    out = np.full((table.num_rows, len(names)), np.nan)
+    for j, name in enumerate(names):
+        column = table[name].cast(pa.float64()).fill_null(math.nan)
+        out[:, j] = column.to_numpy() if table.num_rows else np.zeros(0)
+    assert out.shape == (table.num_rows, len(names))
+    return out
