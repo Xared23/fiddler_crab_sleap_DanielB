@@ -82,7 +82,7 @@
 
 ## D-009 — hold-out positives are long-tracklet halves, so a scorer trained on them under-scores natural breaks
 - **Found:** 2026-11-01, gap bridging v004 integration
-- **Status:** open (documented; learned cost model shipped as an option, not the default)
+- **Status:** mitigated in v005 (`sweep --profile short` plants halves matching the natural length mix; the retrained scorer gives p >= 0.5 to 97-98% of natural links in every length bin; the learned model stays an option because the threshold recipe, not the confound, now limits demo links; see docs/GAP_BRIDGING.md v005)
 - **Where:** scripts/gap_bridging/holdout.py `plant_gaps` (`min_tracklet_len` 40, `margin` 3); scripts/gap_bridging/train.py
 - **Symptom:** every planted positive has both halves ≥ 4 frames (seed 0, horizon 30: min 4, median 42), whereas 75% of the demo's 827 natural links have a 1-frame side. The first trained scorer (pre fold-correction, threshold 0.98) gave `p >= 0.98` to 3% of natural 1-frame links and 86% of ≥ 20-frame links; the committed fold-corrected scorer (threshold 0.9944) keeps 26 of the demo's 827 links at horizon 30 and 704 at `p >= 0.5`, while its hold-out recall over all plants is 0.33 (trained threshold) to 0.97 (`p >= 0.5`, horizon 60)
 - **Repro:** `pipeline.pair_feature_export` on the demo + `scorer.load_scorer('configs/tracking/link_scorer_v001.joblib').predict_proba`, grouped by `min(n_frames_a, n_frames_b)`
@@ -109,3 +109,13 @@
 - **Impact:** the hold-out cannot adjudicate the 55 demo links (both variants score alike); staging remains the better-supported choice on this clip
 - **Regression test:** tests/test_gap_bridging_assignment.py (global equals staged with a single stage; adaptive dummy properties); tests/test_gap_bridging_pipeline.py::FeatureExportTests::test_global_adaptive_variant_runs_with_invariants
 - **Fix:** none needed for the default; a joint formulation that prices chain consistency (min-cost flow over tracklets, next-steps item 5) is the principled alternative
+
+## D-012 — compare selected the full TRUTH_SCHEMA from older truth tables
+- **Found:** 2026-11-01, planning gap bridging v005
+- **Status:** fixed
+- **Where:** scripts/gap_bridging/compare.py `fold_scores` (`.select(holdout.TRUTH_SCHEMA.names)`)
+- **Symptom:** any new truth column would have made `fold_scores` raise on every hold-out written before the column existed (including `logs/gap_sweep`, which `RealSweepTests` reads)
+- **Repro:** add a column to TRUTH_SCHEMA and run tests/test_gap_bridging_compare.py::RealSweepTests
+- **Impact:** v004 sweeps could not have been compared by v005 code
+- **Regression test:** tests/test_gap_bridging_compare.py::TruthSchemaToleranceTests
+- **Fix:** select the intersection of the schema's names and the table's columns

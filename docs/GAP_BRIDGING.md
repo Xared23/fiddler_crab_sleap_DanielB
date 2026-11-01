@@ -1578,3 +1578,180 @@ done
     --configs current=configs/tracking/gap_bridging_v001.yaml global=... learned=... learned_global=... \
     --out logs/bench/gap_bridging_v004.csv --markdown logs/bench/gap_bridging_v004.md
 ```
+
+## v005: short-half hold-out profile and feature ablation
+
+v005 (2026-11-01) addresses D-009: a learned link scorer trained on the
+standard hold-out learns tracklet length because every planted positive is a
+half of a tracklet of at least 40 frames with at least 3 frames kept per
+side, while natural breaks are mostly between short fragments. Two remedies
+were built and judged by the same rules: a hold-out **planting profile** that
+produces short halves matching the natural mix (the primary remedy), and a
+**feature ablation** that removes the length-confounded features (a control).
+Every default is unchanged; the standard profile is byte-identical to v004
+(planted tables, links and CSVs compared for five seeds and six horizons).
+
+### The natural mix
+
+`holdout.link_side_lengths` / `holdout.link_mix` measure, over the 827 links
+of the default demo run at horizon 30, the lengths of the two tracklets each
+link joins (shorter side `lo`, longer side `hi`):
+
+| category | definition | demo fraction |
+|---|---|---:|
+| both_short | hi ≤ 3 | 0.401 |
+| one_short | lo ≤ 3, hi ≥ 10 | 0.177 |
+| short_mid | lo ≤ 3, hi in 4..9 | 0.214 |
+| mid | lo in 4..9 | 0.127 |
+| both_long | lo ≥ 10 | 0.081 |
+
+Among sides of at most 3 frames the lengths 1 / 2 / 3 occur with weights
+0.58 / 0.27 / 0.15. The standard planting (shorter half ≥ 4 frames, median
+42) covers only the last row.
+
+### Planting profile (`sweep --profile short`)
+
+`holdout.HalfProfile` fixes the draw: per plant, a category from the
+probabilities above (0.40 / 0.18 / 0.21 / 0.13 / 0.08), then the kept length
+of each side (short: 1..3 with the weights above; mid: uniform 4..9; a
+"keep-all" side keeps every frame on that side and must have at least 10, or
+4 when the other side is mid; which side is short is a coin flip), then an
+eligible unused tracklet (at least 10 frames, enough for gap + both kept
+lengths) and the run offset, uniform over the admissible positions. The rows
+outside the kept window are deleted together with the gap run (a kept
+remainder would be a same-crab neighbour labelled negative); the trimmed left
+half's first row gets `incoming_reason 'no_candidate'` like a right half.
+Decoy targets are drawn like plants (their left cue is measured on the
+trimmed rows, so most have too few claw frames for a veto); donors and
+flicker singletons are not trimmed. Shorter gap lengths never depend on
+longer ones, and the `standard` profile runs the v004 code path verbatim.
+The truth table gains `profile`, `category`, `left_frames` and
+`right_frames` under both profiles; `holdout_<h>.json` records the profile.
+On the demo (8 plants, 4 decoys, 2 flicker per gap, seeds 0–4) every gap up
+to 60 is fully planted; the pooled 400 plants fall 0.40 / 0.19 / 0.21 /
+0.11 / 0.08 into the five categories.
+
+### Feature ablation (`train --features`)
+
+`features.FEATURE_SETS` names ordered subsets of `FEATURE_NAMES`: `all`,
+`no_length` (drops `n_frames_*`, `size_n_*`, `claw_side_n_*`, `vel_known_*`;
+20 features) and `no_length_no_speed` (also `speed_*`; 18). The manifest
+records the subset (`feature_names`, `feature_set`), the loader accepts any
+ordered subset, and the learned cost path selects the columns by name. The
+ablation cannot blind the model completely (speeds are 0 when unknown, the
+radius uses them, `abs_side_*` is discrete for n ≤ 3, and the size term's
+noise term depends on n), so it is a control, not a candidate.
+
+### Scorers
+
+All trained with the v004 recipe (sigmoid calibration, threshold at
+out-of-fold precision 1.0, folds by original tracklet id):
+
+| scorer | features | training profile | pairs train / test (positive) | threshold | pairwise test precision / recall |
+|---|---|---|---:|---:|---:|
+| S1 (`link_scorer_v005_s1`) | all | short | 1,368 / 537 (510 / 287) | 0.989 | 0.989 / 0.33 |
+| S2 (`link_scorer_v005_s2`) | no_length | short | 1,368 / 537 (510 / 287) | 0.985 | 0.990 / 0.36 |
+| S3 (`link_scorer_v005_s3`) | no_length | standard | 924 / 484 (468 / 306) | 0.995 | 1.000 / 0.12 |
+
+The D-009 diagnostic (probability given to the demo's 827 natural links,
+by the shorter tracklet's length) shows the confound is gone: S1 gives
+p ≥ 0.5 to 98% of links whose shorter side has 1 frame and to 97% of those
+with 20 or more (v004 model: 84% and 97%, median p 0.89 vs 0.99 for the
+1-frame bin); S2 behaves alike, and even S3, trained on long halves without
+length features, reaches 96% in the 1-frame bin. At the trained thresholds
+(about 0.99) the fractions drop to 16–58%, so the threshold, not the model,
+now limits the demo links.
+
+### Comparison on the short profile
+
+Baseline `current` = the hand cost re-scored on the short profile. 600
+planted pairs per horizon over all plants, 223 on the test fold; `recovered /
+false links`; `_p50` variants use `learned_min_probability: 0.5`
+(exploratory overlays, not committed):
+
+| `max_gap` | current (all) | S1 (all) | S2 (all) | S3 (all) | S1 p ≥ 0.5 (all) | S2 p ≥ 0.5 (all) | current (test) | S1 p ≥ 0.5 (test) |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 5 | 239 / 1 | 120 / 1 | 159 / 0 | 65 / 0 | 239 / 1 | 239 / 1 | 98 / 1 | 97 / 1 |
+| 10 | 298 / 1 | 122 / 1 | 164 / 0 | 65 / 0 | 299 / 1 | 299 / 1 | 118 / 1 | 118 / 1 |
+| 15 | 355 / 1 | 125 / 1 | 164 / 0 | 65 / 0 | 357 / 1 | 357 / 1 | 138 / 1 | 138 / 1 |
+| 30 | 452 / 2 | 126 / 1 | 172 / 0 | 65 / 0 | 472 / 1 | 471 / 1 | 172 / 1 | 178 / 1 |
+| 45 | 482 / 2 | 134 / 1 | 193 / 0 | 65 / 0 | 526 / 1 | 525 / 1 | 183 / 1 | 201 / 1 |
+| 60 | 497 / 2 | 155 / 1 | 215 / 0 | 65 / 0 | 582 / 1 | 581 / 1 | 187 / 1 | 216 / 1 |
+
+Every variant's single false link at every horizon is the same planted
+gap-60 crab (absent for two seconds after trimming) whose short half links
+to a neighbour within 5 frames; the hand cost adds one more at planted gap
+30 under horizons ≥ 30, so **the hand baseline fails its own precision rule
+on the short profile** (the demo's natural breaks are harder than the
+standard plants), and the promotion check ran at the fallback horizon 30.
+Demo links at horizon 30: current 827, S1 292, S2 361, S3 123, S1 p ≥ 0.5
+816, S2 p ≥ 0.5 813, S3 p ≥ 0.5 797. Full tables:
+`docs/gap_bridging_v005_comparison.md` (test fold) and
+`docs/gap_bridging_v005_comparison_all.md` (all plants).
+
+### Visual audit
+
+`bridge_gaps.py audit` renders the links a candidate gained and lost against
+the current run (`docs/figures/gap_bridging_v005_audit_s1_p50_{gained,lost}_p*.png`
+and the CSV beside them; S1 p ≥ 0.5 vs current, horizon 30, seed-0 runs):
+8 gained (gaps 8–29) and 19 lost (gaps 1–30, median 9). On the video both
+sets are overwhelmingly the same crab sitting at a burrow: the lost links are
+short-gap pairs with a 1 to 3 frame side that the hand cost links at
+0.3–0.9 and the scorer puts just below 0.5; the gained links are 8 to 25
+frame absences at a burrow that the hand cost refused above `max_cost`
+(1.04–1.48) and the scorer accepts at 0.02–0.39. The audit therefore does
+not separate the two linkers in quality; it shows that the learned scorer
+trades short-gap burrow links for long-gap ones.
+
+### Promotion decision (v005)
+
+- **Not promoted.** S1 at p ≥ 0.5 is the strongest variant: precision 1.0 at
+  every planted gap through 30 on both folds (better than the baseline's
+  own 452 / 2 at horizon 30), recall above the baseline at every horizon
+  (472 vs 452 recovered at 30, 582 vs 497 at 60 over all plants; 178 vs 172
+  and 216 vs 187 on the test fold), yet it fails the rule twice: one plant
+  short of the baseline at gap 2 on the test fold (26 of 27) and 816 demo
+  links against the floor of 827. The trained-threshold variants (S1, S2,
+  S3) lose most of the recall and the demo links; the control S3 at p ≥ 0.5
+  adds a false link at gap 10. By the agreed rule no default changes; the
+  horizon stays 30 on the standard rule.
+- **What changed in substance.** The length confound of D-009 is removed
+  by the short profile (and largely by the ablation), the learned scorer is
+  now a credible alternative at a relaxed threshold rather than a failure,
+  and the hand cost is shown to make false links on natural-shaped plants
+  that it never made on the standard ones. The remaining obstacle is the
+  threshold recipe: out-of-fold precision 1.0 on planted pairs sets 0.99,
+  which refuses half of the natural links; a threshold chosen against the
+  demo link count, or a precision target below 1.0, would be a different
+  rule and is left for a decision.
+
+### Residual risks (v005)
+
+- Planted short halves are confident detections of well-tracked crabs
+  (median instance score of natural 1-frame tracklets 0.29); the scorer still
+  never sees a low-score fragment as a positive.
+- The gap-60 false link shared by every linker suggests a neighbour
+  fragment within reach of a trimmed half; the hold-out cannot tell a wrong
+  link from a crab that genuinely returned (the trimmed rows are deleted).
+- S1/S2 pairwise test precision is 0.99, not 1.0: the out-of-fold threshold
+  does not transfer perfectly to held-out short halves.
+- Mix probabilities are demo constants; re-measure with `link_mix` on the
+  full dataset before planting there.
+
+### Commands (v005)
+
+```bash
+OBS=demo/crab_cam2_2_middle_300/observations.parquet
+COMMON="--observations $OBS --max-gaps 5,10,15,30,45,60 --holdout --per-gap 8 --decoys 4 --flicker 2 --no-figures --force"
+for k in 0 1 2 3 4; do .venv/bin/python scripts/bridge_gaps.py sweep $COMMON --seed $k --out logs/gap_sweep_v005/current_std/seed_$k; done
+for k in 0 1 2 3 4; do .venv/bin/python scripts/bridge_gaps.py sweep $COMMON --profile short --seed $k --out logs/gap_sweep_v005/current_short/seed_$k; done
+.venv/bin/python scripts/bridge_gaps.py train --sweeps logs/gap_sweep_v005/current_short/seed_{0,1,2,3,4} --features all \
+    --out configs/tracking/link_scorer_v005_s1.joblib --write-config configs/tracking/gap_bridging_v005_s1.yaml   # S2: --features no_length; S3: current_std sweeps
+# learned sweeps: the same sweep line with --profile short --config configs/tracking/gap_bridging_v005_<s>.yaml (and p>=0.5 overlays)
+.venv/bin/python scripts/bridge_gaps.py compare --variant current=logs/gap_sweep_v005/current_short/seed_0,... \
+    --variant s1=... --variant s1_p50=... --fold test --through-gap 30 --demo-horizon 30 \
+    --out logs/gap_sweep_v005/compare_test --docs docs/gap_bridging_v005_comparison.md
+.venv/bin/python scripts/bridge_gaps.py audit --current logs/gap_sweep_v005/current_short/seed_0/max_gap_30 \
+    --candidate logs/gap_sweep_v005/s1_p50/seed_0/max_gap_30 --observations $OBS \
+    --out docs/figures/gap_bridging_v005_audit_s1_p50 --n 20
+```

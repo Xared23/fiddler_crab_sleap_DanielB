@@ -1,0 +1,4 @@
+# Written by `bridge_gaps.py train` on 2026-11-01T23:40:02+00:00: learned link scorer overlay; scorer_path is relative to this file.
+cost_model: learned
+scorer_path: link_scorer_v005_s2.joblib
+learned_min_probability: 0.9851378084176468
