@@ -84,6 +84,21 @@ def fitted_scorer(seed: int = 0) -> scorer.LinkScorer:
     return scorer.LinkScorer(hgb, cal, manifest())
 
 
+def fitted_subset_scorer(names, seed: int = 0) -> scorer.LinkScorer:
+    """As :func:`fitted_scorer`, on the columns ``names`` (an ordered subset)."""
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from sklearn.isotonic import IsotonicRegression
+
+    X_full, y = synthetic(seed=seed)
+    X = features.select_features(X_full, names)
+    hgb = HistGradientBoostingClassifier(max_iter=10, max_depth=2, random_state=0).fit(X, y)
+    cal = IsotonicRegression(y_min=0, y_max=1, out_of_bounds='clip').fit(
+        hgb.predict_proba(X)[:, 1], y)
+    return scorer.LinkScorer(hgb, cal, manifest(
+        feature_names=tuple(names), monotonic_cst=features.monotonic_for(names),
+        feature_set='no_length'))
+
+
 # ============================================================
 # TESTS
 # ============================================================
@@ -117,6 +132,19 @@ class ManifestTests(unittest.TestCase):
         old = manifest(feature_config=fc).to_json()
         del old['feature_config']                    # a manifest written before the field
         self.assertEqual(scorer.ScorerManifest.from_json(old).feature_config, {})
+
+    def test_feature_set_round_trip_and_old_manifest(self):
+        self.assertEqual(manifest().feature_set, 'all')
+        names = features.FEATURE_SETS['no_length']
+        m = manifest(feature_names=names, monotonic_cst=features.monotonic_for(names),
+                     feature_set='no_length')
+        d = json.loads(json.dumps(m.to_json()))
+        self.assertEqual(d['feature_set'], 'no_length')
+        back = scorer.ScorerManifest.from_json(d)
+        self.assertEqual(back, m)
+        self.assertEqual(back.feature_names, names)
+        del d['feature_set']                            # a manifest written before v005
+        self.assertEqual(scorer.ScorerManifest.from_json(d).feature_set, 'all')
 
     def test_unknown_key_rejected(self):
         d = manifest().to_json()
@@ -251,6 +279,7 @@ class PersistenceTests(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             scorer.load_scorer(self.path)
         self.assertNotIsInstance(ctx.exception, scorer.ScorerVersionError)
+        self.assertIn('ordered subset', str(ctx.exception))
 
     def test_cached_scorer(self):
         scorer.cached_scorer.cache_clear()
@@ -325,6 +354,104 @@ class FeatureConfigTests(unittest.TestCase):
         self.assertIsInstance(first, scorer.LinkScorer)
         self.assertEqual(buf.getvalue().count('WARNING'), 1)
         self.assertIn('feature_config', buf.getvalue())
+
+
+class FeatureSubsetTests(unittest.TestCase):
+    """v005: a scorer trained on an ordered subset of FEATURE_NAMES (e.g. no_length)."""
+
+    NAMES = features.FEATURE_SETS['no_length']
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.tmp = Path(self._tmp.name)
+        self.scorer = fitted_subset_scorer(self.NAMES)
+        self.path = self.tmp / 'subset.joblib'
+        scorer.save_scorer(self.scorer, self.path)
+
+    def test_column_indices(self):
+        idx = self.scorer.column_indices
+        self.assertEqual(idx, features.check_feature_subset(self.NAMES))
+        self.assertEqual(tuple(features.FEATURE_NAMES[i] for i in idx), self.NAMES)
+        self.assertEqual(fitted_scorer().column_indices, tuple(range(F)))
+
+    def test_save_load_and_width(self):
+        loaded = scorer.load_scorer(self.path)
+        self.assertEqual(loaded.feature_names, self.NAMES)
+        self.assertEqual(loaded.manifest.feature_set, 'no_length')
+        self.assertEqual(loaded.manifest.monotonic_cst, features.monotonic_for(self.NAMES))
+        self.assertEqual(loaded.hgb.n_features_in_, 20)
+        X_full, _ = synthetic(40, seed=6)
+        X = features.select_features(X_full, self.NAMES)
+        self.assertEqual(X.shape, (40, 20))
+        p = loaded.predict_proba(X)
+        self.assertEqual(p.shape, (40,))
+        np.testing.assert_array_equal(p, self.scorer.predict_proba(X))
+        self.assertTrue(np.all(np.isfinite(loaded.cost(X))))
+        with self.assertRaises(ValueError):
+            loaded.predict_proba(X_full)                    # (n, 28) refused
+        with self.assertRaises(ValueError):
+            loaded.cost(X_full)
+
+    def test_permuted_subset_refused_on_load(self):
+        meta = scorer.manifest_path(self.path)
+        d = json.loads(meta.read_text())
+        names = list(self.NAMES)
+        names[0], names[1] = names[1], names[0]
+        d['feature_names'] = names
+        meta.write_text(json.dumps(d))
+        with self.assertRaisesRegex(ValueError, 'ordered subset') as ctx:
+            scorer.load_scorer(self.path)
+        self.assertIn('retrain', str(ctx.exception))
+        self.assertNotIsInstance(ctx.exception, scorer.ScorerVersionError)
+
+    def test_unknown_name_refused_on_load(self):
+        meta = scorer.manifest_path(self.path)
+        d = json.loads(meta.read_text())
+        d['feature_names'] = ['bogus'] + list(self.NAMES[1:])
+        meta.write_text(json.dumps(d))
+        with self.assertRaisesRegex(ValueError, 'bogus'):
+            scorer.load_scorer(self.path)
+
+    def test_manifest_disagreeing_with_model_width_fails(self):
+        meta = scorer.manifest_path(self.path)
+        d = json.loads(meta.read_text())
+        d['feature_names'] = list(self.NAMES[:-1])
+        d['monotonic_cst'] = list(features.monotonic_for(self.NAMES[:-1]))
+        meta.write_text(json.dumps(d))
+        with self.assertRaises(AssertionError):
+            scorer.load_scorer(self.path)
+
+
+class CommittedManifestTests(unittest.TestCase):
+    """The committed v001 scorer manifest (written before feature_set) keeps loading."""
+
+    PATH = ROOT / 'configs/tracking/link_scorer_v001.json'
+
+    @unittest.skipUnless(PATH.is_file(), 'committed scorer manifest not present')
+    def test_committed_manifest_parses_as_all(self):
+        with open(self.PATH) as fh:
+            d = json.load(fh)
+        self.assertNotIn('feature_set', d)
+        m = scorer.ScorerManifest.from_json(d)
+        self.assertEqual(m.feature_names, features.FEATURE_NAMES)
+        self.assertEqual(m.feature_set, 'all')
+        self.assertTrue(m.feature_config)
+        self.assertEqual(features.check_feature_subset(m.feature_names), tuple(range(F)))
+        self.assertEqual(m.monotonic_cst, features.monotonic_for(m.feature_names))
+
+    @unittest.skipUnless(PATH.with_suffix('.joblib').is_file(), 'committed scorer model not present')
+    def test_committed_scorer_loads(self):
+        import sklearn
+
+        with open(self.PATH) as fh:
+            version = json.load(fh)['sklearn_version']
+        if version != sklearn.__version__:
+            self.skipTest(f'manifest is for scikit-learn {version}, {sklearn.__version__} installed')
+        loaded = scorer.load_scorer(self.PATH.with_suffix('.joblib'))
+        self.assertEqual(loaded.feature_names, features.FEATURE_NAMES)
+        self.assertEqual(loaded.column_indices, tuple(range(F)))
+        self.assertEqual(loaded.manifest.feature_set, 'all')
 
 
 class LazyImportTests(unittest.TestCase):

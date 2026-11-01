@@ -641,5 +641,157 @@ class TrainCommandTests(Patched):
                                       scorer.load_scorer(self.tmp / 'b.joblib').predict_proba(X))
 
 
+# ============================================================
+# TESTS: FEATURE SUBSETS (v005)
+# ============================================================
+
+NO_LENGTH = features.FEATURE_SETS['no_length']
+
+
+class FeatureSubsetParamsTests(unittest.TestCase):
+
+    def test_train_params_features(self):
+        self.assertEqual(train.TrainParams().features, 'all')
+        self.assertEqual(train.TrainParams().feature_names, NAMES)
+        p = train.TrainParams(features='no_length')
+        self.assertEqual(p.feature_names, NO_LENGTH)
+        self.assertEqual(train.TrainParams(features='hand_cost,gap').feature_names,
+                         ('gap', 'hand_cost'))
+        self.assertEqual(train.TrainParams(features='hand_cost,gap').features, 'hand_cost,gap')
+        json.dumps(train.asdict(p))                        # the spec string stays JSON-ready
+        for bad in ('bogus', '', 'gap,gap', ('gap',)):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                train.TrainParams(features=bad)
+
+    def test_classifier_constraints_follow_names(self):
+        model = train._classifier(FAST, NO_LENGTH)
+        self.assertEqual(list(model.monotonic_cst), list(features.monotonic_for(NO_LENGTH)))
+        self.assertEqual(list(train._classifier(FAST).monotonic_cst),
+                         list(features.monotonic_for(NAMES)))
+
+    def test_fit_scorer_checks_width(self):
+        X, y, groups = separable(300)
+        sub = features.select_features(X, NO_LENGTH)
+        hgb, _, p = train.fit_scorer(sub, y, groups, FAST, NO_LENGTH)
+        self.assertEqual(hgb.n_features_in_, 20)
+        self.assertEqual(list(hgb.monotonic_cst), list(features.monotonic_for(NO_LENGTH)))
+        self.assertEqual(p.shape, y.shape)
+        with self.assertRaises(AssertionError):
+            train.fit_scorer(X, y, groups, FAST, NO_LENGTH)           # 28 columns for 20 names
+        with self.assertRaises(AssertionError):
+            train.fit_scorer(sub, y, groups, FAST)                    # 20 columns for 28 names
+        with self.assertRaises(ValueError):
+            train.fit_scorer(sub, y, groups, FAST, tuple(reversed(NO_LENGTH)))
+
+    def test_cli_features(self):
+        parser = argparse.ArgumentParser()
+        train.add_arguments(parser)
+        base = ['--sweeps', 'a', '--out', 'm.joblib']
+        self.assertEqual(parser.parse_args(base).features, 'all')
+        args = parser.parse_args(base + ['--features', 'no_length'])
+        self.assertEqual(args.features, 'no_length')
+        self.assertIn('no_length_no_speed', parser.format_help())
+        with mock.patch.object(train, 'train_command') as command:
+            train.run_from_args(args)
+        params = command.call_args.args[2]
+        self.assertEqual((params.features, params.feature_names), ('no_length', NO_LENGTH))
+        with self.assertRaises(ValueError):
+            train.run_from_args(parser.parse_args(base + ['--features', 'bogus']))
+
+
+class FeatureSubsetDataTests(Patched):
+
+    def test_split_folds_widths(self):
+        table, _ = train.collect_training_rows([make_sweep(self.tmp)], 'salt', 0.4)
+        full = train.split_folds(table)
+        for names in features.FEATURE_SETS.values():
+            folds = train.split_folds(table, names)
+            self.assertEqual(set(folds), set(full))
+            idx = list(features.check_feature_subset(names))
+            for fold, (X, y, groups) in folds.items():
+                self.assertEqual(X.shape, (y.size, len(names)))
+                np.testing.assert_array_equal(X, full[fold][0][:, idx])
+                np.testing.assert_array_equal(y, full[fold][1])
+                np.testing.assert_array_equal(groups, full[fold][2])
+        empty = train.split_folds(table.slice(0, 0), NO_LENGTH)
+        self.assertEqual(empty['train'][0].shape, (0, 20))
+        with self.assertRaises(ValueError):
+            train.split_folds(table, tuple(reversed(NO_LENGTH)))
+
+
+class DroppedColumnPropertyTests(unittest.TestCase):
+    """A subset model never sees a dropped column: perturbing it leaves the OOF predictions."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._patches = list(patched())
+        for p in cls._patches:
+            p.start()
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.table, _ = train.collect_training_rows([make_sweep(Path(cls._tmp.name), n_plants=40)],
+                                                   'salt', 0.4)
+        cls.params = replace(FAST, max_iter=20)
+        cls.base = cls.oof(cls.table)
+
+    @classmethod
+    def tearDownClass(cls):
+        for p in reversed(cls._patches):
+            p.stop()
+        cls._tmp.cleanup()
+
+    @classmethod
+    def oof(cls, table: pa.Table) -> np.ndarray:
+        X, y, groups = train.split_folds(table, NO_LENGTH)['train']
+        return train.fit_scorer(X, y, groups, cls.params, NO_LENGTH)[2]
+
+    @settings(deadline=None, max_examples=8)
+    @given(st.sampled_from(features.LENGTH_FEATURES), st.integers(0, 2**32 - 1),
+           st.floats(0.0, 1.0))
+    def test_property_dropped_column_ignored(self, name, seed, nan_fraction):
+        rng = np.random.default_rng(seed)
+        values = rng.uniform(0.0, 5000.0, self.table.num_rows)
+        values[rng.uniform(size=values.size) < nan_fraction] = np.nan
+        j = self.table.schema.get_field_index(name)
+        column = pa.array([None if np.isnan(v) else float(v) for v in values], pa.float64())
+        perturbed = self.table.set_column(j, name, column)
+        np.testing.assert_array_equal(self.oof(perturbed), self.base)
+
+
+class FeatureSubsetCommandTests(Patched):
+
+    def test_end_to_end_no_length(self):
+        sweeps = [make_sweep(self.tmp, seed=0, n_plants=60), make_sweep(self.tmp, seed=1, n_plants=60)]
+        out = self.tmp / 'nolen' / 'scorer.joblib'
+        params = replace(FAST, features='no_length')
+        with contextlib.redirect_stdout(io.StringIO()) as buf:
+            m = train.train_command(sweeps, out, params, 'salt', 0.4, None, False)
+        self.assertIn("features 'no_length' (20)", buf.getvalue())
+        self.assertEqual(m.feature_names, NO_LENGTH)
+        self.assertEqual(len(m.monotonic_cst), 20)
+        self.assertEqual(m.monotonic_cst, features.monotonic_for(NO_LENGTH))
+        self.assertEqual(m.feature_set, 'no_length')
+        self.assertEqual(m.hyperparameters['features'], 'no_length')
+        self.assertEqual(m.n_train + m.n_test, 2 * 184)
+        d = json.loads(scorer.manifest_path(out).read_text())
+        self.assertEqual((len(d['feature_names']), d['feature_set']), (20, 'no_length'))
+        with open(train.metrics_csv_path(out)) as fh:
+            rows = list(csv.DictReader(fh))
+        self.assertEqual(sorted(int(r['gap_frames']) for r in rows), sorted(PLANT_GAPS))
+        loaded = scorer.load_scorer(out)
+        self.assertEqual(loaded.hgb.n_features_in_, 20)
+        self.assertEqual(loaded.feature_names, NO_LENGTH)
+        self.assertEqual(loaded.column_indices, features.check_feature_subset(NO_LENGTH))
+        X, _, _ = separable(50, seed=2)
+        p = loaded.predict_proba(features.select_features(X, NO_LENGTH))
+        self.assertEqual(p.shape, (X.shape[0],))
+        with self.assertRaises(ValueError):
+            loaded.predict_proba(X)
+        # The default run records 'all' and all 28 names.
+        with contextlib.redirect_stdout(io.StringIO()):
+            full = train.train_command(sweeps, self.tmp / 'all.joblib', FAST, 'salt', 0.4, None,
+                                       False)
+        self.assertEqual((full.feature_names, full.feature_set), (NAMES, 'all'))
+
+
 if __name__ == '__main__':
     unittest.main()

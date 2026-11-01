@@ -487,6 +487,161 @@ class FeaturePropertyTests(unittest.TestCase):
 
 
 # ============================================================
+# FEATURE SUBSETS (v005)
+# ============================================================
+
+#: Columns that may be NaN by the module docstring (unknown heading or cue).
+DOCUMENTED_NAN = {'heading_change', 'size_term', 'size_diff', 'side_product', 'side_term',
+                  'abs_side_a', 'abs_side_b'}
+
+
+class FeatureSetTests(unittest.TestCase):
+    """Named subsets, their resolution and column selection by name."""
+
+    def test_feature_sets_sizes_order_contents(self):
+        sets = features.FEATURE_SETS
+        self.assertEqual(set(sets), {'all', 'no_length', 'no_length_no_speed'})
+        self.assertEqual(sets['all'], FEATURE_NAMES)
+        self.assertEqual(len(FEATURE_NAMES), 28)
+        self.assertEqual(len(sets['no_length']), 20)
+        self.assertEqual(len(sets['no_length_no_speed']), 18)
+        self.assertEqual(features.LENGTH_FEATURES,
+                         ('n_frames_a', 'n_frames_b', 'size_n_a', 'size_n_b', 'claw_side_n_a',
+                          'claw_side_n_b', 'vel_known_a', 'vel_known_b'))
+        self.assertEqual(features.SPEED_FEATURES, ('speed_a', 'speed_b'))
+        for name, names in sets.items():
+            self.assertEqual(names, tuple(n for n in FEATURE_NAMES if n in names), name)
+            self.assertEqual(len(set(names)), len(names), name)
+        self.assertFalse(set(sets['no_length']) & set(features.LENGTH_FEATURES))
+        self.assertEqual(set(FEATURE_NAMES) - set(sets['no_length']), set(features.LENGTH_FEATURES))
+        self.assertEqual(set(sets['no_length']) - set(sets['no_length_no_speed']),
+                         set(features.SPEED_FEATURES))
+        self.assertIn('hand_cost', sets['no_length_no_speed'])
+
+    def test_resolve_feature_set(self):
+        for name, names in features.FEATURE_SETS.items():
+            self.assertEqual(features.resolve_feature_set(name), names)
+        self.assertEqual(features.resolve_feature_set('hand_cost, gap,dist'),
+                         ('gap', 'dist', 'hand_cost'))
+        self.assertEqual(features.resolve_feature_set(['hand_cost', 'gap']), ('gap', 'hand_cost'))
+        self.assertEqual(features.resolve_feature_set(tuple(reversed(FEATURE_NAMES))), FEATURE_NAMES)
+        self.assertEqual(features.resolve_feature_set('dist'), ('dist',))
+        for bad in ('bogus', 'gap,bogus', 'gap,gap', 'gap,,dist', '', ' ', [], ('gap', 'gap'),
+                    ['bogus']):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                features.resolve_feature_set(bad)
+
+    def test_check_feature_subset(self):
+        self.assertEqual(features.check_feature_subset(FEATURE_NAMES), tuple(range(28)))
+        idx = features.check_feature_subset(features.FEATURE_SETS['no_length'])
+        self.assertEqual(tuple(FEATURE_NAMES[i] for i in idx), features.FEATURE_SETS['no_length'])
+        self.assertTrue(all(b > a for a, b in zip(idx, idx[1:])))
+        self.assertEqual(features.check_feature_subset(('dist', 'hand_cost')),
+                         (COL['dist'], COL['hand_cost']))
+        swapped = list(FEATURE_NAMES)
+        swapped[3], swapped[4] = swapped[4], swapped[3]
+        for bad in (tuple(reversed(FEATURE_NAMES)), tuple(swapped), ('hand_cost', 'gap'), (),
+                    ('gap', 'gap'), ('gap', 'bogus'), 'gap'):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                features.check_feature_subset(bad)
+        with self.assertRaisesRegex(ValueError, 'order'):
+            features.check_feature_subset(tuple(reversed(FEATURE_NAMES)))
+
+    @settings(deadline=None, max_examples=60)
+    @given(st.sets(st.sampled_from(FEATURE_NAMES), min_size=1), st.integers(0, 2**32 - 1))
+    def test_property_resolve_then_check(self, chosen, seed):
+        rng = np.random.default_rng(seed)
+        shuffled = list(chosen)
+        rng.shuffle(shuffled)
+        names = features.resolve_feature_set(','.join(shuffled))
+        idx = features.check_feature_subset(names)
+        self.assertEqual(sorted(idx), list(idx))
+        self.assertEqual({FEATURE_NAMES[i] for i in idx}, set(chosen))
+        X = rng.normal(size=(7, len(FEATURE_NAMES)))
+        np.testing.assert_array_equal(features.select_features(X, names), X[:, list(idx)])
+
+    def test_select_features(self):
+        X = np.arange(3 * 28, dtype=float).reshape(3, 28)
+        for names in features.FEATURE_SETS.values():
+            idx = list(features.check_feature_subset(names))
+            sub = features.select_features(X, names)
+            self.assertEqual(sub.shape, (3, len(names)))
+            np.testing.assert_array_equal(sub, X[:, idx])
+            sub[:] = -1.0
+            self.assertTrue(np.all(X >= 0), "select_features must copy")
+        with self.assertRaises(ValueError):
+            features.select_features(X[:, :20], features.FEATURE_SETS['no_length'])
+        with self.assertRaises(ValueError):
+            features.select_features(X, ('hand_cost', 'gap'))
+
+    def test_monotonic_for(self):
+        for name, names in features.FEATURE_SETS.items():
+            cst = features.monotonic_for(names)
+            self.assertEqual(len(cst), len(names))
+            self.assertEqual(cst, tuple(features.MONOTONIC.get(n, 0) for n in names))
+            self.assertEqual(cst[names.index('hand_cost')], -1, name)
+        self.assertEqual(features.monotonic_for(('n_frames_a', 'dist', 'speed_a')), (0, -1, 0))
+        self.assertEqual(features.monotonic_for(()), ())
+
+    def test_feature_matrix_subset_equals_selected_full(self):
+        ends = [ep('a1', 10, (0.0, 0.0), (0.5, 0.0), heading=0.1, size=(20.0, 3), side=(1.0, 3))]
+        starts = [ep('b1', 13, (1.5, 0.2), (0.6, 0.1), heading=0.2, size=(21.0, 2), side=(1.0, 2))]
+        table = pair_feature_table(ends, starts, SQRT, 'v')
+        self.assertEqual(table.num_rows, 1)
+        full = feature_matrix(table)
+        for names in features.FEATURE_SETS.values():
+            assert_same(self, feature_matrix(table, names), features.select_features(full, names))
+
+
+class OneFrameTrackletTests(unittest.TestCase):
+    """A 1-frame END paired with a 1-frame START: the shortest tracklets of the ablation."""
+
+    def assert_one_frame(self, X: np.ndarray) -> None:
+        self.assertEqual(X.shape, (1, len(FEATURE_NAMES)))
+        x = X[0]
+        for side in ('a', 'b'):
+            self.assertEqual(x[COL[f'n_frames_{side}']], 1.0)
+            self.assertEqual(x[COL[f'vel_known_{side}']], 0.0)
+            self.assertEqual(x[COL[f'speed_{side}']], 0.0)
+            self.assertLessEqual(x[COL[f'size_n_{side}']], 1.0)
+            self.assertLessEqual(x[COL[f'claw_side_n_{side}']], 1.0)
+        nan = {name for name in FEATURE_NAMES if math.isnan(x[COL[name]])}
+        self.assertLessEqual(nan, DOCUMENTED_NAN)
+        self.assertFalse(np.isinf(X).any())
+        finite = [COL[n] for n in FEATURE_NAMES if n not in DOCUMENTED_NAN]
+        self.assertTrue(np.all(np.isfinite(x[finite])))
+
+    def test_hand_built_endpoints_without_cues(self):
+        ends = [ep('a', 10, (0.0, 0.0), vel_known=False, n_frames=1)]
+        starts = [ep('b', 13, (1.0, 0.5), vel_known=False, n_frames=1)]
+        table = pair_feature_table(ends, starts, SQRT, 'v')
+        self.assertEqual(table.num_rows, 1)
+        X = feature_matrix(table)
+        self.assert_one_frame(X)
+        for name in ('size_term', 'size_diff', 'side_product', 'side_term', 'abs_side_a',
+                     'abs_side_b', 'heading_change'):
+            self.assertTrue(math.isnan(X[0, COL[name]]), name)
+
+    def test_endpoints_from_observations(self):
+        # One crab seen on frames 10 and 13 only: two 1-frame tracklets with full poses.
+        crab = straight_crab(1, 10, 4, (100.0, 100.0), (0.5, 0.0))
+        obs = make_observations([crab], drop_frames={1: (11, 12)})
+        eps = geometry.endpoints(obs, SQRT)
+        self.assertEqual(len(eps), 2)
+        self.assertTrue(all(s.n_frames == 1 and e.n_frames == 1 for s, e in eps.values()))
+        table = pair_feature_table([e for _, e in eps.values()], [s for s, _ in eps.values()],
+                                   SQRT, 'synthetic')
+        self.assertEqual(table.num_rows, 1)
+        X = feature_matrix(table)
+        self.assert_one_frame(X)
+        self.assertEqual(X[0, COL['gap']], 2.0)
+        self.assertTrue(np.isfinite(X[0, COL['heading_change']]))     # pose known on both frames
+        for names in features.FEATURE_SETS.values():                  # ablation columns too
+            sub = feature_matrix(table, names)
+            self.assertEqual(sub.shape, (1, len(names)))
+
+
+# ============================================================
 # DEMO
 # ============================================================
 

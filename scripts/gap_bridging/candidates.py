@@ -559,7 +559,9 @@ def _pair_costs_learned(ends: List[Endpoint], starts: List[Endpoint], rows: np.n
     The motion gates (``_sqrt_gate_terms``) and, with ``cfg.appearance_cues``,
     the claw-side veto (``_cue_terms``) are exactly those of
     ``_pair_costs_sqrt``. The features of ``features.pair_features``
-    (evaluated with ``cost_model='hand'``) of the pairs that pass both motion
+    (evaluated with ``cost_model='hand'``), restricted by name to the
+    columns of ``scorer.feature_names`` (an ordered subset of
+    ``features.FEATURE_NAMES``, v005), of the pairs that pass both motion
     gates are scored by ``scorer.cost``; pairs failing a motion gate get a NaN
     cost (their audit rows report NaN under either model) and are not scored.
     ``max_cost`` gate at ``-np.log(cfg.learned_min_probability)``, computed
@@ -572,8 +574,10 @@ def _pair_costs_learned(ends: List[Endpoint], starts: List[Endpoint], rows: np.n
     ends, starts, rows, cols, cfg :
         As for ``_pair_costs``; ``cfg.cost_model == 'learned'``.
     scorer : gap_bridging.scorer.Scorer
-        ``feature_names`` must equal ``features.FEATURE_NAMES``; ``cost(X)``
-        returns a finite ``-log p`` per row.
+        ``feature_names`` must be an ordered subset of
+        ``features.FEATURE_NAMES`` (``features.check_feature_subset``);
+        ``cost(X)`` takes ``(n, len(feature_names))`` and returns a finite
+        ``-log p`` per row.
 
     Returns
     -------
@@ -583,19 +587,18 @@ def _pair_costs_learned(ends: List[Endpoint], starts: List[Endpoint], rows: np.n
     Raises
     ------
     ValueError
-        If ``scorer`` is None or its feature names differ from
-        ``features.FEATURE_NAMES``.
+        If ``scorer`` is None or its feature names are not an ordered subset
+        of ``features.FEATURE_NAMES`` (unknown, repeated or permuted names).
     """
     from gap_bridging import features    # lazy: features builds on this module
     if scorer is None:
         raise ValueError("cost_model 'learned' requires a scorer")
-    if tuple(scorer.feature_names) != tuple(features.FEATURE_NAMES):
-        raise ValueError("scorer feature_names differ from features.FEATURE_NAMES")
+    idx = features.check_feature_subset(scorer.feature_names)
     dt, _, _, _, _, _, disp_ok, err_ok = _sqrt_gate_terms(ends, starts, rows, cols, cfg)
     side_veto = _cue_terms(ends, starts, rows, cols, cfg)[2] if cfg.appearance_cues else None
-    X, _ = features.pair_features(ends, starts, rows, cols, replace(cfg, cost_model='hand'))
-    X = np.asarray(X, dtype=float)
-    assert X.shape == (len(rows), len(features.FEATURE_NAMES)), "one feature row per pair"
+    X_full, _ = features.pair_features(ends, starts, rows, cols, replace(cfg, cost_model='hand'))
+    X = np.asarray(X_full, dtype=float)[:, list(idx)]
+    assert X.shape == (len(rows), len(idx)), "one row per pair, one column per scorer feature"
     motion_ok = disp_ok & err_ok
     cost = np.full(len(rows), np.nan)
     if motion_ok.any():
@@ -639,8 +642,8 @@ def _pair_costs(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
     Raises
     ------
     ValueError
-        If ``cfg.cost_model == 'learned'`` and ``scorer`` is None or does not
-        match ``features.FEATURE_NAMES``.
+        If ``cfg.cost_model == 'learned'`` and ``scorer`` is None or its
+        ``feature_names`` are not an ordered subset of ``features.FEATURE_NAMES``.
     """
     if cfg.cost_model == 'learned':
         if scorer is None:

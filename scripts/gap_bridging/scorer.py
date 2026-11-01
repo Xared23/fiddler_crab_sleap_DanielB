@@ -11,15 +11,19 @@ assignment in :func:`gap_bridging.candidates.link_tracklets`.
 
 On disk a scorer is two files: ``<name>.joblib`` (``{'hgb', 'calibrator'}``)
 and the manifest ``<name>.json`` (:class:`ScorerManifest`: scikit-learn
-version, feature order, monotonic constraints, hyperparameters, threshold,
-training-data hash, metrics and the feature-relevant config keys).
-``load_scorer`` refuses a model whose scikit-learn version or feature order
-differs from the running code, since pickled estimators are not portable
-across versions; ``resolve_scorer`` (and ``load_scorer`` given a config)
-also refuses a config whose feature keys
-(:data:`gap_bridging.features.FEATURE_CONFIG_KEYS`) differ from the ones the
-training features were computed with. A manifest without ``feature_config``
-(written before that check existed) is accepted with a printed warning.
+version, feature names, monotonic constraints, hyperparameters, threshold,
+training-data hash, metrics, the feature-relevant config keys and the
+feature-set spec). The feature names are an ordered subset of
+:data:`gap_bridging.features.FEATURE_NAMES` (all 28 unless the scorer was
+trained on a v005 ablation set); inference selects those columns by name.
+``load_scorer`` refuses a model whose scikit-learn version differs from the
+running code, since pickled estimators are not portable across versions, or
+whose feature names are not an ordered subset of the running code's;
+``resolve_scorer`` (and ``load_scorer`` given a config) also refuses a
+config whose feature keys (:data:`gap_bridging.features.FEATURE_CONFIG_KEYS`)
+differ from the ones the training features were computed with. A manifest
+without ``feature_config`` (written before that check existed) is accepted
+with a printed warning.
 
 scikit-learn and joblib are imported lazily: importing this module (as the
 pipeline does) does not import them until a model is fitted or loaded.
@@ -77,10 +81,10 @@ class Scorer(Protocol):
 
     @property
     def feature_names(self) -> Tuple[str, ...]:
-        """Feature order the model expects (must equal ``features.FEATURE_NAMES``)."""
+        """Feature columns the model expects: an ordered subset of ``features.FEATURE_NAMES``."""
 
     def cost(self, X: np.ndarray) -> np.ndarray:
-        """``-log p`` per row of ``X`` (``(n, F)`` -> ``(n,)``), finite."""
+        """``-log p`` per row of ``X`` (``(n, len(feature_names))`` -> ``(n,)``), finite."""
 
 
 # ============================================================
@@ -116,7 +120,10 @@ class ScorerManifest:
     pipeline (hold-out sweep with ``cost_model: learned``), not these.
     ``feature_config`` is :func:`gap_bridging.features.feature_config` of
     the hold-out configs the training features came from (``{}`` for a
-    manifest written before it was recorded).
+    manifest written before it was recorded). ``feature_set`` is the
+    training ``--features`` spec (a :data:`gap_bridging.features.FEATURE_SETS`
+    key or a comma-separated list; ``'all'`` for a manifest written before
+    v005); ``feature_names`` is what it resolved to.
     """
     sklearn_version: str
     feature_names: Tuple[str, ...]
@@ -137,6 +144,7 @@ class ScorerManifest:
     created: str                 # ISO 8601, UTC
     git_commit: str = ''         # '' if unknown
     feature_config: dict = field(default_factory=dict)
+    feature_set: str = 'all'
 
     def __post_init__(self) -> None:
         assert len(self.feature_names) == len(self.monotonic_cst), "one constraint per feature"
@@ -160,7 +168,8 @@ class ScorerManifest:
     def from_json(cls, d: dict) -> 'ScorerManifest':
         """Inverse of :meth:`to_json` (lists back to tuples, ``None`` metrics to NaN).
 
-        Optional fields (``git_commit``, ``feature_config``) may be absent.
+        Optional fields (``git_commit``, ``feature_config``, ``feature_set``)
+        may be absent.
         """
         names = {f.name for f in fields(cls)}
         unknown = set(d) - names
@@ -259,6 +268,13 @@ class LinkScorer:
     @property
     def feature_names(self) -> Tuple[str, ...]:
         return tuple(self._manifest.feature_names)
+
+    @property
+    def column_indices(self) -> Tuple[int, ...]:
+        """Indices of :attr:`feature_names` in ``features.FEATURE_NAMES`` (increasing)."""
+        from gap_bridging import features      # lazy: see check_feature_config
+
+        return features.check_feature_subset(self.feature_names)
 
     @property
     def hgb(self) -> Any:
@@ -392,8 +408,9 @@ def load_scorer(path: Path, cfg: Optional[BridgeConfig] = None) -> LinkScorer:
     ScorerVersionError
         If the installed scikit-learn differs from the manifest's.
     ValueError
-        If the manifest's feature order differs from ``features.FEATURE_NAMES``
-        or ``cfg``'s feature keys differ from the manifest's.
+        If the manifest's feature names are not an ordered subset of
+        ``features.FEATURE_NAMES`` (unknown, repeated or permuted names) or
+        ``cfg``'s feature keys differ from the manifest's.
     """
     path = Path(path)
     meta = manifest_path(path)
@@ -409,9 +426,11 @@ def load_scorer(path: Path, cfg: Optional[BridgeConfig] = None) -> LinkScorer:
         raise ScorerVersionError(
             f"scorer {path} was trained with scikit-learn {manifest.sklearn_version} but "
             f"{sklearn.__version__} is installed; retrain it with `bridge_gaps.py train`")
-    if tuple(manifest.feature_names) != tuple(features.FEATURE_NAMES):
-        raise ValueError(f"scorer {path} expects features {list(manifest.feature_names)}, "
-                         f"this code produces {list(features.FEATURE_NAMES)}; retrain it")
+    try:
+        features.check_feature_subset(manifest.feature_names)
+    except ValueError as exc:
+        raise ValueError(f"scorer {path}: its manifest's feature_names are not an ordered "
+                         f"subset of features.FEATURE_NAMES ({exc}); retrain it") from exc
     if cfg is not None:
         check_feature_config(manifest, cfg, path)
     import joblib

@@ -32,7 +32,14 @@ stopping. Out-of-fold (OOF) probabilities on the train fold come from
 of one plant, decoy or flicker stay in one CV fold (both originals of a
 labelled pair are in the same train/test fold by construction); a
 calibrator (sigmoid by default, or isotonic) is fitted on them, then the
-classifier is refit on the whole train fold.
+classifier is refit on the whole train fold. ``features`` (``--features``,
+v005) restricts the model to an ordered subset of
+:data:`gap_bridging.features.FEATURE_NAMES` (a
+:data:`gap_bridging.features.FEATURE_SETS` key such as ``no_length``, or a
+comma-separated list); the manifest records the resolved names, their
+constraints and the spec (``feature_set``), and inference selects those
+columns by name. The ablation sets are a control for the length confound
+(D-009), not a fix: see :mod:`gap_bridging.features`.
 
 Threshold. The smallest calibrated OOF probability at which the OOF
 precision reaches ``target_precision`` (recall maximal under that
@@ -119,6 +126,9 @@ class TrainParams:
     ``p = 1`` (D-010). ``allow_degenerate_threshold`` lets
     :func:`train_command` save a model whose threshold is 1 or whose target
     precision is unreachable on the OOF predictions (refused otherwise).
+    ``features`` is the feature-subset spec
+    (:func:`gap_bridging.features.resolve_feature_set`), kept as given so
+    that ``asdict`` stays JSON-ready; :attr:`feature_names` resolves it.
     """
     seed: int = 0
     max_depth: int = 3
@@ -131,8 +141,12 @@ class TrainParams:
     target_precision: float = 1.0
     drop_donor_negatives: bool = False
     allow_degenerate_threshold: bool = False
+    features: str = 'all'                   # FEATURE_SETS key or comma-separated names
 
     def __post_init__(self) -> None:
+        if not isinstance(self.features, str):
+            raise ValueError(f"features must be a string spec, got {self.features!r}")
+        features.resolve_feature_set(self.features)        # raises ValueError if invalid
         if self.calibration not in CALIBRATIONS:
             raise ValueError(f"calibration must be one of {CALIBRATIONS}")
         if self.n_splits < 2 or self.max_depth < 1 or self.max_iter < 1 or self.min_samples_leaf < 1:
@@ -141,6 +155,11 @@ class TrainParams:
             raise ValueError("learning_rate must be > 0 and l2_regularization >= 0")
         if not 0 < self.target_precision <= 1:
             raise ValueError("target_precision must be in (0, 1]")
+
+    @property
+    def feature_names(self) -> Tuple[str, ...]:
+        """The resolved feature subset, in ``features.FEATURE_NAMES`` order."""
+        return features.resolve_feature_set(self.features)
 
 
 # ============================================================
@@ -322,23 +341,27 @@ def _groups(table: pa.Table) -> np.ndarray:
     return np.asarray(groups.to_pylist(), dtype=object)
 
 
-def split_folds(table: pa.Table) -> Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+def split_folds(table: pa.Table, names: Sequence[str] = features.FEATURE_NAMES
+                ) -> Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
     """``fold -> (X, y, groups)`` for ``'train'``, ``'test'`` and any other fold present.
 
-    ``X`` is ``(n, F)`` from :func:`gap_bridging.features.feature_matrix`,
-    ``y`` the int labels and ``groups`` the CV groups (:func:`_groups`: the
-    original of the planted side). A fold with no rows gives empty arrays.
+    ``X`` is ``(n, len(names))`` from :func:`gap_bridging.features.feature_matrix`
+    (columns ``names``, an ordered subset of ``FEATURE_NAMES``), ``y`` the int
+    labels and ``groups`` the CV groups (:func:`_groups`: the original of the
+    planted side). A fold with no rows gives empty arrays.
     """
+    names = tuple(names)
+    features.check_feature_subset(names)
     present = set(table['fold'].to_pylist()) if table.num_rows else set()
-    names = ['train', 'test'] + sorted(f for f in present if f not in ('train', 'test'))
+    fold_names = ['train', 'test'] + sorted(f for f in present if f not in ('train', 'test'))
     folds = {}
-    for name in names:
+    for name in fold_names:
         part = table.filter(pc.equal(table['fold'], name)) if table.num_rows else table
-        X = (features.feature_matrix(part) if part.num_rows
-             else np.zeros((0, len(features.FEATURE_NAMES))))
+        X = (features.feature_matrix(part, names) if part.num_rows
+             else np.zeros((0, len(names))))
         y = part['label'].to_numpy().astype(np.int64) if part.num_rows else np.zeros(0, np.int64)
         groups = _groups(part) if part.num_rows else np.zeros(0, dtype=object)
-        assert X.shape == (part.num_rows, len(features.FEATURE_NAMES))
+        assert X.shape == (part.num_rows, len(names))
         folds[name] = (np.asarray(X, dtype=float), y, groups)
     return folds
 
@@ -370,30 +393,33 @@ def effective_splits(y: np.ndarray, groups: np.ndarray, n_splits: int) -> int:
     return int(min(n_splits, per_class))
 
 
-def _classifier(params: TrainParams) -> Any:
-    """Unfitted monotonic gradient-boosted classifier."""
+def _classifier(params: TrainParams, names: Sequence[str] = features.FEATURE_NAMES) -> Any:
+    """Unfitted monotonic gradient-boosted classifier on the columns ``names``."""
     from sklearn.ensemble import HistGradientBoostingClassifier
 
     return HistGradientBoostingClassifier(
         max_depth=params.max_depth, max_iter=params.max_iter, learning_rate=params.learning_rate,
         min_samples_leaf=params.min_samples_leaf, l2_regularization=params.l2_regularization,
-        monotonic_cst=[features.MONOTONIC.get(n, 0) for n in features.FEATURE_NAMES],
+        monotonic_cst=list(features.monotonic_for(names)),
         early_stopping=False, random_state=params.seed)
 
 
-def fit_scorer(X: np.ndarray, y: np.ndarray, groups: np.ndarray,
-               params: TrainParams) -> Tuple[Any, Any, np.ndarray]:
+def fit_scorer(X: np.ndarray, y: np.ndarray, groups: np.ndarray, params: TrainParams,
+               names: Sequence[str] = features.FEATURE_NAMES) -> Tuple[Any, Any, np.ndarray]:
     """Fit classifier and calibrator; return ``(hgb, calibrator, p_oof_calibrated)``.
 
     Parameters
     ----------
     X : np.ndarray
-        ``(n, F)`` features (NaN allowed).
+        ``(n, len(names))`` features in ``names`` order (NaN allowed).
     y : np.ndarray
         ``(n,)`` labels 0/1.
     groups : np.ndarray
         ``(n,)`` group ids (planted original tracklet); never split across folds.
     params : TrainParams
+    names : sequence of str
+        The columns of ``X``, an ordered subset of ``features.FEATURE_NAMES``
+        (default all); sets the monotonic constraints.
 
     Returns
     -------
@@ -411,7 +437,9 @@ def fit_scorer(X: np.ndarray, y: np.ndarray, groups: np.ndarray,
     X = np.asarray(X, dtype=float)
     y = np.asarray(y).astype(np.int64)
     groups = np.asarray(groups)
-    assert X.ndim == 2 and X.shape[1] == len(features.FEATURE_NAMES), f"bad X shape {X.shape}"
+    names = tuple(names)
+    features.check_feature_subset(names)
+    assert X.ndim == 2 and X.shape[1] == len(names), f"bad X shape {X.shape} for {len(names)} names"
     assert X.shape[0] == y.shape[0] == groups.shape[0], "X, y, groups lengths differ"
     assert set(np.unique(y).tolist()) <= {0, 1}, "labels must be 0/1"
     k = effective_splits(y, groups, params.n_splits)
@@ -421,7 +449,7 @@ def fit_scorer(X: np.ndarray, y: np.ndarray, groups: np.ndarray,
         if np.unique(y[fit_idx]).size < 2:          # degenerate fold: constant prior
             p_raw[oof_idx] = float(np.mean(y[fit_idx]))
             continue
-        model = _classifier(params).fit(X[fit_idx], y[fit_idx])
+        model = _classifier(params, names).fit(X[fit_idx], y[fit_idx])
         p_raw[oof_idx] = model.predict_proba(X[oof_idx])[:, 1]
     assert np.all(np.isfinite(p_raw)), "every row must get an out-of-fold prediction"
     if params.calibration == 'isotonic':
@@ -429,7 +457,7 @@ def fit_scorer(X: np.ndarray, y: np.ndarray, groups: np.ndarray,
         calibrator.fit(p_raw, y)
     else:
         calibrator = SigmoidCalibrator.fit(p_raw, y, seed=params.seed)
-    hgb = _classifier(params).fit(X, y)
+    hgb = _classifier(params, names).fit(X, y)
     p_oof = np.clip(np.asarray(calibrator.predict(p_raw), dtype=float), 0.0, 1.0)
     return hgb, calibrator, p_oof
 
@@ -638,6 +666,7 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
     out : Path
         Model file (``.joblib``); the manifest and ``<stem>_metrics.csv`` go beside it.
     params : TrainParams
+        Includes ``features``, the feature subset the model is trained on.
     salt, test_fraction
         Fold assignment.
     write_config : Path, optional
@@ -650,8 +679,9 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
     ScorerManifest
         The saved manifest. The threshold is clipped into ``[1e-12, 1]``
         (the range ``learned_min_probability`` accepts); ``feature_config``
-        holds the hold-outs' feature keys and ``hyperparameters`` records
-        ``target_reached``.
+        holds the hold-outs' feature keys, ``feature_names`` and
+        ``monotonic_cst`` the resolved subset, ``feature_set`` the spec, and
+        ``hyperparameters`` records ``target_reached``.
 
     Raises
     ------
@@ -667,21 +697,22 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
     import sklearn
 
     out = Path(out)
+    names = params.feature_names
     csv_path = metrics_csv_path(out)
     existing = [str(p) for p in (out, manifest_path(out), csv_path) if p.exists()]
     if existing and not force:
         raise FileExistsError(f"training outputs already exist (use --force): {existing}")
     table, feature_cfg = collect_training_rows(sweeps, salt, test_fraction,
                                                params.drop_donor_negatives)
-    folds = split_folds(table)
+    folds = split_folds(table, names)
     X_train, y_train, g_train = folds['train']
     X_test, y_test, _ = folds['test']
     if y_train.size == 0:
         raise ValueError("the train fold is empty")
     print(f"[train] {table.num_rows} pairs from {len(sweeps)} sweep(s): train {y_train.size} "
-          f"({int(y_train.sum())} positive), test {y_test.size} ({int(y_test.sum())} positive)",
-          flush=True)
-    hgb, calibrator, p_oof = fit_scorer(X_train, y_train, g_train, params)
+          f"({int(y_train.sum())} positive), test {y_test.size} ({int(y_test.sum())} positive); "
+          f"features {params.features!r} ({len(names)})", flush=True)
+    hgb, calibrator, p_oof = fit_scorer(X_train, y_train, g_train, params, names)
     raw_threshold = choose_threshold(p_oof, y_train, params.target_precision)
     threshold = float(min(max(raw_threshold, THRESHOLD_FLOOR), 1.0))
     if threshold != raw_threshold:
@@ -709,15 +740,15 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
     hyper.update({'n_splits_used': effective_splits(y_train, g_train, params.n_splits),
                   'target_reached': reached, 'note': OOF_NOTE})
     manifest = ScorerManifest(
-        sklearn_version=sklearn.__version__, feature_names=tuple(features.FEATURE_NAMES),
-        monotonic_cst=tuple(features.MONOTONIC.get(n, 0) for n in features.FEATURE_NAMES),
+        sklearn_version=sklearn.__version__, feature_names=tuple(names),
+        monotonic_cst=features.monotonic_for(names),
         hyperparameters=hyper, calibration=params.calibration, threshold=threshold,
         training_data_sha256=table_sha256(table), n_train=int(y_train.size),
         n_test=int(y_test.size), n_positive_train=int(y_train.sum()),
         n_positive_test=int(y_test.sum()), oof_metrics=oof_metrics, test_metrics=test_metrics,
         salt=salt, test_fraction=float(test_fraction), sweeps=tuple(str(s) for s in sweeps),
         created=datetime.now(timezone.utc).isoformat(timespec='seconds'), git_commit=git_commit(),
-        feature_config=dict(feature_cfg))
+        feature_config=dict(feature_cfg), feature_set=params.features)
     save_scorer(LinkScorer(hgb, calibrator, manifest), out, force=force)
     _write_metrics_csv(csv_path, gap_fold, per_gap_metrics(gap_table, gap_p, threshold))
     print(f"[train] threshold {threshold:.6g}; OOF precision {oof_metrics['precision']:.4f} "
@@ -756,6 +787,9 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                              'to put the threshold at p = 1)')
     parser.add_argument('--target-precision', type=float, default=d.target_precision)
     parser.add_argument('--drop-donor-negatives', action='store_true')
+    parser.add_argument('--features', default=d.features,
+                        help=f'feature subset to train on: one of {sorted(features.FEATURE_SETS)} '
+                             f'(default {d.features}) or a comma-separated list of feature names')
     parser.add_argument('--allow-degenerate-threshold', action='store_true',
                         help='save a model whose threshold is 1 or whose target precision is '
                              'unreachable on the out-of-fold predictions (refused otherwise)')
@@ -770,6 +804,7 @@ def run_from_args(args: argparse.Namespace) -> ScorerManifest:
                      l2_regularization=args.l2_regularization, n_splits=args.n_splits,
                      calibration=args.calibration, target_precision=args.target_precision,
                      drop_donor_negatives=args.drop_donor_negatives,
-                     allow_degenerate_threshold=args.allow_degenerate_threshold)
+                     allow_degenerate_threshold=args.allow_degenerate_threshold,
+                     features=args.features)
     return train_command(args.sweeps, args.out, params, args.salt, args.test_fraction,
                          args.write_config, args.force)

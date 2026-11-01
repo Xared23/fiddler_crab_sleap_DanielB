@@ -39,6 +39,22 @@ individual columns:
 * Ratios over a zero radius (only with ``radius_min_px = 0`` and a zero
   fitted radius) are NaN rather than inf.
 
+Feature subsets (v005). A scorer may be trained on an ordered subset of
+:data:`FEATURE_NAMES` (:data:`FEATURE_SETS`, :func:`resolve_feature_set`);
+its manifest records the names and inference selects those columns by name
+(:func:`check_feature_subset`, :func:`select_features`). ``no_length`` drops
+the tracklet-length features of :data:`LENGTH_FEATURES` (the v004 scorer
+learned tracklet length, D-009); ``no_length_no_speed`` also drops
+:data:`SPEED_FEATURES`. Neither blinds the model to length, so the ablation
+is a control, not a fix: ``speed_*`` are 0 when the velocity is unknown
+(1-frame tracklets); ``radius`` is built from ``max(speed_a, speed_b)``, so
+it (and the ratios over it) still sees unknown velocities; ``abs_side_*`` is
+a mean of signs over ``claw_side_n`` frames and so takes only a few discrete
+values when ``n <= 3`` (1 for one frame, 0 or 1 for two, 1/3 or 1 for
+three); ``size_term``'s noise term ``size_noise_px^2 / n`` and
+``side_term``'s confidence factor ``min(1, n / claw_side_min_frames)``
+depend on the frame counts, and ``hand_cost`` carries all of these.
+
 Sam
 11/2026
 """
@@ -52,7 +68,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import replace
-from typing import Any, List, Mapping, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Sequence, Tuple, Union
 
 # ----- numerics -----
 import numpy as np
@@ -99,6 +115,21 @@ MONOTONIC: dict = {name: -1 for name in ('gap', 'dist', 'err', 'dist_over_radius
                                           'err_over_radius', 'shoulder', 'size_term',
                                           'side_term', 'hand_cost')}
 
+#: Tracklet-length features (frame counts and what is 1:1 with ``n >= 2``),
+#: dropped by the ``no_length`` ablation (D-009).
+LENGTH_FEATURES: Tuple[str, ...] = ('n_frames_a', 'n_frames_b', 'size_n_a', 'size_n_b',
+                                    'claw_side_n_a', 'claw_side_n_b', 'vel_known_a', 'vel_known_b')
+#: Endpoint speeds (0 when the velocity is unknown), also dropped by ``no_length_no_speed``.
+SPEED_FEATURES: Tuple[str, ...] = ('speed_a', 'speed_b')
+
+#: Named feature subsets, each in :data:`FEATURE_NAMES` order.
+FEATURE_SETS: Dict[str, Tuple[str, ...]] = {
+    'all': FEATURE_NAMES,
+    'no_length': tuple(n for n in FEATURE_NAMES if n not in LENGTH_FEATURES),
+    'no_length_no_speed': tuple(n for n in FEATURE_NAMES
+                                if n not in LENGTH_FEATURES + SPEED_FEATURES),
+}
+
 #: Key columns identifying the pair (prefix of :data:`PAIR_FEATURES_SCHEMA`).
 KEY_NAMES: Tuple[str, ...] = ('video_id', 'tracklet_a', 'tracklet_b', 'gap_frames', 'gate')
 
@@ -119,6 +150,131 @@ FEATURE_CONFIG_KEYS: Tuple[str, ...] = (
     'radius_min_px', 'prediction_error_ratio', 'prediction_horizon_frames', 'gap_penalty',
     'appearance_cues', 'size_scale_px', 'size_noise_px', 'size_cost_cap', 'size_weight',
     'claw_side_weight', 'claw_side_confidence', 'claw_side_min_frames')
+
+
+# ============================================================
+# FEATURE SUBSETS
+# ============================================================
+
+
+def check_feature_subset(names: Sequence[str]) -> Tuple[int, ...]:
+    """
+    Column indices of an ordered subset of :data:`FEATURE_NAMES`.
+
+    Parameters
+    ----------
+    names : sequence of str
+        Feature names in the order a scorer expects them.
+
+    Returns
+    -------
+    tuple of int
+        Strictly increasing indices into :data:`FEATURE_NAMES`;
+        ``FEATURE_NAMES`` itself gives ``range(28)``.
+
+    Raises
+    ------
+    ValueError
+        If ``names`` is empty, holds an unknown or repeated name, or is not in
+        :data:`FEATURE_NAMES` order (a permuted list would feed the model the
+        wrong columns).
+    """
+    if isinstance(names, str):
+        raise ValueError(f"feature names must be a sequence of names, got the string {names!r}")
+    names = tuple(names)
+    if not names:
+        raise ValueError("feature names must not be empty")
+    unknown = [n for n in names if n not in FEATURE_NAMES]
+    if unknown:
+        raise ValueError(f"unknown feature names {unknown}; known: {list(FEATURE_NAMES)}")
+    repeated = sorted({n for n in names if names.count(n) > 1})
+    if repeated:
+        raise ValueError(f"repeated feature names {repeated}")
+    idx = tuple(FEATURE_NAMES.index(n) for n in names)
+    if any(b <= a for a, b in zip(idx, idx[1:])):
+        expected = [n for n in FEATURE_NAMES if n in names]
+        raise ValueError(f"feature names {list(names)} are not in FEATURE_NAMES order; "
+                         f"expected {expected}")
+    assert len(idx) == len(names)
+    return idx
+
+
+def resolve_feature_set(spec: Union[str, Sequence[str]]) -> Tuple[str, ...]:
+    """
+    The feature names of a subset specification, in :data:`FEATURE_NAMES` order.
+
+    Parameters
+    ----------
+    spec : str or sequence of str
+        A :data:`FEATURE_SETS` key, a comma-separated list of feature names
+        (any order; blanks around names ignored), or a sequence of names.
+
+    Returns
+    -------
+    tuple of str
+        The names, reordered as in :data:`FEATURE_NAMES`.
+
+    Raises
+    ------
+    ValueError
+        If the spec is empty or names an unknown or repeated feature.
+    """
+    if isinstance(spec, str):
+        if spec in FEATURE_SETS:
+            return FEATURE_SETS[spec]
+        names = tuple(part.strip() for part in spec.split(','))
+        if any(not n for n in names):
+            raise ValueError(f"empty feature name in {spec!r}; give one of "
+                             f"{sorted(FEATURE_SETS)} or a comma-separated list of names")
+    else:
+        names = tuple(spec)
+    if not names:
+        raise ValueError(f"empty feature set; give one of {sorted(FEATURE_SETS)} or names")
+    unknown = [n for n in names if n not in FEATURE_NAMES]
+    if unknown:
+        raise ValueError(f"unknown feature names {unknown}; feature sets are "
+                         f"{sorted(FEATURE_SETS)}, names are {list(FEATURE_NAMES)}")
+    repeated = sorted({n for n in names if names.count(n) > 1})
+    if repeated:
+        raise ValueError(f"repeated feature names {repeated}")
+    out = tuple(n for n in FEATURE_NAMES if n in names)
+    assert len(out) == len(names)
+    return out
+
+
+def monotonic_for(names: Sequence[str]) -> Tuple[int, ...]:
+    """Monotonic constraint per name (:data:`MONOTONIC`, 0 when unconstrained)."""
+    return tuple(int(MONOTONIC.get(n, 0)) for n in names)
+
+
+def select_features(X: np.ndarray, names: Sequence[str]) -> np.ndarray:
+    """
+    The columns ``names`` of a full feature matrix.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        ``(n, len(FEATURE_NAMES))`` in :data:`FEATURE_NAMES` order.
+    names : sequence of str
+        An ordered subset (:func:`check_feature_subset`).
+
+    Returns
+    -------
+    np.ndarray
+        ``(n, len(names))`` float64 copy.
+
+    Raises
+    ------
+    ValueError
+        If ``X`` is not ``(n, 28)`` or ``names`` is not an ordered subset.
+    """
+    idx = check_feature_subset(names)
+    X = np.asarray(X, dtype=float)
+    if X.ndim != 2 or X.shape[1] != len(FEATURE_NAMES):
+        raise ValueError(f"expected X of shape (n, {len(FEATURE_NAMES)}), got {X.shape}")
+    out = X[:, list(idx)].copy()
+    assert out.shape == (X.shape[0], len(idx))
+    return out
 
 
 # ============================================================

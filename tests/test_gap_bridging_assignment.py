@@ -7,7 +7,8 @@ Covers ``assignment='global'`` (one stage over gaps 1..max_gap, equal to a
 staged run with a single stage), the adaptive dummy diagonal
 (``unmatched_cost_mode='adaptive'``: per component, ``adaptive_factor`` times
 the largest finite cost), the learned cost model (``-log p`` from a scorer,
-with the motion gates and the claw-side veto unchanged), and the refactor of
+with the motion gates and the claw-side veto unchanged; v005: a scorer on an
+ordered feature subset gets exactly those columns), and the refactor of
 the sqrt gate terms (``_sqrt_gate_terms``), which must leave
 ``_pair_costs_sqrt`` and the linear path numerically unchanged.
 
@@ -660,6 +661,111 @@ class LearnedCostTests(unittest.TestCase):
             self.assertTrue(all(same_decision(x, y) for x, y in zip(dec_h, dec_l)))
             n_links += len(links_h)
         self.assertGreater(n_links, 0)
+
+
+# ============================================================
+# LEARNED COST ON A FEATURE SUBSET (v005)
+# ============================================================
+
+class SubsetScorer:
+    """Scorer on the ``no_length`` columns; ``-log p`` is hand_cost; records every X it gets."""
+    feature_names = features.FEATURE_SETS['no_length']
+    threshold = math.exp(-1.0)
+
+    def __init__(self):
+        self.seen: List[np.ndarray] = []
+
+    def cost(self, X: np.ndarray) -> np.ndarray:
+        X = np.asarray(X, dtype=float)
+        assert X.ndim == 2 and X.shape[1] == len(self.feature_names), X.shape
+        self.seen.append(X.copy())
+        return X[:, self.feature_names.index('hand_cost')].copy()
+
+
+class LearnedSubsetTests(unittest.TestCase):
+
+    def learned(self, **kw) -> BridgeConfig:
+        return replace(SQRT, **{**LEARNED, **kw})
+
+    def scene(self):
+        ends = [ep('A', 10, (0., 0.), (0.5, 0.), heading=0.2, shoulder=(22., 0.)),
+                ep('D', 11, (5., 5.), vel_known=False)]
+        starts = [ep('B', 12, (1., 0.2), (0.4, 0.), heading=0.3),
+                  ep('C', 13, (2., -1.), vel_known=False), ep('E', 12, (40., 0.), vel_known=False)]
+        return [replace(e, size_px=25.0, size_n=3) for e in ends], starts
+
+    def assert_columns(self, ends, starts, cfg):
+        e, s, rows, cols = sorted_pairs(ends, starts, cfg)
+        recorder = SubsetScorer()
+        _, cost, gate = candidates._pair_costs(e, s, rows, cols, cfg, scorer=recorder)
+        X_full, _ = features.pair_features(e, s, rows, cols, replace(cfg, cost_model='hand'))
+        motion_ok = ~np.isin(gate.astype(str), ['displacement', 'prediction_error'])
+        idx = list(features.check_feature_subset(SubsetScorer.feature_names))
+        if not motion_ok.any():
+            self.assertEqual(recorder.seen, [])
+            return 0
+        self.assertEqual(len(recorder.seen), 1)
+        X = recorder.seen[0]
+        self.assertEqual(X.shape, (int(motion_ok.sum()), 20))
+        np.testing.assert_array_equal(X, X_full[motion_ok][:, idx])
+        np.testing.assert_array_equal(cost[motion_ok], X_full[motion_ok, HAND_COST])
+        return int(motion_ok.sum())
+
+    def test_subset_scorer_receives_selected_columns(self):
+        ends, starts = self.scene()
+        self.assertGreater(self.assert_columns(ends, starts, self.learned()), 1)
+
+    @settings(deadline=None, max_examples=60)
+    @given(scenes(), st.integers(1, 20))
+    def test_property_subset_columns(self, scene, max_gap):
+        self.assert_columns(*scene, self.learned(max_gap=max_gap))
+
+    @settings(deadline=None, max_examples=60)
+    @given(scenes(), st.integers(1, 20), st.sampled_from(COMBOS))
+    def test_property_subset_hand_scorer_reproduces_hand_links(self, scene, max_gap, combo):
+        ends, starts = scene
+        assignment, mode = combo
+        hand_cfg = replace(SQRT, max_gap=max_gap, assignment=assignment, unmatched_cost_mode=mode)
+        links_h, dec_h = link_tracklets(ends, starts, hand_cfg)
+        links_l, dec_l = link_tracklets(ends, starts, replace(hand_cfg, **LEARNED),
+                                        scorer=SubsetScorer())
+        self.assertEqual(links_h, links_l)
+        self.assertEqual(len(dec_h), len(dec_l))
+        for x, y in zip(dec_h, dec_l):
+            self.assertTrue(same_decision(x, y), (x, y))
+
+    def test_permuted_or_unknown_names_rejected(self):
+        ends, starts = self.scene()
+        e, s, rows, cols = sorted_pairs(ends, starts, SQRT)
+        names = list(SubsetScorer.feature_names)
+        swapped = names[:]
+        swapped[0], swapped[1] = swapped[1], swapped[0]
+        for bad in (tuple(swapped), tuple(reversed(names)), ('hand_cost', 'gap'), ('bogus',), ()):
+            scorer = SubsetScorer()
+            scorer.feature_names = bad
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                candidates._pair_costs(e, s, rows, cols, self.learned(), scorer=scorer)
+            with self.assertRaises(ValueError):
+                link_tracklets(ends, starts, self.learned(), scorer=scorer)
+            self.assertEqual(scorer.seen, [])
+
+    def test_full_name_scorers_unchanged(self):
+        # The v004 fakes (all 28 names) still get the full matrix.
+        seen = []
+
+        class FullRecorder(HandScorer):
+            def cost(self, X):
+                seen.append(np.asarray(X, dtype=float).copy())
+                return super().cost(X)
+
+        ends, starts = self.scene()
+        e, s, rows, cols = sorted_pairs(ends, starts, SQRT)
+        candidates._pair_costs(e, s, rows, cols, self.learned(), scorer=FullRecorder())
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(seen[0].shape[1], len(features.FEATURE_NAMES))
+        X_full, gate = features.pair_features(e, s, rows, cols, SQRT)
+        motion_ok = ~np.isin(gate.astype(str), ['displacement', 'prediction_error'])
+        np.testing.assert_array_equal(seen[0], X_full[motion_ok])
 
 
 # ============================================================
