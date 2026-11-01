@@ -79,3 +79,33 @@
 - **Impact:** fragmentation (true links refused) wherever a fragment carries a flipped Shoulder; no link changed on the demo
 - **Regression test:** tests/test_gap_bridging_cues.py::AxisFlipTests (test_axis_reversed_claw_aligned_is_not_vetoed, test_genuine_opposite_claw_is_vetoed, test_true_turn_keeps_the_ordinary_rule, test_unknown_vectors_never_flip, test_suppression_iff_axis_reversed_and_claw_kept), ::DemoCueTests::test_cues_change_few_sqrt_decisions
 - **Fix:** `_axis_flip` (`u_a·u_b < 0` and `c_a·c_b > 0`) sets the side term to 0 and lifts the veto; such pairs that would have been vetoed get `; axis_flip` in their reason and are counted in marker `counts.claw_side_suppressed` (demo 45: 18 → 0 vetoes, 18 suppressed, link set unchanged). The rule also lifts the veto for different-handed crabs facing opposite ways (hold-out decoys), see docs/GAP_BRIDGING.md (fix wave, uncommitted)
+
+## D-009 — hold-out positives are long-tracklet halves, so a scorer trained on them under-scores natural breaks
+- **Found:** 2026-11-01, gap bridging v004 integration
+- **Status:** open (documented; learned cost model shipped as an option, not the default)
+- **Where:** scripts/gap_bridging/holdout.py `plant_gaps` (`min_tracklet_len` 40, `margin` 3); scripts/gap_bridging/train.py
+- **Symptom:** every planted positive has both halves ≥ 4 frames (seed 0, horizon 30: min 4, median 42), whereas 75% of the demo's 827 natural links have a 1-frame side. The first trained scorer (pre fold-correction, threshold 0.98) gave `p >= 0.98` to 3% of natural 1-frame links and 86% of ≥ 20-frame links; the committed fold-corrected scorer (threshold 0.9944) keeps 26 of the demo's 827 links at horizon 30 and 704 at `p >= 0.5`, while its hold-out recall over all plants is 0.33 (trained threshold) to 0.97 (`p >= 0.5`, horizon 60)
+- **Repro:** `pipeline.pair_feature_export` on the demo + `scorer.load_scorer('configs/tracking/link_scorer_v001.joblib').predict_proba`, grouped by `min(n_frames_a, n_frames_b)`
+- **Impact:** the frame-deletion hold-out cannot validate a learned scorer on the breaks that matter (short natural fragments); the promotion rule is blind to the demo loss (801 links at the trained threshold, 123 at `p >= 0.5`)
+- **Regression test:** n/a (data property); the comparison tables in docs/gap_bridging_v004_comparison*.md and the demo link counts in docs/GAP_BRIDGING.md document it
+- **Fix (proposed):** plant gaps that leave short halves (1 to 3 frames) or drop the tracklet-length features (`n_frames_*`, `size_n_*`, `claw_side_n_*`, `vel_known_*`) and retrain; judge any learned variant on demo link counts as well as the hold-out
+
+## D-010 — isotonic calibration puts the precision-1.0 threshold at p = 1
+- **Found:** 2026-11-01, gap bridging v004 training
+- **Status:** fixed (sigmoid is the default; a threshold ≥ 1 or an unreachable target is refused unless `--allow-degenerate-threshold`)
+- **Where:** scripts/gap_bridging/train.py `fit_scorer`, `choose_threshold`
+- **Symptom:** with isotonic calibration the top plateau of the OOF probabilities is exactly 1.0, so the smallest threshold with OOF precision 1.0 is 1.0; every accepted pair then has cost `-log 1 = 0`, the assignment cannot rank accepted candidates and `learned_margin` has nothing to measure
+- **Repro:** `bridge_gaps.py train --sweeps logs/gap_sweep_v004/current/seed_0..4 --out /tmp/x.joblib` → manifest `threshold 1.0`
+- **Impact:** degenerate costs under the learned model
+- **Regression test:** tests/test_gap_bridging_train.py (degenerate and unreachable thresholds refused and allowed; isotonic on separable data raises)
+- **Fix:** sigmoid (Platt) calibration keeps the ranking (threshold 0.9805 on the pre-correction labels, 0.9944 on the corrected ones) and `train_command` refuses degenerate or unreachable thresholds
+
+## D-011 — single global assignment loses short links that staging keeps; a stronger gap penalty does not recover them
+- **Found:** 2026-11-01, gap bridging v004 comparison
+- **Status:** documented (`assignment: staged` stays the default)
+- **Where:** scripts/gap_bridging/candidates.py `_stages`, `_assign`
+- **Symptom:** demo at max_gap 30: staged 827 links, global 781 (fixed dummy), 772 (adaptive dummy); 59 staged links (36 of them 1 to 2 frame gaps) become `refused_assignment` because a cheaper long-gap pair claims an endpoint, while only 4 new links appear. Raising `gap_penalty` from 0.06 to 0.12/0.2/0.3/0.5 under global gives 783/765/722/665 links: the penalty pushes long pairs over `max_cost` faster than it reorders contested components. On the planted hold-out global and staged are identical at every gap, horizon and fold
+- **Repro:** `bridge_gaps.py run --config configs/tracking/gap_bridging_v004_global.yaml` vs defaults on the demo
+- **Impact:** the hold-out cannot adjudicate the 55 demo links (both variants score alike); staging remains the better-supported choice on this clip
+- **Regression test:** tests/test_gap_bridging_assignment.py (global equals staged with a single stage; adaptive dummy properties); tests/test_gap_bridging_pipeline.py::FeatureExportTests::test_global_adaptive_variant_runs_with_invariants
+- **Fix:** none needed for the default; a joint formulation that prices chain consistency (min-cost flow over tracklets, next-steps item 5) is the principled alternative

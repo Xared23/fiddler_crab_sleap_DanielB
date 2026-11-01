@@ -180,7 +180,7 @@ records the value in force.
 
 | Parameter | Default | Meaning |
 |---|---:|---|
-| `max_gap` | 45 | Bridge `1 <= gap <= max_gap` missing frames; 0 disables linking (CLI `--max-gap`); 5 until v002 |
+| `max_gap` | 30 | Bridge `1 <= gap <= max_gap` missing frames; 0 disables linking (CLI `--max-gap`); 5 until v002, 45 briefly in v003, 30 since the corrected v003 rule |
 | `velocity_window` | 3 | Steps used for endpoint velocity, heading search and offsets |
 | `max_velocity_px_per_frame` | 6.0 | Endpoint speed clip (tracker value) |
 | `max_body_displacement_px` | 12.0 | Gate: `dist <= this · dt` |
@@ -211,6 +211,21 @@ v003 parameters (all in the YAML):
 | `size_scale_px`, `size_noise_px`, `size_cost_cap`, `size_weight` | 3.0, 1.0, 3.0, 0.1 | Size term (see [Appearance cues](#appearance-cues)) |
 | `claw_side_weight`, `claw_side_confidence`, `claw_side_min_frames` | 0.15, 0.9, 5 | Side term and veto |
 
+v004 parameters (all in the YAML; defaults reproduce v003 byte for byte; see
+[v004](#v004-learned-link-scorer-and-single-global-assignment)):
+
+| Parameter | Default | Meaning |
+|---|---:|---|
+| `cost_model` | hand | `hand`: the sqrt/linear cost; `learned`: `-log p` from the scorer at `scorer_path` (sqrt gates and claw veto unchanged) |
+| `scorer_path` | null | `.joblib` model with a `.json` manifest beside it; a relative path is resolved against the YAML's directory |
+| `learned_min_probability` | 0.5 | `max_cost` gate under `learned`: a pair with `p` below this is refused; `train --write-config` writes the trained threshold |
+| `learned_unmatched_probability` | 0.5 | Dummy diagonal `-log p` under `learned` |
+| `learned_margin` | 0.0 | Runner-up margin under `learned`, in `-log p` units (CLI `--margin`) |
+| `assignment` | staged | `staged`: `link_stages`; `global`: one assignment over gaps `1..max_gap` |
+| `unmatched_cost_mode` | fixed | `adaptive`: each connected component's dummy diagonal is `adaptive_factor` × its largest finite cost (Jaqaman et al. 2008) |
+| `adaptive_factor` | 1.05 | Multiplier of the adaptive dummy |
+| `export_pair_features` | false | Also write `pair_features.parquet` (training input of the scorer) |
+
 ## Outputs
 
 These files are written to `--out`. Each parquet is first written to
@@ -230,6 +245,14 @@ provenance and unrelated):
 | `gap_frames` | int64 | Number of missing frames of the row's bridge (recovered frames included), on recovered and interpolated rows; the tail's length on tail rows; null on observed and unassigned rows |
 | `fill_confidence` | string | `high` / `medium` / `low` from `gap_frames` and `fill_confidence_gaps`, on recovered, tail and interpolated rows; otherwise null |
 | `trajectory_status` | string | `identity` or `spurious` ([Identity filter](#identity-filter)) of the row's trajectory; null on unassigned rows |
+
+With `export_pair_features: true` (the default inside `sweep` hold-outs) a
+fourth parquet, **`pair_features.parquet`**, holds one row per links-audit row
+in the same order: `video_id`, `tracklet_a`, `tracklet_b`, `gap_frames`,
+`gate` and the 28 float64 features of `features.FEATURE_NAMES` (v004). The
+marker's `timings` block gives the wall seconds of each stage before the write
+and their `total`; its `gate` block also records `cost_model`, `assignment`
+and `unmatched_cost_mode`.
 
 Interpolated rows come after the input rows, sorted by (video_id, frame,
 trajectory_id). Every column of an interpolated row is null except the
@@ -1304,3 +1327,254 @@ run with `--max-gap 15` for the horizon v002 recommended (v002 shipped 5).
   bimodal scores; the filter is a flag, so it can be re-applied.
 - **Export and re-inference are unvalidated here**: only unit tests,
   `--dry-run` and `bash -n` were run.
+
+## v004: learned link scorer and single global assignment
+
+v004 (2026-11-01) implements the two changes that a comparison with the
+tracklet-linking literature ranked highest, benchmarks them against v003 with
+the hold-out and on the demo, and ships both as **options**: neither passed
+the promotion rule, so every default is unchanged and the default
+configuration reproduces v003 byte for byte (demo `links.parquet`,
+`trajectories.parquet` and `observations.parquet` compared, default and
+`gate_model: linear`). The literature background: Lauer et al. 2022
+(multi-animal DeepLabCut) and Boenisch et al. 2018 (BeesBook) learn the
+pairwise tracklet-link score from labelled pairs instead of hand-weighting it;
+Jaqaman et al. 2008 (u-track), Bise et al. 2011 and Zhang et al. 2008 solve
+one global assignment over all gaps, with the price of leaving an endpoint
+unmatched set to 1.05 times the largest cost.
+
+### Per-pair features and labels
+
+`features.pair_feature_table` writes one row per links-audit row (same
+enumeration, same R_max prefilter) with the 28 features of
+`features.FEATURE_NAMES`: the gap, the body distance, the prediction error,
+the extended radius and both ratios, the endpoint speeds and whether they are
+known, the Shoulder-vector term, the heading change, the size and claw-side
+terms with their raw differences (NaN rather than 0 when a side is unknown),
+the cue sample sizes, the tracklet lengths, the number of rival pairs (gate
+`''` or `max_cost`, so claw-side-vetoed pairs are not rivals) from the same
+END and into the same START with a gap no longer than the pair's own (so the
+count does not depend on the horizon), the axis-flip flag and the hand cost. `sweep --holdout` exports it as
+`holdout_<h>/bridged/pair_features.parquet` (off with
+`--no-export-features`); `run` exports it with `export_pair_features: true`.
+
+`labels.label_pairs` joins the features of a hold-out run to its truth table.
+A pair is a **positive** when it rejoins the two halves of a plant or decoy
+target, or a flicker's left–middle or middle–right halves; **unlabelled**
+when neither side is a planted half, when it is a flicker's left–right pair,
+a decoy donor's own pair (its right half was translated) or when its two
+sides' originals fall in different folds; and a **negative** otherwise
+(including the decoy target → donor hard negative). Every side has an
+ORIGINAL: a planted left, right or middle half maps to its truth
+`original_id` whichever end the pair uses, any other tracklet is its own
+original. Folds are a deterministic function of the original,
+`sha256('gap_bridging_v004' NUL id)[:8] / 2^64 < 0.4 → test`, and a labelled
+pair's fold is the common fold of its two originals, so no test-fold
+tracklet (planted under any seed, or unplanted) ever enters training; the
+price is that most decoy target → donor hard negatives (two originals) are
+unlabelled. `labels.dedupe_pairs` keeps one row per pair across the horizons of a
+sweep (the planted tables are identical across horizons; a feature mismatch
+raises).
+
+### Training (`bridge_gaps.py train`)
+
+`train.train_command` collects the labelled, deduplicated, motion-gated pairs
+of every sweep, fits a `HistGradientBoostingClassifier` (depth 3, 200
+iterations, learning rate 0.05, 20 samples per leaf, L2 1.0) with monotonic
+constraints (the probability of a true link may not rise with the gap, the
+distance, the prediction error, their ratios, the Shoulder term, the size or
+side term, or the hand cost), calibrates it (sigmoid by default) on
+out-of-fold predictions of a group-aware 5-fold split (groups = planted
+original), chooses the smallest threshold with out-of-fold precision 1.0,
+refits on the whole train fold and saves
+`configs/tracking/link_scorer_v001.joblib` with a JSON manifest
+(scikit-learn version, feature order, constraints, hyperparameters, the
+feature-relevant configuration subset `features.FEATURE_CONFIG_KEYS`,
+threshold, data hash, fold sizes, metrics) and a per-gap metrics CSV. The
+trainer refuses a sweep whose `pair_features.parquet` is not listed in its
+marker with a matching sha256 and row count, sweeps that disagree on the
+feature configuration, and a threshold that is degenerate (≥ 1, every
+accepted cost 0) or does not reach the target precision
+(`--allow-degenerate-threshold` overrides). `scorer.load_scorer` refuses a
+model saved under another scikit-learn version or feature order, and
+`resolve_scorer` refuses a run whose feature configuration differs from the
+manifest's. `--write-config` writes the threshold into the learned overlay.
+
+Committed model (five demo sweeps, seeds 0–4, `--per-gap 8 --decoys 4
+--flicker 2`): 924 training pairs (468 positive), 484 test pairs (306
+positive), sigmoid calibration, threshold 0.9944; test-fold pairwise
+precision 1.0, recall 0.35, ROC AUC 0.985. Before the fold correction the
+same sweeps gave 1,201 / 792 pairs (the extra 585 were cross-fold
+negatives), threshold 0.9805 and pairwise recall 0.62. Isotonic calibration
+puts the threshold at exactly 1.0, which zeroes every accepted cost (D-010),
+and is now refused unless overridden.
+
+### Learned cost model
+
+Under `cost_model: learned` the sqrt motion gates and the claw-side veto are
+unchanged; the pairs that pass them are scored and their cost is
+`-log p`. The thresholds are probabilities: `max_cost = -log
+learned_min_probability` (so a pair is refused `max_cost` iff
+`p < learned_min_probability`), the dummy diagonal `-log
+learned_unmatched_probability`, and `learned_margin` is a log-probability
+ratio (CLI `--margin`). Chain reachability, runner-up and margin veto work
+on that scale. The linear model and the hand sqrt cost are untouched.
+
+### Global assignment and adaptive dummy
+
+`assignment: global` makes `_stages` a single stage over gaps `1..max_gap`,
+so no pair is excluded by an earlier stage and no reason says "at stage".
+`unmatched_cost_mode: adaptive` prices each connected component's dummy
+diagonal at `adaptive_factor` (1.05) times the component's largest finite
+cost. A lone gated pair then always links (`c < 2 · 1.05 c`); with the
+shipped fixed values (dummy 0.6, max cost 1.0) a lone pair already always
+links, so the modes differ only inside contested components.
+
+### Comparison (`bridge_gaps.py compare`)
+
+`compare.compare_variants` re-scores every hold-out directory of every seed
+of each variant on one fold of planted originals (`fold_scores`, keeping a
+decoy donor whenever its target is kept), pools the seeds
+(`holdout.pool_sweeps`), applies the horizon rule and checks each variant
+against the baseline with `promotion_check`: precision 1.0 (or no links) at
+every planted gap up to `--through-gap` and recall not below the baseline at
+every such gap. The generated tables are
+`docs/gap_bridging_v004_comparison.md` (test fold) and
+`docs/gap_bridging_v004_comparison_all.md` (all plants).
+
+Pooled hold-out, five seeds, every gap 1–60 planted at every horizon
+(587 pairs per horizon over all plants, 232 on the test fold); `recovered /
+false links`:
+
+| `max_gap` | current (all) | global (all) | learned (all) | learned p ≥ 0.5 (all) | current (test) | learned (test) | learned p ≥ 0.5 (test) |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 5 | 233 / 0 | 233 / 0 | 159 / 0 | 239 / 0 | 92 / 0 | 64 / 0 | 93 / 0 |
+| 10 | 293 / 0 | 293 / 0 | 163 / 0 | 298 / 0 | 119 / 0 | 68 / 0 | 119 / 0 |
+| 15 | 350 / 0 | 350 / 0 | 172 / 0 | 357 / 0 | 142 / 0 | 73 / 0 | 142 / 0 |
+| 30 | 448 / 0 | 448 / 0 | 191 / 0 | 471 / 1 | 179 / 0 | 82 / 0 | 186 / 0 |
+| 45 | 482 / 1 | 482 / 1 | 210 / 0 | 525 / 1 | 188 / 0 | 88 / 0 | 203 / 0 |
+| 60 | 490 / 1 | 490 / 1 | 226 / 0 | 568 / 3 | 190 / 0 | 94 / 0 | 222 / 0 |
+
+`learned_global` equals `learned` row for row. "learned p ≥ 0.5" is an
+exploratory variant (`learned_min_probability: 0.5`, overlay not committed)
+run to see how far the trained threshold limits recall. All learned rows use
+the retrained (fold-corrected) model.
+
+Demo clip, seed-0 sweep runs (`links / trajectories`):
+
+| `max_gap` | current | global | learned | learned p ≥ 0.5 |
+|---:|---:|---:|---:|---:|
+| 5 | 639 / 542 | 639 / 542 | 26 / 1,155 | 623 / 558 |
+| 15 | 782 / 399 | 747 / 434 | 26 / 1,155 | 690 / 491 |
+| 30 | 827 / 354 | 772 / 409 | 26 / 1,155 | 704 / 477 |
+| 60 | 848 / 333 | 810 / 371 | 26 / 1,155 | 729 / 452 |
+
+### Promotion decision (v004)
+
+- **Global assignment: not promoted.** It passes the rule trivially because
+  it is identical to the staged linker on every planted gap, horizon and
+  fold; the rule's tie-break (highest test recall) does not separate them.
+  On the demo it makes 55 fewer links at horizon 30 (772 vs 827; 781 with
+  the fixed dummy): 59 staged links, 36 of them 1 to 2 frame gaps, are
+  refused because a cheaper long-gap pair claims an endpoint and only 4
+  new links appear. A stronger gap penalty does not recover them
+  (`gap_penalty` 0.12 / 0.2 / 0.3 / 0.5 → 783 / 765 / 722 / 665 links): the
+  penalty pushes long pairs over `max_cost` before it reorders the contested
+  components. The planted hold-out cannot adjudicate these 55 links because
+  both variants score alike on it (D-011). Staging stays the default.
+- **Learned scorer: not promoted.** At its trained threshold (0.9944) it
+  keeps precision 1.0 everywhere, including the two long-horizon false links
+  of the hand cost, but recovers far fewer plants (191 vs 448 at horizon 30
+  over all plants; 82 vs 179 on the test fold) and keeps only 26 of the
+  demo's 827 links. With the threshold relaxed to 0.5 (exploratory overlay,
+  not committed) it matches or exceeds the hand cost at every horizon on the
+  test fold with zero false links (186 vs 179 at horizon 30, 222 vs 190 at
+  60) and over all plants (471 vs 448, 568 vs 490), but it fails the rule
+  twice: one plant short at gap 10 on the test fold (26 of 27), and over all
+  plants 1 false link at horizon 30 (planted gap
+  30) and 3 at horizon 60 (planted gaps
+  30, 60). On the demo it makes 704 links at horizon 30
+  against 827. The gap between the hold-out and the demo has one cause:
+  hold-out positives are halves of tracklets of at least 40 frames (shorter
+  half ≥ 4 frames, median 42), whereas 75% of the demo's natural links have a
+  1-frame side; the first committed scorer gave `p ≥ 0.98` to 3% of natural
+  1-frame links and to 86% of links whose shorter tracklet has 20 frames or
+  more (D-009). The learned model has learned, correctly for its training
+  set, that long fragments link and short fragments do not. Until the
+  hold-out plants short halves (or the tracklet-length features are removed
+  and the model retrained), no learned variant can be promoted from these
+  data, and a threshold chosen on planted pairs does not transfer to natural
+  breaks.
+- **Horizon default: 30, unchanged.** No component was promoted, so the
+  rule is not re-derived. For the record, the test fold alone would choose
+  60, because the single gap-38 false link of the hand cost falls on a
+  train-fold original; the all-plants rule, which is the right one for a
+  model with no training set, keeps 30.
+
+### Runtime benchmark
+
+`scripts/bench_gap_bridging.py` times `pipeline.run` (and `--link-only` the
+endpoints plus linking) on the demo and on spatially tiled copies
+(`tile_observations`: `ceil(sqrt n)` grid, tiles separated by the clip's
+extent plus 400 px so they never interact; string ids suffixed `/tileNN`,
+integer ids offset per tile). Five repeats, median wall seconds, login node
+della9 (192 logical CPUs, `OMP_NUM_THREADS=8`), max_gap 30:
+
+| config | tiles | rows | tracklets | links | total s | link s | assemble s |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| current | 1 | 36,573 | 1,181 | 827 | 1.23 | 0.08 | 0.85 |
+| global | 1 | 36,573 | 1,181 | 772 | 1.12 | 0.07 | 0.77 |
+| learned | 1 | 36,573 | 1,181 | 26 | 0.39 | 0.12 | 0.09 |
+| learned_global | 1 | 36,573 | 1,181 | 26 | 0.39 | 0.12 | 0.09 |
+| current | 4 | 146,292 | 4,724 | 3,308 | 4.78 | 0.38 | 3.42 |
+| global | 4 | 146,292 | 4,724 | 3,088 | 4.49 | 0.34 | 3.17 |
+| learned | 4 | 146,292 | 4,724 | 104 | 1.49 | 0.55 | 0.36 |
+| learned_global | 4 | 146,292 | 4,724 | 104 | 1.45 | 0.55 | 0.36 |
+| current | 16 | 585,168 | 18,896 | 13,232 | 20.26 | 2.43 | 13.84 |
+| global | 16 | 585,168 | 18,896 | 12,352 | 18.82 | 2.34 | 12.78 |
+| learned | 16 | 585,168 | 18,896 | 416 | 6.74 | 3.19 | 1.48 |
+| learned_global | 16 | 585,168 | 18,896 | 416 | 6.78 | 3.17 | 1.53 |
+
+Linking (endpoint matching, Hungarian per component) is under 15% of the wall time; table assembly dominates. The learned variants are faster only because they make far fewer links (fewer bridges to fill and assemble), not because scoring is cheaper: their `link` stage is 1.3 to 1.5 times the hand cost's. Runtime scales linearly in the number of tiles (crabs) at fixed density. CSV: `logs/bench/gap_bridging_v004.csv` (git-ignored).
+
+### Residual risks (v004)
+
+- The learned scorer is trained on one clip's planted gaps and inherits the
+  survivorship bias of the gate fit; it is shipped as an overlay only.
+- The exact scikit-learn version is pinned in the manifest; a lock update
+  requires `bridge_gaps.py train` again (deterministic given the seed).
+- Calibration and threshold both use out-of-fold train predictions (slightly
+  optimistic); promotion uses the test fold through the full pipeline.
+- Mixed-fold decoy hard negatives are unlabelled (target and donor come from
+  different originals), which removes most of them from training; the
+  full-pipeline test fold still scores every decoy whose target is in the fold.
+- The adaptive dummy weakens the "leave unlinked" option inside contested
+  components; it is compared, not shipped.
+
+### Commands (v004)
+
+```bash
+# current method, five seeds, with feature export (default)
+for k in 0 1 2 3 4; do
+  .venv/bin/python scripts/bridge_gaps.py sweep \
+      --observations demo/crab_cam2_2_middle_300/observations.parquet \
+      --out logs/gap_sweep_v004/current/seed_$k --max-gaps 5,10,15,30,45,60 --holdout \
+      --per-gap 8 --decoys 4 --flicker 2 --seed $k --no-figures --force
+done
+# train the scorer, write its threshold into the learned overlay
+.venv/bin/python scripts/bridge_gaps.py train \
+    --sweeps logs/gap_sweep_v004/current/seed_{0,1,2,3,4} \
+    --out configs/tracking/link_scorer_v001.joblib --calibration sigmoid \
+    --write-config configs/tracking/gap_bridging_v004_learned.yaml
+# the same sweeps with --config configs/tracking/gap_bridging_v004_{global,learned,learned_global}.yaml
+# compare on the test fold (and --fold all), promotion rule through gap 30
+.venv/bin/python scripts/bridge_gaps.py compare \
+    --variant current=logs/gap_sweep_v004/current/seed_0,...,seed_4 \
+    --variant global=... --variant learned=... --variant learned_global=... \
+    --out logs/gap_sweep_v004/compare_test --fold test --through-gap 30 \
+    --docs docs/gap_bridging_v004_comparison.md
+# runtime
+.venv/bin/python scripts/bench_gap_bridging.py --tiles 1,4,16 --repeats 5 --max-gap 30 \
+    --configs current=configs/tracking/gap_bridging_v001.yaml global=... learned=... learned_global=... \
+    --out logs/bench/gap_bridging_v004.csv --markdown logs/bench/gap_bridging_v004.md
+```
