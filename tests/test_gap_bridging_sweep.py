@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import math
 from pathlib import Path
 import sys
@@ -287,3 +288,104 @@ class BridgeFigureTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# --------------------------------------------------------------------------- #
+# v004: sweep -> train -> compare -> run (learned) through the CLI
+# --------------------------------------------------------------------------- #
+def training_scene() -> pa.Table:
+    """Sixteen long crabs (80 frames) each shadowed 6 px away by a neighbour broken every
+    fourth frame: the hold-out plants gaps in the long crabs and the neighbours' many
+    starts supply candidate pairs that are negatives for the scorer."""
+    crabs, drops = [], {}
+    for p in range(16):
+        origin = (300.0 + 450.0 * (p % 4), 400.0 + 400.0 * (p // 4))
+        vel = (0.5 * (-1) ** p, 0.3)
+        crabs.append(straight_crab(2 * p + 1, 0, 80, origin, vel))
+        crabs.append(straight_crab(2 * p + 2, 0, 80, (origin[0], origin[1] + 6.0), vel))
+        drops[2 * p + 2] = list(range(3 + (p % 4), 80, 4))
+    return make_observations(crabs, drop_frames=drops)
+
+
+class TrainCompareCliTests(unittest.TestCase):
+    """The v004 chain on a synthetic scene: two sweeps with exported features, training,
+    comparison on the test fold, and a learned run honouring ``--margin`` (D-005)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        tmp = Path(cls._tmp.name)
+        cls.path = tmp / 'observations.parquet'
+        pq.write_table(training_scene(), cls.path)
+        cls.sweeps = []
+        for seed in (1, 2):
+            out = tmp / f'sweep_{seed}'
+            code = bridge_gaps.main(['sweep', '--observations', str(cls.path), '--out', str(out),
+                                     '--max-gaps', '3,5', '--holdout', '--holdout-gaps', '1,2,3',
+                                     '--per-gap', '3', '--flicker', '1', '--seed', str(seed),
+                                     '--no-figures'])
+            assert code == 0
+            cls.sweeps.append(out)
+        cls.model = tmp / 'models' / 'scorer.joblib'
+        cls.overlay = tmp / 'models' / 'learned.yaml'
+        cls.train_code = bridge_gaps.main(['train', '--sweeps', *map(str, cls.sweeps), '--out',
+                                           str(cls.model), '--write-config', str(cls.overlay),
+                                           '--n-splits', '2', '--min-samples-leaf', '2'])
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def test_sweep_exports_features_by_default(self):
+        for out in self.sweeps:
+            for horizon in (3, 5):
+                self.assertTrue(nonempty(out / f'holdout_{horizon}' / 'bridged' / 'pair_features.parquet'))
+
+    def test_train_writes_model_manifest_and_overlay(self):
+        from gap_bridging import scorer as scorer_mod
+        self.assertEqual(self.train_code, 0)
+        self.assertTrue(nonempty(self.model))
+        manifest = json.loads(scorer_mod.manifest_path(self.model).read_text())
+        self.assertEqual(tuple(manifest['feature_names']), tuple(__import__('gap_bridging.features', fromlist=['x']).FEATURE_NAMES))
+        cfg = load_config(self.overlay)
+        self.assertEqual(cfg.cost_model, 'learned')
+        self.assertEqual(Path(cfg.scorer_path), self.model.resolve())
+        self.assertAlmostEqual(cfg.learned_min_probability, manifest['threshold'])
+        scorer = scorer_mod.load_scorer(self.model)
+        self.assertEqual(scorer.threshold, manifest['threshold'])
+
+    def test_compare_cli_writes_tables_and_verdicts(self):
+        tmp = Path(self._tmp.name)
+        out = tmp / 'compare'
+        variant = ','.join(map(str, self.sweeps))
+        code = bridge_gaps.main(['compare', '--variant', f'current={variant}',
+                                 '--variant', f'again={variant}', '--out', str(out),
+                                 '--fold', 'all', '--through-gap', '3',
+                                 '--docs', str(out / 'comparison.md')])
+        self.assertEqual(code, 0)
+        for name in ('comparison_by_gap.csv', 'comparison_by_horizon.csv', 'promotion.json',
+                     'comparison.md'):
+            self.assertTrue(nonempty(out / name), name)
+        verdicts = json.loads((out / 'promotion.json').read_text())
+        text = json.dumps(verdicts)
+        self.assertIn('"ok": true', text)
+        self.assertNotIn('"ok": false', text)
+        self.assertIn('again', text)
+
+    def test_regression_D005_margin_sets_learned_margin(self):
+        self.assertEqual(self.train_code, 0)
+        tmp = Path(self._tmp.name)
+        markers = {}
+        for margin in (None, '0.7'):
+            out = tmp / f'learned_{margin}'
+            extra = ['--margin', margin] if margin else []
+            code = bridge_gaps.main(['run', '--observations', str(self.path), '--out', str(out),
+                                     '--config', str(self.overlay), *extra])
+            self.assertEqual(code, 0)
+            markers[margin] = json.loads((out / 'GAP_BRIDGING_COMPLETE.json').read_text())
+        self.assertEqual(markers[None]['gate']['cost_model'], 'learned')
+        self.assertEqual(markers[None]['gate']['minimum_cost_margin'], 0.0)
+        self.assertEqual(markers['0.7']['gate']['minimum_cost_margin'], 0.7)
+        self.assertEqual(markers['0.7']['config']['learned_margin'], 0.7)
+        self.assertEqual(markers['0.7']['config']['minimum_cost_margin_sqrt'],
+                         BridgeConfig().minimum_cost_margin_sqrt)

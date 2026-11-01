@@ -38,7 +38,7 @@ import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 # ----- local modules -----
-from gap_bridging import candidates, chains, geometry, identity, recover, tables, tails
+from gap_bridging import candidates, chains, features, geometry, identity, recover, tables, tails
 from gap_bridging.config import BridgeConfig
 from gap_bridging.types import DECISIONS, Bridge, Endpoint
 from pipeline_common import sha256
@@ -47,7 +47,7 @@ from pipeline_common import sha256
 # CONSTANTS
 # ============================================================
 
-VERSIONED_PACKAGES = ('numpy', 'scipy', 'pyarrow')
+VERSIONED_PACKAGES = ('numpy', 'scipy', 'pyarrow', 'scikit-learn')
 
 # ============================================================
 # INPUT
@@ -136,7 +136,8 @@ def read_observations(files: list[Path]) -> pa.Table:
 
 def link_videos(endpoints: dict[str, tuple[Endpoint, Endpoint]], videos: list[str],
                 cfg: BridgeConfig,
-                stats: dict[str, int] | None = None) -> tuple[list[tuple[str, str]], pa.Table]:
+                stats: dict[str, int] | None = None,
+                scorer=None) -> tuple[list[tuple[str, str]], pa.Table]:
     """Run the candidate linker per video.
 
     Parameters
@@ -150,6 +151,10 @@ def link_videos(endpoints: dict[str, tuple[Endpoint, Endpoint]], videos: list[st
     stats : dict, optional
         Replaced in place by the totals over all videos of the linker's
         ``{'enumerated', 'pruned_by_radius'}`` pair counts.
+    scorer : Scorer, optional
+        Learned link scorer (v004), passed through to the linker when
+        ``cfg.cost_model == 'learned'``; the linker resolves one from
+        ``cfg.scorer_path`` when omitted.
 
     Returns
     -------
@@ -158,18 +163,15 @@ def link_videos(endpoints: dict[str, tuple[Endpoint, Endpoint]], videos: list[st
     links_table : pa.Table
         The audit table (:data:`tables.LINKS_SCHEMA`).
     """
-    ends: dict[str, list[Endpoint]] = {v: [] for v in videos}
-    starts: dict[str, list[Endpoint]] = {v: [] for v in videos}
-    for start, end in endpoints.values():
-        starts[start.video_id].append(start)
-        ends[end.video_id].append(end)
+    ends, starts = _endpoints_by_video(endpoints, videos)
     links: list[tuple[str, str]] = []
     parts = []
     totals = {'enumerated': 0, 'pruned_by_radius': 0}
+    extra = {'scorer': scorer} if scorer is not None else {}
     for video in videos:
         video_stats: dict[str, int] = {}
         video_links, decisions = candidates.link_tracklets(ends[video], starts[video], cfg,
-                                                           stats=video_stats)
+                                                           stats=video_stats, **extra)
         assert video_stats['enumerated'] == len(decisions), "one audit row per enumerated pair"
         for key in totals:
             totals[key] += int(video_stats[key])
@@ -285,8 +287,35 @@ def check_invariants(tracklet_ids: list[str], trajectories: dict[str, list[str]]
 
 
 def package_versions() -> dict[str, str]:
-    """Installed versions of the numerical dependencies."""
-    return {name: metadata.version(name) for name in VERSIONED_PACKAGES}
+    """Installed versions of the numerical dependencies ('' when not installed)."""
+    versions = {}
+    for name in VERSIONED_PACKAGES:
+        try:
+            versions[name] = metadata.version(name)
+        except metadata.PackageNotFoundError:
+            versions[name] = ''
+    return versions
+
+
+def _endpoints_by_video(endpoints: dict[str, tuple[Endpoint, Endpoint]], videos: list[str]
+                        ) -> tuple[dict[str, list[Endpoint]], dict[str, list[Endpoint]]]:
+    """Split ``tracklet_id -> (start, end)`` into per-video END and START lists."""
+    ends: dict[str, list[Endpoint]] = {v: [] for v in videos}
+    starts: dict[str, list[Endpoint]] = {v: [] for v in videos}
+    for start, end in endpoints.values():
+        starts[start.video_id].append(start)
+        ends[end.video_id].append(end)
+    return ends, starts
+
+
+def pair_feature_export(endpoints: dict[str, tuple[Endpoint, Endpoint]], videos: list[str],
+                        cfg: BridgeConfig) -> pa.Table:
+    """``pair_features.parquet`` content (v004): one row per enumerated pair, video by video,
+    in the order of the links audit table (:func:`features.pair_feature_table`)."""
+    ends, starts = _endpoints_by_video(endpoints, videos)
+    parts = [features.pair_feature_table(ends[v], starts[v], cfg, v) for v in videos]
+    parts = [t for t in parts if t.num_rows]
+    return pa.concat_tables(parts) if parts else features.PAIR_FEATURES_SCHEMA.empty_table()
 
 
 def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool = False) -> dict:
@@ -316,8 +345,11 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
         ``identity_starts_identity_only``, trajectories starting after their
         video's first frame, all and identities only; ``claw_side_suppressed``,
         audit rows that would have been claw-side vetoed but for an axis flip,
-        reason suffix ``'; axis_flip'``), ``versions`` and
-        ``outputs`` (sha256 and rows per file).
+        reason suffix ``'; axis_flip'``), ``versions``, ``timings``
+        (v004: wall seconds per stage, ``time.perf_counter``) and ``outputs``
+        (sha256 and rows per file; with ``cfg.export_pair_features`` also
+        ``pair_features.parquet``). ``gate`` also carries ``cost_model``,
+        ``assignment`` and ``unmatched_cost_mode`` (v004).
 
     Raises
     ------
@@ -325,12 +357,30 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
         If outputs exist and ``force`` is False (checked before any work).
     RuntimeError
         If an output invariant is violated; nothing is written then.
+    FileNotFoundError, ValueError
+        From the scorer loader when ``cfg.cost_model == 'learned'`` and the
+        model at ``cfg.scorer_path`` is missing or incompatible (before any
+        work).
     """
     started = time.monotonic()
+    timings: dict[str, float] = {}
+    clock = time.perf_counter()
+
+    def lap(stage: str) -> None:
+        nonlocal clock
+        now = time.perf_counter()
+        timings[stage] = now - clock
+        clock = now
+
     out_dir = Path(out_dir)
-    existing = [n for n in tables.OUTPUT_NAMES + (tables.COMPLETE_NAME,) if (out_dir / n).exists()]
+    outputs = tables.OUTPUT_NAMES + ((features.PAIR_FEATURES_NAME,) if cfg.export_pair_features else ())
+    existing = [n for n in outputs + (tables.COMPLETE_NAME,) if (out_dir / n).exists()]
     if existing and not force:
         raise FileExistsError(f"outputs already exist in {out_dir}: {existing}; use --force")
+    scorer = None
+    if cfg.cost_model == 'learned':
+        from gap_bridging import scorer as scorer_mod
+        scorer = scorer_mod.resolve_scorer(cfg)
 
     files = input_files(observations_path)
     digest, per_file = input_digest(observations_path, files)
@@ -338,6 +388,7 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
     videos = sorted(set(obs['video_id'].unique().to_pylist()) - {None})
     _progress('read', started,
               f"{obs.num_rows} rows, {len(videos)} videos from {len(files)} file(s)")
+    lap('read')
 
     endpoints = geometry.endpoints(obs, cfg)
     tracklet_ids = sorted(endpoints)
@@ -346,17 +397,20 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
         raise ValueError(f"{len(named ^ set(tracklet_ids))} tracklet ids have no accepted rows "
                          "or vice versa")
     _progress('endpoints', started, f"{len(tracklet_ids)} tracklets")
+    lap('endpoints')
 
     pair_stats: dict[str, int] = {}
-    links, links_table = link_videos(endpoints, videos, cfg, stats=pair_stats)
+    links, links_table = link_videos(endpoints, videos, cfg, stats=pair_stats, scorer=scorer)
     decision_counts = Counter(links_table['decision'].to_pylist())
     _progress('link', started, f"{len(links)} links from {links_table.num_rows} candidate pairs "
               f"({pair_stats['pruned_by_radius']} beyond R_max not enumerated) "
               f"{dict(sorted(decision_counts.items()))}")
+    lap('link')
 
     trajectories = chains.build_trajectories(tracklet_ids, links, endpoints)
     trajectory_of = chains.tracklet_to_trajectory(trajectories)
     _progress('chain', started, f"{len(trajectories)} trajectories")
+    lap('chain')
 
     bridges = fill_bridges(trajectories, endpoints, cfg)
     recovered = recover.recover_detections(obs, bridges, cfg)
@@ -364,6 +418,7 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
     n_gap_frames = int(sum(len(b.frames) for b in bridges))
     _progress('fill', started, f"{len(bridges)} bridges over {n_gap_frames} frames, "
               f"{len(recovered)} recovered detections")
+    lap('fill')
 
     tail_rows: dict = {}
     if cfg.tail_recovery:
@@ -376,6 +431,7 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
     tail_info = tails.tail_info(tail_rows, trajectories, endpoints, cfg)
     _progress('tails', started, f"{len(tail_rows)} tail detections on {len(tail_info)} tails"
               + ("" if cfg.tail_recovery else " (disabled)"))
+    lap('tails')
 
     fps = cfg.fps if 'time_s' in obs.schema.names else None
     pairs = [(b, geometry.synthetic_rows(b, obs.schema, fps=fps)) for b in bridges]
@@ -395,6 +451,7 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
     _progress('assemble', started, f"{observations.num_rows} output rows "
               f"({synthetic.num_rows} interpolated); {n_spurious} spurious trajectories; "
               "invariants hold")
+    lap('assemble')
 
     traj = trajectory_table.to_pydict()
     counts = {
@@ -419,10 +476,22 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
               'tracklets': len(tracklet_ids)}
     if per_file is not None:
         source['files'] = per_file
-    gate = {'gate_model': cfg.gate_model, **cfg.cost_thresholds()}
+    gate = {'gate_model': cfg.gate_model, 'cost_model': cfg.cost_model,
+            'assignment': cfg.assignment, 'unmatched_cost_mode': cfg.unmatched_cost_mode,
+            **cfg.cost_thresholds()}
+    extra: dict[str, pa.Table] = {}
+    if cfg.export_pair_features:
+        pair_table = pair_feature_export(endpoints, videos, cfg)
+        if pair_table.num_rows != links_table.num_rows:
+            raise RuntimeError(f"pair_features rows ({pair_table.num_rows}) differ from links rows "
+                               f"({links_table.num_rows})")
+        extra[features.PAIR_FEATURES_NAME] = pair_table
+        lap('features')
+    timings = {k: round(v, 6) for k, v in timings.items()}
+    timings['total'] = round(sum(timings.values()), 6)   # every stage before the write
     summary = {'config': cfg.to_dict(), 'gate': gate, 'input': source, 'counts': counts,
-               'versions': package_versions()}
+               'versions': package_versions(), 'timings': timings}
     marker = tables.write_outputs(out_dir, observations, trajectory_table, links_table, summary,
-                                  force)
+                                  force, extra=extra or None)
     _progress('write', started, f"outputs in {out_dir}")
     return marker

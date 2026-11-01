@@ -29,6 +29,18 @@ Subcommands (``run`` is the default, so the v001 invocation still works)::
     .venv/bin/python scripts/bridge_gaps.py export \\
         --bridged outputs/gap_bridging/demo_v001 --out outputs/weak_labels/demo
 
+    # v004: train the learned link scorer on the hold-outs of several sweeps (seeds)
+    .venv/bin/python scripts/bridge_gaps.py train \\
+        --sweeps logs/gap_sweep_v004/current/seed_0 logs/gap_sweep_v004/current/seed_1 \\
+        --out configs/tracking/link_scorer_v001.joblib \\
+        --write-config configs/tracking/gap_bridging_v004_learned.yaml
+
+    # v004: compare variants on the test fold and check the promotion rule
+    .venv/bin/python scripts/bridge_gaps.py compare \\
+        --variant current=logs/gap_sweep_v004/current/seed_0,logs/gap_sweep_v004/current/seed_1 \\
+        --variant global=logs/gap_sweep_v004/global/seed_0,logs/gap_sweep_v004/global/seed_1 \\
+        --out logs/gap_sweep_v004/compare --fold test --through-gap 30
+
 See docs/GAP_BRIDGING.md for the method and output schema.
 
 Sam
@@ -58,7 +70,7 @@ import pyarrow.compute as pc  # noqa: E402
 import pyarrow.parquet as pq  # noqa: E402
 
 # ----- local modules -----
-from gap_bridging import export, fit, holdout, identity, pipeline, tables  # noqa: E402
+from gap_bridging import compare, export, fit, holdout, identity, pipeline, tables, train  # noqa: E402
 from gap_bridging.config import BridgeConfig, load_config  # noqa: E402
 from gap_bridging.types import DECISIONS  # noqa: E402
 
@@ -66,7 +78,7 @@ from gap_bridging.types import DECISIONS  # noqa: E402
 # CONSTANTS
 # ============================================================
 
-COMMANDS = ('run', 'fit', 'sweep', 'pool', 'export')
+COMMANDS = ('run', 'fit', 'sweep', 'pool', 'export', 'train', 'compare')
 DEFAULT_MAX_GAPS = (5, 10, 15, 30, 45, 60)
 DEFAULT_HOLDOUT_GAPS = (1, 2, 3, 5, 10, 15, 20, 30, 45, 60)
 SUMMARY_NAME = 'sweep_summary.csv'
@@ -221,7 +233,7 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
           holdout_run: bool = False, holdout_gaps: list[int] = list(DEFAULT_HOLDOUT_GAPS),
           per_gap: int = 8, seed: int = 0, force: bool = False, video: Path | None = None,
           bridges_from: int | None = None, figures_on: bool = True, decoys: int = 0,
-          flicker: int = 0) -> list[dict]:
+          flicker: int = 0, export_features: bool = False) -> list[dict]:
     """Bridge at every horizon, optionally score a hold-out, write the CSVs and figures.
 
     Parameters
@@ -252,6 +264,9 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
         Horizon whose run is rendered (default the largest).
     figures_on : bool
         Write the figures.
+    export_features : bool
+        Write ``pair_features.parquet`` in every hold-out's ``bridged/``
+        directory (v004 training input; ``bridge_gaps.py train``).
 
     Returns
     -------
@@ -282,7 +297,7 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
             print(f"[sweep] max_gap {horizon}: hold-out gaps {gaps} x {per_gap}", flush=True)
             result = holdout.run_holdout(observations, out / f'holdout_{horizon}', run_cfg, gaps,
                                          per_gap, seed=seed, force=force, decoys=decoys,
-                                         flicker=flicker)
+                                         flicker=flicker, export_features=export_features)
             overall = result['scores'][-1]
             row.update({'holdout_planted': overall['planted'],
                         'holdout_precision': _nan(overall['precision']),
@@ -389,7 +404,8 @@ def make_figures(observations: Path, out: Path, cfg: BridgeConfig, with_holdout:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Argument parser with the ``run``, ``fit``, ``sweep``, ``pool`` and ``export`` subcommands."""
+    """Argument parser with the ``run``, ``fit``, ``sweep``, ``pool``, ``export``, ``train``
+    and ``compare`` subcommands."""
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0].strip(),
                                      epilog=__doc__.split('\n\n', 1)[1].rsplit('\n\nSam', 1)[0],
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -442,6 +458,8 @@ def build_parser() -> argparse.ArgumentParser:
     sw.add_argument('--bridges-from', type=int, default=None,
                     help='horizon whose bridges are rendered (default the largest)')
     sw.add_argument('--no-figures', action='store_true', help='skip the figures')
+    sw.add_argument('--no-export-features', action='store_true',
+                    help='do not write pair_features.parquet in the hold-out runs (v004)')
     sw.add_argument('--force', action='store_true', help='overwrite existing outputs')
 
     po = sub.add_parser('pool', help='pool the hold-out of several sweeps (seeds) and apply '
@@ -457,18 +475,29 @@ def build_parser() -> argparse.ArgumentParser:
     ex = sub.add_parser('export', help='export interpolated frames as weak labels '
                                        '(fine-tuning candidates, not labels)')
     export.add_arguments(ex)
+
+    tr = sub.add_parser('train', help='train the learned link scorer on sweep hold-outs (v004)')
+    train.add_arguments(tr)
+
+    cp = sub.add_parser('compare', help='pool sweeps per variant on a tracklet fold and check '
+                                        'the promotion rule (v004)')
+    compare.add_arguments(cp)
     return parser
 
 
 def with_margin(cfg: BridgeConfig, margin: float | None) -> BridgeConfig:
-    """Set the active gate model's runner-up margin (``--margin``); None leaves cfg unchanged.
+    """Set the active cost scale's runner-up margin (``--margin``); None leaves cfg unchanged.
 
     Linear: ``minimum_cost_margin`` (px/frame); sqrt: ``minimum_cost_margin_sqrt``
-    (dimensionless). Raises ValueError for a negative margin.
+    (dimensionless); learned cost model: ``learned_margin`` (-log p units).
+    Raises ValueError for a negative margin.
     """
     if margin is None:
         return cfg
-    field = 'minimum_cost_margin' if cfg.gate_model == 'linear' else 'minimum_cost_margin_sqrt'
+    if cfg.cost_model == 'learned':
+        field = 'learned_margin'
+    else:
+        field = 'minimum_cost_margin' if cfg.gate_model == 'linear' else 'minimum_cost_margin_sqrt'
     updated = replace(cfg, **{field: float(margin)})
     assert updated.cost_thresholds()['minimum_cost_margin'] == float(margin)
     return updated
@@ -506,13 +535,27 @@ def main(argv: list[str] | None = None) -> int:
             marker = export.run(args)
             print(f"[export] {marker['counts']['rows']} weak-label rows -> {args.out}",
                   flush=True)
+        elif args.command == 'train':
+            manifest = train.run_from_args(args)
+            print(f"[train] threshold {manifest.threshold:.6f}; train {manifest.n_train} "
+                  f"({manifest.n_positive_train} positive), test {manifest.n_test} "
+                  f"({manifest.n_positive_test} positive) -> {args.out}", flush=True)
+        elif args.command == 'compare':
+            args.command_line = ' '.join(['bridge_gaps.py'] + (argv if argv is not None
+                                                                else sys.argv[1:]))
+            result = compare.main(args)
+            for name, variant in result['variants'].items():
+                verdict = variant['promotion']
+                print(f"[compare] {name}: chosen horizon {variant['chosen']}; promotion "
+                      f"{'PASS' if verdict['ok'] else 'FAIL ' + ','.join(verdict['failing'])}",
+                      flush=True)
         else:
             rows = sweep(args.observations, args.out, args.max_gaps, load_config(args.config),
                          holdout_run=args.holdout, holdout_gaps=args.holdout_gaps,
                          per_gap=args.per_gap, seed=args.seed, force=args.force,
                          video=args.video, bridges_from=args.bridges_from,
                          figures_on=not args.no_figures, decoys=args.decoys,
-                         flicker=args.flicker)
+                         flicker=args.flicker, export_features=not args.no_export_features)
             print(f"[sweep] wrote {args.out / SUMMARY_NAME} ({len(rows)} horizons)", flush=True)
     except (FileExistsError, FileNotFoundError, ValueError) as error:
         print(f"bridge_gaps: error: {error}", file=sys.stderr, flush=True)

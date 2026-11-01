@@ -810,3 +810,33 @@ class DemoSmokeTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# --------------------------------------------------------------------------- #
+# v004: feature export from the hold-out
+# --------------------------------------------------------------------------- #
+class HoldoutFeatureExportTests(unittest.TestCase):
+    """``run_holdout(export_features=True)`` writes the training features and keeps the config."""
+
+    def test_export_features(self):
+        from gap_bridging import features, labels
+        crabs = [straight_crab(c, 0, N_FRAMES, (200.0 + 500.0 * c, 300.0 + 400.0 * (c % 2)),
+                               (0.5, 0.2)) for c in range(1, 9)]
+        table = make_observations(crabs)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'observations.parquet'
+            pq.write_table(table, path)
+            out = Path(tmp) / 'out'
+            cfg = BridgeConfig(max_gap=5)
+            summary = holdout.run_holdout(path, out, cfg, GAPS, per_gap=2, seed=3,
+                                          export_features=True)
+            feats = pq.read_table(out / 'bridged' / features.PAIR_FEATURES_NAME)
+            links = pq.read_table(out / 'bridged' / 'links.parquet')
+            self.assertEqual(feats.num_rows, links.num_rows)
+            self.assertEqual(summary['config'], cfg.to_dict())
+            self.assertEqual(summary['outputs']['pair_features'], 'bridged/pair_features.parquet')
+            truth = pq.read_table(out / 'holdout_truth.parquet')
+            labelled = labels.label_pairs(feats, truth)
+            positives = labelled.filter(pc.equal(labelled['label'], 1))
+            self.assertEqual(positives.num_rows, truth.num_rows)   # every plant is enumerated
+            self.assertTrue(set(labelled['fold'].to_pylist()) <= set(labels.FOLDS))

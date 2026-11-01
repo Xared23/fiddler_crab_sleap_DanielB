@@ -34,6 +34,7 @@ Sam
 import csv
 import json
 import math
+from dataclasses import replace
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -613,7 +614,8 @@ def _json_safe(row: dict) -> dict:
 def run_holdout(observations_path: Path, out_dir: Path, cfg: BridgeConfig,
                 gap_lengths: Sequence[int], per_gap: int, min_tracklet_len: int = 40,
                 seed: int = 0, force: bool = False, margin: int = 3, decoys: int = 0,
-                flicker: int = 0, decoy_offset_px: float = 3.0) -> dict:
+                flicker: int = 0, decoy_offset_px: float = 3.0,
+                export_features: bool = False) -> dict:
     """Plant gaps, bridge the planted table and score the links.
 
     Parameters
@@ -631,6 +633,9 @@ def run_holdout(observations_path: Path, out_dir: Path, cfg: BridgeConfig,
         Passed to :func:`plant_gaps` (with ``cfg`` as its ``cue_config``).
     force : bool
         Overwrite existing outputs (also passed to :func:`pipeline.run`).
+    export_features : bool
+        Also write ``bridged/pair_features.parquet`` (v004 training input);
+        the recorded ``config`` stays the caller's ``cfg``.
 
     Returns
     -------
@@ -660,7 +665,8 @@ def run_holdout(observations_path: Path, out_dir: Path, cfg: BridgeConfig,
     out_dir.mkdir(parents=True, exist_ok=True)
     pq.write_table(planted, out_dir / PLANTED_NAME)
     pq.write_table(truth, out_dir / TRUTH_NAME)
-    pipeline.run(out_dir / PLANTED_NAME, out_dir / BRIDGED_DIR, cfg, force)
+    run_cfg = replace(cfg, export_pair_features=True) if export_features else cfg
+    pipeline.run(out_dir / PLANTED_NAME, out_dir / BRIDGED_DIR, run_cfg, force)
     links = pq.read_table(out_dir / BRIDGED_DIR / 'links.parquet')
     bridged = pq.read_table(out_dir / BRIDGED_DIR / 'observations.parquet',
                             columns=['tracklet_id', 'trajectory_status'])
@@ -686,7 +692,9 @@ def run_holdout(observations_path: Path, out_dir: Path, cfg: BridgeConfig,
         'overall': {'precision': rows[-1]['precision'], 'recall': rows[-1]['recall']},
         'n_unplanted_links': int(n_unplanted),
         'outputs': {'planted': PLANTED_NAME, 'truth': TRUTH_NAME, 'scores': SCORES_NAME,
-                    'bridged': BRIDGED_DIR},
+                    'bridged': BRIDGED_DIR,
+                    **({'pair_features': f'{BRIDGED_DIR}/pair_features.parquet'}
+                       if export_features else {})},
     }
     if rows[-1]['gap_frames'] != ALL_GAPS or scores.num_rows < 2:
         raise RuntimeError("scores table lacks the per-gap or overall rows")

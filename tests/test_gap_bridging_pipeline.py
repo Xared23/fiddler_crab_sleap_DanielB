@@ -211,7 +211,11 @@ class DemoRunTests(unittest.TestCase):
         self.assertEqual(self.marker['input']['sha256'], sha256(DEMO))
         self.assertEqual(self.marker['input']['rows'], self.input.num_rows)
         self.assertEqual(self.marker['config'], CFG.to_dict())
-        self.assertEqual(set(self.marker['versions']), {'numpy', 'scipy', 'pyarrow'})
+        self.assertEqual(set(self.marker['versions']), {'numpy', 'scipy', 'pyarrow', 'scikit-learn'})
+        self.assertTrue(self.marker['versions']['scikit-learn'])
+        stages = ('read', 'endpoints', 'link', 'chain', 'fill', 'tails', 'assemble', 'total')
+        self.assertEqual(tuple(self.marker['timings']), stages)
+        self.assertTrue(all(v >= 0 for v in self.marker['timings'].values()))
         self.assertEqual(sorted(p.name for p in self.out.iterdir()),
                          sorted(OUTPUTS + (tables.COMPLETE_NAME,)))
 
@@ -267,7 +271,10 @@ class DemoRunTests(unittest.TestCase):
         self.assertEqual(self.obs.schema.field('fill_confidence').type, pa.string())
 
     def test_marker_records_gate_model(self):
-        self.assertEqual(self.marker['gate'], {'gate_model': CFG.gate_model, **CFG.cost_thresholds()})
+        self.assertEqual(self.marker['gate'],
+                         {'gate_model': CFG.gate_model, 'cost_model': CFG.cost_model,
+                          'assignment': CFG.assignment,
+                          'unmatched_cost_mode': CFG.unmatched_cost_mode, **CFG.cost_thresholds()})
 
     def test_counts_consistent(self):
         counts = self.marker['counts']
@@ -781,3 +788,61 @@ class HypothesisTailTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# --------------------------------------------------------------------------- #
+# v004: feature export, timings, learned-model failure, global assignment
+# --------------------------------------------------------------------------- #
+class FeatureExportTests(unittest.TestCase):
+    """``export_pair_features`` adds ``pair_features.parquet`` without changing the outputs."""
+
+    def test_export_matches_links_and_leaves_outputs_unchanged(self):
+        from gap_bridging import features
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_parquet(scene_table(), Path(tmp))
+            plain = pipeline.run(path, Path(tmp) / 'plain', CFG)
+            cfg = replace(CFG, export_pair_features=True)
+            marker = pipeline.run(path, Path(tmp) / 'export', cfg)
+            out = Path(tmp) / 'export'
+            self.assertTrue((out / features.PAIR_FEATURES_NAME).is_file())
+            self.assertNotIn(features.PAIR_FEATURES_NAME, [p.name for p in (Path(tmp) / 'plain').iterdir()])
+            for name in OUTPUTS:
+                self.assertEqual(marker['outputs'][name]['sha256'], plain['outputs'][name]['sha256'])
+            feats = pq.read_table(out / features.PAIR_FEATURES_NAME)
+            links = pq.read_table(out / 'links.parquet')
+            self.assertEqual(feats.num_rows, links.num_rows)
+            self.assertEqual(marker['outputs'][features.PAIR_FEATURES_NAME]['rows'], feats.num_rows)
+            for col in ('video_id', 'tracklet_a', 'tracklet_b', 'gap_frames'):
+                self.assertEqual(feats[col].to_pylist(), links[col].to_pylist(), col)
+            self.assertEqual(feats.schema, features.PAIR_FEATURES_SCHEMA)
+            self.assertIn('features', marker['timings'])
+            self.assertNotIn('features', plain['timings'])
+            self.assertEqual(marker['gate']['cost_model'], 'hand')
+            with self.assertRaises(FileExistsError):
+                pipeline.run(path, out, cfg)
+
+    def test_learned_without_model_fails_before_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_parquet(scene_table(), Path(tmp))
+            out = Path(tmp) / 'learned'
+            cfg = replace(CFG, cost_model='learned', scorer_path=str(Path(tmp) / 'missing.joblib'))
+            with self.assertRaises(FileNotFoundError):
+                pipeline.run(path, out, cfg)
+            self.assertFalse(out.exists() and any(out.iterdir()))
+            with self.assertRaises(ValueError):
+                pipeline.run(path, out, replace(CFG, cost_model='learned'))
+
+    def test_global_adaptive_variant_runs_with_invariants(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_parquet(scene_table(), Path(tmp))
+            cfg = replace(CFG, assignment='global', unmatched_cost_mode='adaptive')
+            marker = pipeline.run(path, Path(tmp) / 'global', cfg)
+            obs, traj, links, _ = read_outputs(Path(tmp) / 'global')
+            self.assertEqual(marker['gate']['assignment'], 'global')
+            self.assertEqual(marker['gate']['unmatched_cost_mode'], 'adaptive')
+            self.assertEqual(set(links['stage'].to_pylist()) - {0}, {1})
+            self.assertFalse(any('at stage' in r for r in links['reason'].to_pylist()))
+            self.assertEqual(marker['counts']['trajectories'], traj.num_rows)
+            # The far-apart scene has no contested component: same links as staged/fixed.
+            plain = pipeline.run(path, Path(tmp) / 'plain', CFG)
+            self.assertEqual(marker['counts']['links'], plain['counts']['links'])
