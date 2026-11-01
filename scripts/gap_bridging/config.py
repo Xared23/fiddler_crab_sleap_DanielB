@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, fields, replace
+import math
 from pathlib import Path
 
 import yaml
@@ -71,6 +72,24 @@ class BridgeConfig:
     # Staged linking (sqrt only): gaps (prev, stage] are linked stage by stage, shortest first;
     # stages above max_gap are dropped and max_gap is always the last stage.
     link_stages: tuple[int, ...] = (5, 15, 30, 45)
+    # --- v004: cost model, assignment and feature export ---------------------
+    # cost_model "hand": the sqrt/linear cost above. "learned": the probability p of a true
+    # link from the scikit-learn scorer at scorer_path (features.FEATURE_NAMES), cost = -log p,
+    # with the motion gates and the claw-side veto unchanged (sqrt gates only). Thresholds are
+    # given as probabilities and converted by cost_thresholds().
+    cost_model: str = "hand"
+    scorer_path: str | None = None            # .joblib model with a .json manifest beside it
+    learned_min_probability: float = 0.5      # max_cost gate: refuse when p < this
+    learned_unmatched_probability: float = 0.5  # dummy diagonal = -log(this)
+    learned_margin: float = 0.0               # runner-up margin in -log p units (log probability ratio)
+    # assignment "staged": link_stages as above. "global": one assignment over gaps 1..max_gap
+    # (Jaqaman et al. 2008 second stage). unmatched_cost_mode "adaptive": the dummy diagonal of
+    # each connected component is adaptive_factor * its largest finite cost (Jaqaman 1.05 max C)
+    # instead of the fixed unmatched cost.
+    assignment: str = "staged"
+    unmatched_cost_mode: str = "fixed"
+    adaptive_factor: float = 1.05
+    export_pair_features: bool = False        # also write pair_features.parquet (features.py) next to links.parquet
 
     def __post_init__(self) -> None:
         if self.max_gap < 0 or self.velocity_window < 1:
@@ -102,6 +121,19 @@ class BridgeConfig:
         if not stages or any(int(s) != s or s < 1 for s in stages) or any(
                 b <= a for a, b in zip(stages, stages[1:])):
             raise ValueError("link_stages must be positive integers, strictly increasing")
+        if self.cost_model not in ("hand", "learned"):
+            raise ValueError("cost_model must be 'hand' or 'learned'")
+        if self.cost_model == "learned" and self.gate_model != "sqrt":
+            raise ValueError("cost_model 'learned' requires gate_model 'sqrt'")
+        if (not 0 < self.learned_min_probability <= 1 or not 0 < self.learned_unmatched_probability <= 1
+                or self.learned_margin < 0):
+            raise ValueError("learned probabilities must be in (0, 1] and learned_margin >= 0")
+        if self.assignment not in ("staged", "global"):
+            raise ValueError("assignment must be 'staged' or 'global'")
+        if self.unmatched_cost_mode not in ("fixed", "adaptive"):
+            raise ValueError("unmatched_cost_mode must be 'fixed' or 'adaptive'")
+        if self.adaptive_factor < 1:
+            raise ValueError("adaptive_factor must be >= 1")
 
     def gate_radius(self, dt) -> "np.ndarray | float":
         """Search radius r(dt) in pixels for the configured gate model (array-safe)."""
@@ -116,8 +148,14 @@ class BridgeConfig:
         """Assignment thresholds on the active gate model's cost scale.
 
         Linear: the px/frame values (max_assignment_cost, unmatched_cost,
-        minimum_cost_margin). Sqrt: the dimensionless *_sqrt values.
+        minimum_cost_margin). Sqrt: the dimensionless *_sqrt values. Learned
+        cost model: ``-log`` of ``learned_min_probability`` and
+        ``learned_unmatched_probability`` and ``learned_margin`` (v004).
         """
+        if self.cost_model == "learned":
+            return {"max_assignment_cost": -math.log(self.learned_min_probability),
+                    "unmatched_cost": -math.log(self.learned_unmatched_probability),
+                    "minimum_cost_margin": self.learned_margin}
         if self.gate_model == "linear":
             return {"max_assignment_cost": self.max_assignment_cost, "unmatched_cost": self.unmatched_cost,
                     "minimum_cost_margin": self.minimum_cost_margin}
@@ -141,7 +179,12 @@ def load_config(path: Path | None = None, **overrides) -> BridgeConfig:
         if unknown:
             raise ValueError(f"Unknown config keys: {sorted(unknown)}")
         values.update(loaded)
+        scorer = values.get("scorer_path")
+        if scorer is not None and not Path(scorer).is_absolute():
+            values["scorer_path"] = str(Path(path).resolve().parent / scorer)
     values.update({k: v for k, v in overrides.items() if v is not None})
+    if values.get("scorer_path") is not None:
+        values["scorer_path"] = str(values["scorer_path"])
     for key in ("recoverable_reasons", "fill_confidence_gaps", "link_stages", "tail_reasons"):
         if key in values:
             values[key] = tuple(values[key])

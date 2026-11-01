@@ -1,0 +1,8 @@
+# Overlay on the defaults (gap_bridging_v001.yaml): learned link scorer, staged assignment.
+# scorer_path is resolved relative to this file. learned_min_probability is written by
+# `bridge_gaps.py train --write-config` (placeholder until trained).
+cost_model: learned
+scorer_path: link_scorer_v001.joblib
+learned_min_probability: 0.5
+learned_unmatched_probability: 0.5
+learned_margin: 0.0

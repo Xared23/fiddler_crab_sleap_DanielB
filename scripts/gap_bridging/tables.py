@@ -370,13 +370,17 @@ def concat_links(tables: Iterable[pa.Table]) -> pa.Table:
 # Writing
 # --------------------------------------------------------------------------- #
 def write_outputs(out_dir: Path, observations: pa.Table, trajectories: pa.Table, links: pa.Table,
-                  summary: dict, force: bool = False) -> dict:
+                  summary: dict, force: bool = False,
+                  extra: Mapping[str, pa.Table] | None = None) -> dict:
     """Write the three parquet outputs and the completion marker atomically.
 
     Each parquet is written (zstd) to ``.<name>.tmp`` in ``out_dir`` and moved
-    into place with ``os.replace`` only once all three were written; the marker
+    into place with ``os.replace`` only once all were written; the marker
     ``GAP_BRIDGING_COMPLETE.json`` is written last via ``atomic_json``. With
     ``force`` an existing marker is removed before any output is replaced.
+    ``extra`` tables (v004, e.g. ``pair_features.parquet``) are written the
+    same way and listed in ``outputs``; their names may not collide with
+    :data:`OUTPUT_NAMES` or the marker.
 
     Parameters
     ----------
@@ -389,6 +393,8 @@ def write_outputs(out_dir: Path, observations: pa.Table, trajectories: pa.Table,
         not contain the key ``outputs``.
     force : bool
         Overwrite existing outputs.
+    extra : mapping of str to pa.Table, optional
+        Additional parquet files ``{file name: table}``.
 
     Returns
     -------
@@ -400,16 +406,24 @@ def write_outputs(out_dir: Path, observations: pa.Table, trajectories: pa.Table,
     ------
     FileExistsError
         If any output exists and ``force`` is False.
+    ValueError
+        If ``summary`` has an ``outputs`` key or an ``extra`` name collides.
     """
     if 'outputs' in summary:
         raise ValueError("summary must not contain the key 'outputs'")
+    extra = dict(extra or {})
+    reserved = set(OUTPUT_NAMES) | {COMPLETE_NAME}
+    if any(n in reserved or not n.endswith('.parquet') for n in extra):
+        raise ValueError(f"extra output names must be new .parquet files, got {sorted(extra)}")
+    names = OUTPUT_NAMES + tuple(sorted(extra))
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    existing = [n for n in OUTPUT_NAMES + (COMPLETE_NAME,) if (out_dir / n).exists()]
+    existing = [n for n in names + (COMPLETE_NAME,) if (out_dir / n).exists()]
     if existing and not force:
         raise FileExistsError(f"outputs already exist in {out_dir}: {existing}; use --force")
     tables = dict(zip(OUTPUT_NAMES, (observations, trajectories, links)))
-    temps = {name: out_dir / f".{name}.tmp" for name in OUTPUT_NAMES}
+    tables.update((n, extra[n]) for n in sorted(extra))
+    temps = {name: out_dir / f".{name}.tmp" for name in names}
     outputs: dict[str, dict] = {}
     try:
         for name, table in tables.items():
@@ -417,7 +431,7 @@ def write_outputs(out_dir: Path, observations: pa.Table, trajectories: pa.Table,
             outputs[name] = {'sha256': sha256(temps[name]), 'rows': table.num_rows}
         if (out_dir / COMPLETE_NAME).exists():
             (out_dir / COMPLETE_NAME).unlink()
-        for name in OUTPUT_NAMES:
+        for name in names:
             os.replace(temps[name], out_dir / name)
     finally:
         for path in temps.values():

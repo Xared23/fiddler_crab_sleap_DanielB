@@ -1,0 +1,4 @@
+# Overlay on the defaults (gap_bridging_v001.yaml): single global assignment with the
+# Jaqaman adaptive dummy cost; hand cost. Keys not listed keep their defaults.
+assignment: global
+unmatched_cost_mode: adaptive

@@ -1,0 +1,9 @@
+# Overlay on the defaults (gap_bridging_v001.yaml): learned link scorer with the single
+# global assignment and adaptive dummy cost. Keep learned_* equal to gap_bridging_v004_learned.yaml.
+cost_model: learned
+scorer_path: link_scorer_v001.joblib
+learned_min_probability: 0.5
+learned_unmatched_probability: 0.5
+learned_margin: 0.0
+assignment: global
+unmatched_cost_mode: adaptive

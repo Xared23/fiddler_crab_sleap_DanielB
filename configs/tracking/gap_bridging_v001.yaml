@@ -60,3 +60,18 @@ size_weight: 0.1
 claw_side_weight: 0.15
 claw_side_confidence: 0.9
 claw_side_min_frames: 5
+# v004: cost model and assignment. cost_model 'learned' scores each candidate pair with the
+# scikit-learn model at scorer_path (cost = -log p; motion gates and claw veto unchanged);
+# 'hand' is the sqrt cost above. assignment 'global' solves one assignment over gaps
+# 1..max_gap instead of link_stages; unmatched_cost_mode 'adaptive' prices leaving an
+# endpoint unmatched at adaptive_factor * (largest finite cost in its component), after
+# Jaqaman et al. 2008. Overlays: gap_bridging_v004_{global,learned,learned_global}.yaml.
+cost_model: hand
+scorer_path: null
+learned_min_probability: 0.5
+learned_unmatched_probability: 0.5
+learned_margin: 0.0
+assignment: staged
+unmatched_cost_mode: fixed
+adaptive_factor: 1.05
+export_pair_features: false
