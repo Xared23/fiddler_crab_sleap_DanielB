@@ -445,3 +445,51 @@ class RealSweepTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# --------------------------------------------------------------------------- #
+# v005 prep: truth tables with fewer or more columns than TRUTH_SCHEMA
+# --------------------------------------------------------------------------- #
+class TruthSchemaToleranceTests(unittest.TestCase):
+    """``fold_scores`` keeps working when the truth parquet lacks (older) or has extra
+    (newer) columns relative to ``holdout.TRUTH_SCHEMA``."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        root = Path(cls.tmp.name)
+        path = root / 'observations.parquet'
+        pq.write_table(cue_scene(), path)
+        cls.sweep = root / 'seed_1'
+        build_sweep(cls.sweep, path, SEEDS[0])
+        cls.patch = mock.patch.object(labels, 'truth_folds', fake_truth_folds)
+        cls.patch.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.patch.stop()
+        cls.tmp.cleanup()
+
+    def _rescore_with(self, transform):
+        with tempfile.TemporaryDirectory() as tmp:
+            copy = Path(tmp) / 'sweep'
+            shutil.copytree(self.sweep, copy)
+            for _, d in compare.holdout_dirs(copy):
+                truth = pq.read_table(d / holdout.TRUTH_NAME)
+                pq.write_table(transform(truth), d / holdout.TRUTH_NAME)
+            return compare.sweep_fold_rows(copy, 'test'), compare.sweep_fold_rows(self.sweep, 'test')
+
+    @staticmethod
+    def _counts(rows):
+        return [{k: r[k] for k in ('max_gap', 'gap') + COUNTS} for r in rows]
+
+    def test_missing_optional_column_is_tolerated(self):
+        # deleted_first_frame is not used by score_links; an older truth without it still scores.
+        got, ref = self._rescore_with(lambda t: t.drop_columns(['deleted_first_frame']))
+        self.assertEqual(self._counts(got), self._counts(ref))
+        self.assertTrue(any(r['planted'] for r in got))
+
+    def test_extra_column_is_ignored(self):
+        got, ref = self._rescore_with(
+            lambda t: t.append_column('profile', pa.array(['standard'] * t.num_rows)))
+        self.assertEqual(self._counts(got), self._counts(ref))

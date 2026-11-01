@@ -177,7 +177,9 @@ def fold_scores(holdout_dir: Path, fold: str, salt: str = DEFAULT_SALT,
         with_folds = labels.truth_folds(truth, salt, test_fraction)
         if 'fold' not in with_folds.schema.names or with_folds.num_rows != truth.num_rows:
             raise RuntimeError("truth_folds must return the truth rows plus a 'fold' column")
-        truth = _keep_fold(with_folds, fold).select(holdout.TRUTH_SCHEMA.names)
+        kept = _keep_fold(with_folds, fold)
+        # Tolerant of truth tables older or newer than this code's schema (v005 adds columns).
+        truth = kept.select([n for n in holdout.TRUTH_SCHEMA.names if n in kept.schema.names])
     scores = {r['gap_frames']: r for r in holdout.score_links(links, truth, status).to_pylist()
               if r['gap_frames'] != holdout.ALL_GAPS}
     empty = holdout._score_row(0, [], [], [])
