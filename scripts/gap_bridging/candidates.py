@@ -43,6 +43,19 @@ The assignment is solved per connected component of the assignable-pair graph;
 non-candidate cells are never chosen at the optimum, so this equals the global
 ``(m+n) x (m+n)`` solve while keeping memory proportional to component size.
 
+v004 options (all off by default):
+
+* ``cfg.assignment = 'global'``: a single stage over gaps ``1..max_gap``
+  (Jaqaman et al. 2008 gap closing), identical to ``link_stages=(max_gap,)``;
+  no pair is ever excluded by an earlier stage, so no reason says "at stage".
+* ``cfg.unmatched_cost_mode = 'adaptive'``: each component's dummy diagonal is
+  ``adaptive_factor`` times its largest cost (``_adaptive_unmatched``) instead
+  of the fixed ``unmatched_cost``; see ``_assign`` for the trade-off.
+* ``cfg.cost_model = 'learned'``: the cost is ``-log p`` from a scorer over
+  ``features.pair_features`` (``_pair_costs_learned``); the sqrt motion gates
+  and the claw-side veto are unchanged, and the thresholds are
+  ``cfg.cost_thresholds()`` (``-log`` of the configured probabilities).
+
 Sam
 10/2026
 """
@@ -54,6 +67,7 @@ Sam
 # ----- standard library -----
 import math
 from collections import defaultdict
+from dataclasses import replace
 from typing import Dict, List, Optional, Set, Tuple
 
 # ----- numerics -----
@@ -461,6 +475,43 @@ def _cue_columns(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
     return size_term, side_term, suppressed
 
 
+def _sqrt_gate_terms(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
+                     cols: np.ndarray, cfg: BridgeConfig) -> Tuple[np.ndarray, ...]:
+    """
+    Geometry, extended radius and motion gates of the sqrt model per pair.
+
+    Parameters
+    ----------
+    ends, starts : list of Endpoint
+        Sorted endpoints.
+    rows, cols : np.ndarray
+        Candidate indices from ``_enumerate_pairs``.
+    cfg : BridgeConfig
+        Radius parameters, prediction horizon, error ratio and shoulder cap.
+
+    Returns
+    -------
+    (dt, dist, err, shoulder, radius, speed, disp_ok, err_ok) : tuple of np.ndarray
+        ``dt, dist, err, shoulder`` of ``_pair_geometry`` (velocities
+        extrapolated over ``min(dt, h)`` frames); ``speed = max(|v_a|, |v_b|)``
+        over known velocities; ``radius`` the extended radius
+        ``R = cfg.gate_radius(dt) + speed min(dt, h)``; ``disp_ok = dist <= R``
+        and ``err_ok = err <= prediction_error_ratio * R``.
+    """
+    cap = cfg.shoulder_vector_cost_cap_px
+    dt, dist, err, shoulder = _pair_geometry(ends, starts, rows, cols,
+                                             cfg.prediction_horizon_frames, cap)
+    _, va, ka = (x[rows] for x in _stack(ends))
+    _, vb, kb = (x[cols] for x in _stack(starts))
+    speed = np.maximum(np.where(ka, np.linalg.norm(va, axis=1), 0.0),
+                       np.where(kb, np.linalg.norm(vb, axis=1), 0.0))
+    radius = _sqrt_extended_radius(cfg, dt, speed)
+    disp_ok = dist <= radius
+    err_ok = err <= cfg.prediction_error_ratio * radius
+    assert disp_ok.shape == err_ok.shape == rows.shape
+    return dt, dist, err, shoulder, radius, speed, disp_ok, err_ok
+
+
 def _pair_costs_sqrt(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
                      cols: np.ndarray, cfg: BridgeConfig) -> Tuple[np.ndarray, ...]:
     """
@@ -469,7 +520,7 @@ def _pair_costs_sqrt(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndar
     With ``h = cfg.prediction_horizon_frames`` and the extended radius
     ``R = cfg.gate_radius(dt) + max(|v_a|, |v_b|) min(dt, h)``: gates
     ``dist <= R`` and ``err <= prediction_error_ratio * R`` (velocities
-    extrapolated over ``min(dt, h)`` frames); cost
+    extrapolated over ``min(dt, h)`` frames; ``_sqrt_gate_terms``); cost
     ``[(1-w) dist + w err] / R * (1 + gap_penalty)^(dt-2) + w_s min(|du|, cap)/cap``,
     so a 1-frame gap (``dt = 2``) carries no penalty; with
     ``cfg.appearance_cues`` the cost gains
@@ -483,13 +534,8 @@ def _pair_costs_sqrt(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndar
         As for ``_pair_costs``.
     """
     cap = cfg.shoulder_vector_cost_cap_px
-    dt, dist, err, shoulder = _pair_geometry(ends, starts, rows, cols,
-                                             cfg.prediction_horizon_frames, cap)
-    _, va, ka = (x[rows] for x in _stack(ends))
-    _, vb, kb = (x[cols] for x in _stack(starts))
-    speed = np.maximum(np.where(ka, np.linalg.norm(va, axis=1), 0.0),
-                       np.where(kb, np.linalg.norm(vb, axis=1), 0.0))
-    radius = _sqrt_extended_radius(cfg, dt, speed)
+    dt, dist, err, shoulder, radius, _, disp_ok, err_ok = _sqrt_gate_terms(ends, starts, rows,
+                                                                            cols, cfg)
     penalty = (1.0 + cfg.gap_penalty) ** (dt.astype(float) - 2.0)
     w = cfg.motion_weight
     with np.errstate(divide='ignore', invalid='ignore'):
@@ -500,14 +546,67 @@ def _pair_costs_sqrt(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndar
     if cfg.appearance_cues:
         size_term, side_term, side_veto = _cue_terms(ends, starts, rows, cols, cfg)
         cost = cost + cfg.size_weight * size_term + cfg.claw_side_weight * side_term
-    disp_ok = dist <= radius
-    err_ok = err <= cfg.prediction_error_ratio * radius
+    max_cost = cfg.cost_thresholds()['max_assignment_cost']
+    return dt, cost, _gate_labels(cost, disp_ok, err_ok, max_cost, side_veto)
+
+
+def _pair_costs_learned(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
+                        cols: np.ndarray, cfg: BridgeConfig, scorer) -> Tuple[np.ndarray, ...]:
+    """
+    Learned cost ``-log p`` with the sqrt motion gates and claw-side veto (v004).
+
+    The motion gates (``_sqrt_gate_terms``) and, with ``cfg.appearance_cues``,
+    the claw-side veto (``_cue_terms``) are exactly those of
+    ``_pair_costs_sqrt``. The features of ``features.pair_features``
+    (evaluated with ``cost_model='hand'``) of the pairs that pass both motion
+    gates are scored by ``scorer.cost``; pairs failing a motion gate get a NaN
+    cost (their audit rows report NaN under either model) and are not scored.
+    ``max_cost`` gate at ``cfg.cost_thresholds()['max_assignment_cost']``
+    ``= -log learned_min_probability``, so a pair is refused ``max_cost`` iff
+    ``p < learned_min_probability``.
+
+    Parameters
+    ----------
+    ends, starts, rows, cols, cfg :
+        As for ``_pair_costs``; ``cfg.cost_model == 'learned'``.
+    scorer : gap_bridging.scorer.Scorer
+        ``feature_names`` must equal ``features.FEATURE_NAMES``; ``cost(X)``
+        returns a finite ``-log p`` per row.
+
+    Returns
+    -------
+    (dt, cost, gate) : tuple of np.ndarray
+        As for ``_pair_costs``.
+
+    Raises
+    ------
+    ValueError
+        If ``scorer`` is None or its feature names differ from
+        ``features.FEATURE_NAMES``.
+    """
+    from gap_bridging import features    # lazy: features builds on this module
+    if scorer is None:
+        raise ValueError("cost_model 'learned' requires a scorer")
+    if tuple(scorer.feature_names) != tuple(features.FEATURE_NAMES):
+        raise ValueError("scorer feature_names differ from features.FEATURE_NAMES")
+    dt, _, _, _, _, _, disp_ok, err_ok = _sqrt_gate_terms(ends, starts, rows, cols, cfg)
+    side_veto = _cue_terms(ends, starts, rows, cols, cfg)[2] if cfg.appearance_cues else None
+    X, _ = features.pair_features(ends, starts, rows, cols, replace(cfg, cost_model='hand'))
+    X = np.asarray(X, dtype=float)
+    assert X.shape == (len(rows), len(features.FEATURE_NAMES)), "one feature row per pair"
+    motion_ok = disp_ok & err_ok
+    cost = np.full(len(rows), np.nan)
+    if motion_ok.any():
+        scored = np.asarray(scorer.cost(X[motion_ok]), dtype=float)
+        assert scored.shape == (int(motion_ok.sum()),), "scorer.cost must return one value per row"
+        assert np.all(np.isfinite(scored)), "scorer.cost must be finite on motion-gated pairs"
+        cost[motion_ok] = scored
     max_cost = cfg.cost_thresholds()['max_assignment_cost']
     return dt, cost, _gate_labels(cost, disp_ok, err_ok, max_cost, side_veto)
 
 
 def _pair_costs(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
-                cols: np.ndarray, cfg: BridgeConfig) -> Tuple[np.ndarray, ...]:
+                cols: np.ndarray, cfg: BridgeConfig, *, scorer=None) -> Tuple[np.ndarray, ...]:
     """
     Compute dt, cost and the first failing gate for each candidate pair.
 
@@ -518,18 +617,33 @@ def _pair_costs(ends: List[Endpoint], starts: List[Endpoint], rows: np.ndarray,
     rows, cols : np.ndarray
         Candidate indices from ``_enumerate_pairs``.
     cfg : BridgeConfig
-        Gate model, gate thresholds and cost weights.
+        Gate model, cost model, gate thresholds and cost weights.
+    scorer : gap_bridging.scorer.Scorer, optional
+        Required when ``cfg.cost_model == 'learned'`` (``_pair_costs_learned``);
+        ignored otherwise.
 
     Returns
     -------
     (dt, cost, gate) : tuple of np.ndarray
-        ``dt`` int64; ``cost`` float64 (finite whenever both motion gates pass);
+        ``dt`` int64; ``cost`` float64 (finite whenever both motion gates pass;
+        NaN where one fails under the learned model);
         ``gate`` object array holding '' (passed all gates), 'displacement',
         'prediction_error', 'claw_side' (sqrt with cues only) or 'max_cost'.
         A 'claw_side' pair keeps its finite cost here; its audit row reports
         NaN. ``cost`` is px per frame under the
-        linear model and a fraction of the extended radius under the sqrt model.
+        linear model, a fraction of the extended radius under the sqrt model
+        and ``-log p`` under the learned cost model.
+
+    Raises
+    ------
+    ValueError
+        If ``cfg.cost_model == 'learned'`` and ``scorer`` is None or does not
+        match ``features.FEATURE_NAMES``.
     """
+    if cfg.cost_model == 'learned':
+        if scorer is None:
+            raise ValueError("cost_model 'learned' requires a scorer")
+        return _pair_costs_learned(ends, starts, rows, cols, cfg, scorer)
     if cfg.gate_model == 'linear':
         return _pair_costs_linear(ends, starts, rows, cols, cfg)
     assert cfg.gate_model == 'sqrt', f"unknown gate_model {cfg.gate_model!r}"
@@ -576,9 +690,75 @@ def _solve_component(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray,
     return chosen
 
 
+def _adaptive_unmatched(cost: np.ndarray, factor: float) -> float:
+    """
+    Adaptive dummy-diagonal cost of one component: ``factor * max(finite cost)``.
+
+    Jaqaman et al. (2008) price "leave unmatched" at 1.05 times the largest
+    cost of the gap-closing matrix; here the price is set per connected
+    component of assignable pairs.
+
+    Parameters
+    ----------
+    cost : np.ndarray
+        Costs of the component's pairs; at least one must be finite.
+    factor : float
+        ``cfg.adaptive_factor`` (``>= 1``).
+
+    Returns
+    -------
+    float
+        The dummy cost, ``>=`` every finite cost of the component (costs are
+        non-negative under every cost model).
+    """
+    cost = np.asarray(cost, dtype=float)
+    finite = cost[np.isfinite(cost)]
+    assert finite.size >= 1, "adaptive dummy needs at least one finite cost"
+    out = float(factor) * float(finite.max())
+    assert np.all(finite <= out), "adaptive dummy must not undercut a finite cost"
+    return out
+
+
 def _assign(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, assignable: np.ndarray,
-            m: int, unmatched_cost: float) -> np.ndarray:
-    """Boolean mask of pairs chosen by the one-to-one assignment (per component)."""
+            m: int, unmatched_cost: float, *, mode: str = 'fixed',
+            factor: float = 1.05) -> np.ndarray:
+    """
+    Boolean mask of pairs chosen by the one-to-one assignment (per component).
+
+    Parameters
+    ----------
+    rows, cols, cost : np.ndarray
+        Pair indices (into the sorted ends and starts) and costs.
+    assignable : np.ndarray
+        Mask of pairs that passed every gate.
+    m : int
+        Number of ends (offsets the start nodes of the component graph).
+    unmatched_cost : float
+        Dummy-diagonal cost under ``mode='fixed'``.
+    mode : {'fixed', 'adaptive'}
+        ``cfg.unmatched_cost_mode``. ``'adaptive'`` prices each connected
+        component's dummy diagonal at ``_adaptive_unmatched(component costs,
+        factor)`` instead of ``unmatched_cost``.
+    factor : float
+        ``cfg.adaptive_factor``, used under ``'adaptive'`` only.
+
+    Returns
+    -------
+    np.ndarray
+        Bool mask, one-to-one on ends and starts.
+
+    Notes
+    -----
+    Trade-off: a pair is preferred to leaving both endpoints unmatched iff
+    ``c < 2 * dummy``. Under adaptive pricing a lone gated pair always links
+    (``c < 2 * factor * c``), so ``max_assignment_cost`` and the margin veto
+    carry all of the safety. With the shipped fixed sqrt values (dummy 0.6,
+    max cost 1.0) a lone gated pair already always links (``c <= 1.0 < 1.2``),
+    so the two modes differ only inside contested components, where the
+    dummy sets how much total cost a second link may add before the solver
+    prefers to leave an endpoint unmatched.
+    """
+    assert mode in ('fixed', 'adaptive'), f"unknown unmatched_cost_mode {mode!r}"
     assigned = np.zeros(len(rows), dtype=bool)
     idx = np.flatnonzero(assignable)
     if idx.size == 0:
@@ -592,7 +772,9 @@ def _assign(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, assignable: np
         groups[int(labels[rows[k]])].append(int(k))
     for members in groups.values():
         sub = np.asarray(members, dtype=np.int64)
-        for local in _solve_component(rows[sub], cols[sub], cost[sub], unmatched_cost):
+        dummy = (unmatched_cost if mode == 'fixed'
+                 else _adaptive_unmatched(cost[sub], factor))
+        for local in _solve_component(rows[sub], cols[sub], cost[sub], dummy):
             assigned[sub[local]] = True
     assert len(set(rows[assigned])) == len(set(cols[assigned])) == int(assigned.sum())
     return assigned
@@ -733,8 +915,12 @@ def _decide(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, gate: np.ndarr
 # ============================================================
 
 def _stages(cfg: BridgeConfig) -> Tuple[int, ...]:
-    """Upper gap bound of each linking stage: ``(max_gap,)`` for linear, staged for sqrt."""
-    if cfg.gate_model == 'linear':
+    """Upper gap bound of each linking stage.
+
+    ``(max_gap,)`` for the linear model and for ``assignment='global'``;
+    otherwise ``cfg.link_stages`` below ``max_gap``, then ``max_gap``.
+    """
+    if cfg.gate_model == 'linear' or cfg.assignment == 'global':
         return (int(cfg.max_gap),)
     stages = sorted({int(s) for s in cfg.link_stages if s < cfg.max_gap} | {int(cfg.max_gap)})
     assert stages[-1] == cfg.max_gap and stages[0] >= 1
@@ -782,7 +968,7 @@ def _excluded_label(k: int, cost: np.ndarray, gate: np.ndarray, rows: np.ndarray
 
 
 def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConfig,
-                   stats: Optional[Dict[str, int]] = None
+                   stats: Optional[Dict[str, int]] = None, *, scorer=None
                    ) -> Tuple[List[Tuple[str, str]], List[LinkDecision]]:
     """
     Link tracklet ENDs to STARTs of one video across 1..max_gap missing frames.
@@ -795,7 +981,15 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConf
     is retried at a later stage. Gates and costs are per pair and
     stage-independent; runner-ups are taken over the stage's own candidates,
     and chain reachability over all motion-gated pairs up to ``max_gap``
-    (claw-side-vetoed pairs excluded). The linear model has a single stage.
+    (claw-side-vetoed pairs excluded). The linear model and
+    ``cfg.assignment == 'global'`` have a single stage, so every pair is
+    labelled by that stage's assignment and no reason string says "at stage".
+    Each connected component's dummy diagonal is ``unmatched_cost`` or, under
+    ``cfg.unmatched_cost_mode == 'adaptive'``, ``adaptive_factor`` times the
+    component's largest cost (``_assign``). Under ``cfg.cost_model ==
+    'learned'`` the cost is the scorer's ``-log p`` (``_pair_costs_learned``)
+    and the gates, chain reachability, runner-up and margin veto work on that
+    scale unchanged.
 
     Parameters
     ----------
@@ -804,14 +998,21 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConf
     starts : list of Endpoint
         One START endpoint per tracklet (same video as ``ends``).
     cfg : BridgeConfig
-        Gate model, gates, cost weights and ``link_stages``. The unmatched cost
-        and margin are taken from ``cfg.cost_thresholds()`` (the px-scale
-        values under the linear model, the ``*_sqrt`` values under sqrt).
+        Gate model, cost model, gates, cost weights, ``link_stages``,
+        ``assignment``, ``unmatched_cost_mode`` and ``adaptive_factor``. The
+        max cost, unmatched cost and margin are taken from
+        ``cfg.cost_thresholds()`` (the px-scale values under the linear model,
+        the ``*_sqrt`` values under sqrt, ``-log`` probabilities under the
+        learned cost model).
     stats : dict, optional
         Replaced in place by ``{'enumerated': n, 'pruned_by_radius': m}``:
         ``n`` pairs received an audit row, ``m`` pairs inside the time window
         were dropped for body distance ``> R_max`` (``_prune_radius``; always
         0 under linear).
+    scorer : gap_bridging.scorer.Scorer, optional
+        Learned scorer for ``cfg.cost_model == 'learned'``; when None it is
+        loaded with ``gap_bridging.scorer.resolve_scorer(cfg)`` (only if the
+        video has candidate pairs). Ignored under ``cost_model == 'hand'``.
 
     Returns
     -------
@@ -836,7 +1037,8 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConf
     Raises
     ------
     ValueError
-        If the endpoints span more than one video or a side repeats a tracklet_id.
+        If the endpoints span more than one video or a side repeats a
+        tracklet_id, or the learned scorer's feature names do not match.
     """
     if ends is None or starts is None or cfg is None:
         raise ValueError("ends, starts and cfg are required")
@@ -855,7 +1057,13 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConf
     if rows.size == 0:
         return [], []
     scale = cfg.cost_thresholds()
-    dt, cost, gate = _pair_costs(ends, starts, rows, cols, cfg)
+    if cfg.cost_model == 'learned':
+        if scorer is None:
+            from gap_bridging import scorer as scorer_mod    # lazy: loads scikit-learn
+            scorer = scorer_mod.resolve_scorer(cfg)
+        dt, cost, gate = _pair_costs(ends, starts, rows, cols, cfg, scorer=scorer)
+    else:
+        dt, cost, gate = _pair_costs(ends, starts, rows, cols, cfg)   # hand: v003 call, unchanged
     size_term, side_term, suppressed = _cue_columns(ends, starts, rows, cols, cfg)
     suppressed = suppressed & ((gate == '') | (gate == GATE_MAX_COST))   # would have been vetoed
     ids = (np.array([e.tracklet_id for e in ends], dtype=object),
@@ -882,7 +1090,8 @@ def link_tracklets(ends: List[Endpoint], starts: List[Endpoint], cfg: BridgeConf
             continue
         sub_rows, sub_cols, sub_cost, sub_gate = rows[idx], cols[idx], cost[idx], gate[idx]
         assigned = _assign(sub_rows, sub_cols, sub_cost, sub_gate == '', len(ends),
-                           scale['unmatched_cost'])
+                           scale['unmatched_cost'], mode=cfg.unmatched_cost_mode,
+                           factor=cfg.adaptive_factor)
         sub = _decide(sub_rows, sub_cols, sub_cost, sub_gate, assigned, ids,
                       scale['minimum_cost_margin'], gated)
         for k, label in zip(idx, sub):
