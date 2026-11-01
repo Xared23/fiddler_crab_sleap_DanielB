@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 sys.path.insert(0, str(ROOT / 'tests'))
 
 import bridge_gaps  # noqa: E402
-from gap_bridging import figures, fit, pipeline  # noqa: E402
+from gap_bridging import figures, fit, holdout, pipeline  # noqa: E402
 from gap_bridging.config import BridgeConfig, load_config  # noqa: E402
 from gap_bridging_fixtures import make_observations, straight_crab  # noqa: E402
 
@@ -426,3 +426,49 @@ class LinearSweepExportTests(unittest.TestCase):
         self.assertIs(default, True)
         self.assertFalse(bridge_gaps.parse_args(['sweep', '--observations', 'o', '--out', 'w',
                                                  '--max-gaps', '3']).no_export_features)
+
+
+# --------------------------------------------------------------------------- #
+# v005: hold-out planting profile on the sweep CLI
+# --------------------------------------------------------------------------- #
+class SweepProfileTests(unittest.TestCase):
+    """``sweep --profile short`` plants short halves; the default stays ``standard``."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        tmp = Path(cls._tmp.name)
+        cls.path = tmp / 'observations.parquet'
+        pq.write_table(training_scene(), cls.path)
+        cls.outs = {}
+        for profile in ('standard', 'short'):
+            out = tmp / profile
+            extra = ['--profile', profile] if profile == 'short' else []
+            code = bridge_gaps.main(['sweep', '--observations', str(cls.path), '--out', str(out),
+                                     '--max-gaps', '3,5', '--holdout', '--holdout-gaps', '1,2,3',
+                                     '--per-gap', '3', '--flicker', '1', '--seed', '1',
+                                     '--no-figures', *extra])
+            assert code == 0, profile
+            cls.outs[profile] = out
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def test_truth_records_profile_and_csv_columns_unchanged(self):
+        for profile, out in self.outs.items():
+            truth = pq.read_table(out / 'holdout_5' / 'holdout_truth.parquet')
+            self.assertEqual(set(truth['profile'].to_pylist()), {profile})
+            summary = json.loads((out / 'holdout_5' / 'holdout_5.json').read_text())
+            self.assertEqual(summary['profile']['name'], profile)
+            rows = read_csv(out / bridge_gaps.BY_GAP_NAME)
+            self.assertEqual(list(rows[0]), list(bridge_gaps.BY_GAP_COLUMNS))
+
+    def test_short_profile_plants_short_halves(self):
+        truth = pq.read_table(self.outs['short'] / 'holdout_5' / 'holdout_truth.parquet').to_pandas()
+        plants = truth[truth.role == 'plant']
+        self.assertTrue((plants[['left_frames', 'right_frames']].min(axis=1) <= 9).any())
+        self.assertTrue(set(plants.category.dropna()) <= set(holdout.CATEGORIES))
+        standard = pq.read_table(self.outs['standard'] / 'holdout_5' / 'holdout_truth.parquet').to_pandas()
+        self.assertTrue(standard.category.isna().all())
+        self.assertTrue((standard[['left_frames', 'right_frames']].min(axis=1) >= 3).all())

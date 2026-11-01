@@ -328,8 +328,12 @@ def key_table(pairs: List[Tuple[str, str]]) -> pa.Table:
 
 def truth_table(rows: List[dict]) -> pa.Table:
     """A TRUTH_SCHEMA table from ``{left_id, right_id, original_id[, role, middle_id]}`` dicts."""
-    full = [dict({'gap_frames': 1, 'deleted_first_frame': 10, 'deleted_last_frame': 10,
-                  'role': 'plant', 'middle_id': None, 'partner_id': None}, **r) for r in rows]
+    defaults = {'gap_frames': 1, 'deleted_first_frame': 10, 'deleted_last_frame': 10,
+                'role': 'plant', 'middle_id': None, 'partner_id': None,
+                # v005 columns (ignored by the labels; present so the schema matches)
+                'profile': 'standard', 'category': None, 'left_frames': 9, 'right_frames': 9}
+    full = [{k: v for k, v in dict(defaults, **r).items() if k in holdout.TRUTH_SCHEMA.names}
+            for r in rows]
     return pa.Table.from_pylist(full, schema=holdout.TRUTH_SCHEMA)
 
 
@@ -417,12 +421,8 @@ class FoldPropertyTests(unittest.TestCase):
            st.floats(0.0, 1.0))
     def test_property_truth_folds_constant_per_original(self, originals, salt, fraction):
         n = len(originals)
-        truth = pa.Table.from_pydict({
-            'left_id': [f"l{k}" for k in range(n)], 'right_id': [f"r{k}" for k in range(n)],
-            'original_id': [f"o{o}" for o in originals], 'gap_frames': [1] * n,
-            'deleted_first_frame': [10] * n, 'deleted_last_frame': [10] * n,
-            'role': ['plant'] * n, 'middle_id': [None] * n, 'partner_id': [None] * n},
-            schema=holdout.TRUTH_SCHEMA)
+        truth = truth_table([{'left_id': f"l{k}", 'right_id': f"r{k}", 'original_id': f"o{o}"}
+                             for k, o in enumerate(originals)])
         out = truth_folds(truth, salt, fraction)
         fold = {}
         for o, f in zip(out['original_id'].to_pylist(), out['fold'].to_pylist()):

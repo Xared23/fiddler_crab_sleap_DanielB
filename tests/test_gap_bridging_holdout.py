@@ -88,7 +88,9 @@ def truth_table(rows: List[tuple]) -> pa.Table:
         'original_id': [r[0] for r in rows], 'gap_frames': [r[2] for r in rows],
         'deleted_first_frame': [10] * len(rows),
         'deleted_last_frame': [9 + r[2] for r in rows], 'role': [r[3] for r in rows],
-        'middle_id': [r[4] for r in rows], 'partner_id': [r[5] for r in rows]},
+        'middle_id': [r[4] for r in rows], 'partner_id': [r[5] for r in rows],
+        'profile': ['standard'] * len(rows), 'category': [None] * len(rows),
+        'left_frames': [10] * len(rows), 'right_frames': [N_FRAMES - 10 - r[2] for r in rows]},
         schema=holdout.TRUTH_SCHEMA)
 
 
@@ -112,6 +114,81 @@ def tracklet_rows(table: pa.Table, tracklet: str) -> pa.Table:
 def score_dict(scores: pa.Table) -> Dict[int, dict]:
     """Scores rows keyed by ``gap_frames``."""
     return {row['gap_frames']: row for row in scores.to_pylist()}
+
+
+def assert_decoy_geometry(test: unittest.TestCase, base: pa.Table, planted: pa.Table,
+                          truth: pa.Table, offset_px: float = 3.0) -> int:
+    """Check every decoy pair of ``truth``; return the number of pairs.
+
+    Target and donor share the run; the donor's right half (untrimmed) is
+    translated next to the target's right-half start; the target's left half
+    is the original rows just before the run (trimmed at its start under the
+    ``'short'`` profile, where only its first row's ``incoming_reason``
+    changes); the target's left half and the donor's right half differ in
+    appearance as measured on the planted table.
+    """
+    rows = truth.to_pylist()
+    cfg = BridgeConfig()
+    coords = holdout.coordinate_columns(base.schema)
+    test.assertIn('body_x', coords)
+    test.assertIn('claw_y', coords)
+    test.assertIn('centroid_x', coords)
+    ends = geometry.endpoints(planted, cfg)
+    n_pairs = 0
+    for k, row in enumerate(rows):
+        if row['role'] != 'decoy_target':
+            continue
+        n_pairs += 1
+        donor = rows[k + 1]
+        test.assertEqual(donor['role'], 'decoy_donor')
+        test.assertEqual(row['partner_id'], donor['right_id'])
+        test.assertEqual(donor['partner_id'], row['left_id'])
+        test.assertEqual((row['deleted_first_frame'], row['gap_frames']),
+                         (donor['deleted_first_frame'], donor['gap_frames']))
+        start = row['deleted_last_frame'] + 1
+        target_right = tracklet_rows(planted, row['right_id'])
+        donor_right = tracklet_rows(planted, donor['right_id'])
+        test.assertEqual(pc.min(target_right['frame']).as_py(), start)
+        test.assertEqual(pc.min(donor_right['frame']).as_py(), start)
+        t0, d0 = target_right.to_pylist()[0], donor_right.to_pylist()[0]
+        test.assertAlmostEqual(d0['body_x'] - t0['body_x'], offset_px, delta=1e-9)
+        test.assertAlmostEqual(d0['body_y'] - t0['body_y'], 0.0, delta=1e-9)
+        # Every coordinate column of the donor's whole right half moved by the same vector.
+        donor_base = tracklet_rows(base, donor['original_id'])
+        original = donor_base.filter(pc.greater_equal(donor_base['frame'], start))
+        test.assertEqual(donor_right.num_rows, original.num_rows)       # donors are never trimmed
+        test.assertEqual(donor['left_frames'] + donor['gap_frames'] + donor['right_frames'],
+                         donor_base.num_rows)
+        test.assertIsNone(donor['category'])
+        moved = donor_right.to_pydict()
+        dx = moved['body_x'][0] - original['body_x'][0].as_py()
+        dy = moved['body_y'][0] - original['body_y'][0].as_py()
+        for name in coords:
+            shift = dx if name.endswith('_x') else dy
+            for new, old in zip(moved[name], original[name].to_pylist()):
+                test.assertAlmostEqual(new, old + shift, delta=1e-9, msg=name)
+        # The target's left half: the original rows just before the run.
+        target_left = tracklet_rows(planted, row['left_id'])
+        target_base = tracklet_rows(base, row['original_id'])
+        expected = target_base.filter(pc.and_(
+            pc.less(target_base['frame'], row['deleted_first_frame']),
+            pc.greater_equal(target_base['frame'],
+                             row['deleted_first_frame'] - row['left_frames'])))
+        if expected.num_rows == pc.sum(pc.less(target_base['frame'],
+                                               row['deleted_first_frame'])).as_py():
+            test.assertTrue(target_left.equals(expected))
+        else:
+            other = [c for c in base.schema.names if c != 'incoming_reason']
+            test.assertTrue(target_left.select(other).equals(expected.select(other)))
+            test.assertEqual(target_left['incoming_reason'][0].as_py(), 'no_candidate')
+        # The pair differs in appearance, measured on the (trimmed) planted halves.
+        left_cue = ends[row['left_id']][1]
+        right_cue = ends[donor['right_id']][0]
+        test.assertTrue(holdout.cues_differ(
+            (left_cue.size_px, left_cue.size_n, left_cue.claw_side, left_cue.claw_side_n),
+            (right_cue.size_px, right_cue.size_n, right_cue.claw_side, right_cue.claw_side_n),
+            cfg))
+    return n_pairs
 
 
 BASE = make_observations(far_crabs(12))
@@ -257,52 +334,7 @@ class DecoyFlickerPlantTests(unittest.TestCase):
                          plain['deleted_first_frame'].to_pylist())
 
     def test_decoy_geometry(self):
-        rows = self.truth.to_pylist()
-        cfg = BridgeConfig()
-        coords = holdout.coordinate_columns(self.base.schema)
-        self.assertIn('body_x', coords)
-        self.assertIn('claw_y', coords)
-        self.assertIn('centroid_x', coords)
-        for k, row in enumerate(rows):
-            if row['role'] != 'decoy_target':
-                continue
-            donor = rows[k + 1]
-            self.assertEqual(donor['role'], 'decoy_donor')
-            self.assertEqual(row['partner_id'], donor['right_id'])
-            self.assertEqual(donor['partner_id'], row['left_id'])
-            self.assertEqual((row['deleted_first_frame'], row['gap_frames']),
-                             (donor['deleted_first_frame'], donor['gap_frames']))
-            start = row['deleted_last_frame'] + 1
-            target_right = tracklet_rows(self.planted, row['right_id'])
-            donor_right = tracklet_rows(self.planted, donor['right_id'])
-            self.assertEqual(pc.min(target_right['frame']).as_py(), start)
-            self.assertEqual(pc.min(donor_right['frame']).as_py(), start)
-            t0, d0 = target_right.to_pylist()[0], donor_right.to_pylist()[0]
-            self.assertAlmostEqual(d0['body_x'] - t0['body_x'], 3.0, delta=1e-9)
-            self.assertAlmostEqual(d0['body_y'] - t0['body_y'], 0.0, delta=1e-9)
-            # Every coordinate column of the donor's right half moved by the same vector.
-            original = tracklet_rows(self.base, donor['original_id']).filter(
-                pc.greater_equal(tracklet_rows(self.base, donor['original_id'])['frame'], start))
-            moved = donor_right.to_pydict()
-            dx = moved['body_x'][0] - original['body_x'][0].as_py()
-            dy = moved['body_y'][0] - original['body_y'][0].as_py()
-            for name in coords:
-                shift = dx if name.endswith('_x') else dy
-                for new, old in zip(moved[name], original[name].to_pylist()):
-                    self.assertAlmostEqual(new, old + shift, delta=1e-9, msg=name)
-            # Left halves unchanged; the target is untouched apart from the split.
-            target_left = tracklet_rows(self.planted, row['left_id'])
-            self.assertTrue(target_left.equals(tracklet_rows(self.base, row['original_id']).filter(
-                pc.less(tracklet_rows(self.base, row['original_id'])['frame'],
-                        row['deleted_first_frame']))))
-            # The pair differs in appearance (here: opposite confident claw sides).
-            ends = geometry.endpoints(self.planted, cfg)
-            left_cue = ends[row['left_id']][1]
-            right_cue = ends[donor['right_id']][0]
-            self.assertTrue(holdout.cues_differ(
-                (left_cue.size_px, left_cue.size_n, left_cue.claw_side, left_cue.claw_side_n),
-                (right_cue.size_px, right_cue.size_n, right_cue.claw_side, right_cue.claw_side_n),
-                cfg))
+        self.assertEqual(assert_decoy_geometry(self, self.base, self.planted, self.truth), 4)
 
     def test_flicker_parts(self):
         for row in self.truth.filter(pc.equal(self.truth['role'], 'flicker')).to_pylist():
@@ -865,3 +897,543 @@ class HoldoutFeatureExportTests(unittest.TestCase):
             marker = json.loads((out / 'bridged' / tables.COMPLETE_NAME).read_text())
             self.assertFalse(marker['config']['export_pair_features'])
             self.assertNotIn(features.PAIR_FEATURES_NAME, marker['outputs'])
+
+
+# --------------------------------------------------------------------------- #
+# v005: planting profiles (DEFECTS.md D-009)
+# --------------------------------------------------------------------------- #
+DEMO_GAPS = (1, 2, 3, 5, 10, 15, 20, 30, 45, 60)
+GOLDEN = ROOT / 'logs/gap_sweep_v004/current'
+SHORT_MAX, LONG_MIN = 3, 10
+
+
+def check_halves(test: unittest.TestCase, base: pa.Table, planted: pa.Table,
+                 truth: pa.Table) -> int:
+    """Check the kept halves of every truth row; return the expected number of deleted rows.
+
+    Per row: ``left_id`` / ``right_id`` hold exactly ``left_frames`` /
+    ``right_frames`` accepted, consecutive frames adjacent to the run; no
+    accepted row of the original (under any of its ids) remains outside the
+    halves (and the flicker middle); a left half trimmed at its start begins
+    with ``incoming_reason == 'no_candidate'``; categories meet their length
+    constraints.
+    """
+    deleted = 0
+    for row in truth.to_pylist():
+        before = tracklet_rows(base, row['original_id'])
+        before = before.filter(pc.equal(before['accepted_for_tracking'], True))
+        frames = before['frame'].to_pylist()
+        n, first = len(frames), min(frames)
+        left = tracklet_rows(planted, row['left_id'])
+        right = tracklet_rows(planted, row['right_id'])
+        nl, nr = row['left_frames'], row['right_frames']
+        dff, dlf = row['deleted_first_frame'], row['deleted_last_frame']
+        test.assertEqual(left['frame'].to_pylist(), list(range(dff - nl, dff)))
+        test.assertEqual(right['frame'].to_pylist(), list(range(dlf + 1, dlf + 1 + nr)))
+        test.assertGreaterEqual(min(nl, nr), 1)
+        parts = {row['left_id'], row['right_id']} | ({row['middle_id']} - {None})
+        family = planted.filter(pc.fill_null(pc.or_(
+            pc.equal(planted['tracklet_id'], row['original_id']),
+            pc.starts_with(planted['tracklet_id'], row['original_id'] + '/holdout')), False))
+        kept = set(range(dff - nl, dff)) | set(range(dlf + 1, dlf + 1 + nr))
+        if row['role'] == 'flicker':
+            kept.add(dff + row['gap_frames'])
+        family_ids = set(family['tracklet_id'].to_pylist())
+        test.assertEqual(family_ids, parts)
+        test.assertEqual(sorted(family['frame'].to_pylist()), sorted(kept))
+        reasons = left['incoming_reason'].to_pylist()
+        if dff - nl > first:
+            test.assertEqual(reasons[0], 'no_candidate')
+        else:
+            test.assertEqual(reasons[0], before['incoming_reason'][0].as_py())
+        test.assertEqual(right['incoming_reason'][0].as_py(), 'no_candidate')
+        category = row['category']
+        lo, hi = min(nl, nr), max(nl, nr)
+        if row['profile'] == 'standard' or row['role'] in ('flicker', 'decoy_donor'):
+            test.assertIsNone(category)
+        elif row['role'] == 'plant':
+            test.assertIn(category, holdout.CATEGORIES)
+        if category is None:      # untrimmed: everything from the tracklet start / to its end
+            test.assertEqual(n - nl - nr, dlf - dff + 1)
+        elif category == 'both_short':
+            test.assertLessEqual(hi, SHORT_MAX)
+        elif category == 'one_short':
+            test.assertTrue(lo <= SHORT_MAX and hi >= LONG_MIN, (nl, nr))
+        elif category == 'short_mid':
+            test.assertTrue(lo <= SHORT_MAX and 4 <= hi <= 9, (nl, nr))
+        elif category == 'mid':
+            test.assertTrue(4 <= lo <= 9 and hi >= 4, (nl, nr))
+        else:
+            test.assertEqual(category, 'both_long')
+            test.assertGreaterEqual(lo, LONG_MIN)
+        deleted += n - nl - nr - (1 if row['role'] == 'flicker' else 0)
+    return deleted
+
+
+def size_crabs(n: int, n_frames: int = N_FRAMES) -> List[Crab]:
+    """``far_crabs`` with every other crab 1.4 times larger (sizes 22 and 30.8 px differ)."""
+    crabs = far_crabs(n, n_frames)
+    for crab in crabs:
+        if crab.crab_id % 2 == 0:
+            crab.offsets = DEFAULT_OFFSETS * 1.4
+    return crabs
+
+
+def length_crabs(lengths: List[int]) -> List[Crab]:
+    """Far-apart straight crabs with the given numbers of frames."""
+    crabs = []
+    for c, n_frames in enumerate(lengths, 1):
+        origin = (300.0 + 600.0 * ((c - 1) % 5), 300.0 + 600.0 * ((c - 1) // 5))
+        crabs.append(straight_crab(c, 0, n_frames, origin, (0.3, 0.2)))
+    return crabs
+
+
+class HalfProfileTests(unittest.TestCase):
+    """``HalfProfile`` validation, names and serialisation; ``draw_half_lengths``."""
+
+    def test_named_profiles(self):
+        self.assertIs(holdout.HalfProfile.from_name('standard'), holdout.STANDARD_PROFILE)
+        self.assertIs(holdout.HalfProfile.from_name('short'), holdout.SHORT_PROFILE)
+        self.assertEqual(holdout.STANDARD_PROFILE.min_tracklet_len, 40)
+        self.assertEqual(holdout.SHORT_PROFILE.min_tracklet_len, 10)
+        self.assertEqual(holdout.PROFILES, ('standard', 'short'))
+        self.assertEqual(holdout.CATEGORIES,
+                         ('both_short', 'one_short', 'short_mid', 'mid', 'both_long'))
+        self.assertEqual(holdout.CATEGORY_PROBABILITIES, (0.40, 0.18, 0.21, 0.13, 0.08))
+        with self.assertRaises(ValueError):
+            holdout.HalfProfile.from_name('long')
+        with self.assertRaises(ValueError):
+            holdout.plant_gaps(BASE, GAPS, per_gap=1, profile='long')
+        with self.assertRaises(TypeError):
+            holdout.plant_gaps(BASE, GAPS, per_gap=1, profile=3)
+
+    def test_invalid_profiles_raise(self):
+        bad = [dict(name='other'), dict(min_tracklet_len=0),
+               dict(probabilities=(0.5, 0.5, 0.0, 0.0, 0.1)),
+               dict(probabilities=(0.5, 0.5, 0.0, 0.0)),        # the v005 four categories
+               dict(probabilities=(1.2, -0.2, 0.0, 0.0, 0.0)),
+               dict(short_weights=(0.5, 0.5, 0.5)), dict(short_weights=(0.5, 0.5)),
+               dict(short_lengths=(0, 1, 2)), dict(short_lengths=(2, 1, 3)),
+               dict(short_lengths=(1, 1, 3)), dict(mid_lengths=()),
+               dict(mid_lengths=(3, 4, 5)),          # overlaps the short lengths
+               dict(long_min=3), dict(mid_min=0)]
+        for change in bad:
+            kwargs = {'name': 'short', 'min_tracklet_len': 10, **change}
+            with self.assertRaises(ValueError, msg=str(change)):
+                holdout.HalfProfile(**kwargs)
+        ok = holdout.HalfProfile('short', 10, probabilities=[1.0, 0.0, 0.0, 0.0, 0.0])
+        self.assertEqual(ok.probabilities, (1.0, 0.0, 0.0, 0.0, 0.0))     # stored as a tuple
+        hash(ok)
+
+    def test_to_dict_json(self):
+        for profile in (holdout.STANDARD_PROFILE, holdout.SHORT_PROFILE):
+            d = json.loads(json.dumps(profile.to_dict()))
+            self.assertEqual(holdout.HalfProfile(**{k: tuple(v) if isinstance(v, list) else v
+                                                    for k, v in d.items()}), profile)
+        self.assertEqual(holdout.SHORT_PROFILE.to_dict()['probabilities'],
+                         list(holdout.CATEGORY_PROBABILITIES))
+
+    @settings(deadline=None, max_examples=40)
+    @given(seed=st.integers(0, 2**31))
+    def test_draw_half_lengths_sets(self, seed):
+        rng = np.random.default_rng(seed)
+        p = holdout.SHORT_PROFILE
+        for _ in range(20):
+            category, kl, kr = holdout.draw_half_lengths(rng, p)
+            self.assertIn(category, holdout.CATEGORIES)
+            if category == 'both_short':
+                self.assertIn(kl, p.short_lengths)
+                self.assertIn(kr, p.short_lengths)
+            elif category == 'one_short':
+                self.assertEqual((kl is None) + (kr is None), 1)
+                self.assertIn(kl if kr is None else kr, p.short_lengths)
+            elif category == 'short_mid':            # both sides fixed: one short, one mid
+                self.assertTrue((kl in p.short_lengths and kr in p.mid_lengths)
+                                or (kr in p.short_lengths and kl in p.mid_lengths), (kl, kr))
+            elif category == 'mid':
+                self.assertEqual((kl is None) + (kr is None), 1)
+                self.assertIn(kl if kr is None else kr, p.mid_lengths)
+            else:
+                self.assertEqual((kl, kr), (None, None))
+
+    def test_draw_frequencies(self):
+        rng = np.random.default_rng(0)
+        draws = [holdout.draw_half_lengths(rng, holdout.SHORT_PROFILE) for _ in range(20000)]
+        for category, prob in zip(holdout.CATEGORIES, holdout.CATEGORY_PROBABILITIES):
+            self.assertAlmostEqual(sum(d[0] == category for d in draws) / len(draws), prob,
+                                   delta=0.015)
+        shorts = [v for c, kl, kr in draws if c in ('both_short', 'one_short', 'short_mid')
+                  for v in (kl, kr) if v is not None and v in holdout.SHORT_LENGTHS]
+        for length, weight in zip(holdout.SHORT_LENGTHS, holdout.SHORT_LENGTH_WEIGHTS):
+            self.assertAlmostEqual(shorts.count(length) / len(shorts), weight, delta=0.015)
+        sides = [kl is None for c, kl, kr in draws if c in ('one_short', 'mid')]
+        self.assertAlmostEqual(np.mean(sides), 0.5, delta=0.02)
+        short_left = [kl in holdout.SHORT_LENGTHS for c, kl, kr in draws if c == 'short_mid']
+        self.assertAlmostEqual(np.mean(short_left), 0.5, delta=0.03)
+        mids = [max(kl, kr) for c, kl, kr in draws if c == 'short_mid']
+        for length in holdout.MID_LENGTHS:
+            self.assertAlmostEqual(mids.count(length) / len(mids), 1 / 6, delta=0.03)
+
+    @settings(deadline=None, max_examples=40)
+    @given(n=st.integers(10, 80), gap=st.integers(1, 40), seed=st.integers(0, 2**31),
+           kl=st.sampled_from([None, 1, 2, 3, 4, 7, 9]),
+           kr=st.sampled_from([None, 1, 2, 3, 4, 7, 9]))
+    def test_plant_window(self, n, gap, kl, kr, seed):
+        p = holdout.SHORT_PROFILE
+        need_l = kl if kl is not None else (p.mid_min if kr in p.mid_lengths else p.long_min)
+        need_r = kr if kr is not None else (p.mid_min if kl in p.mid_lengths else p.long_min)
+        rng = np.random.default_rng(seed)
+        if gap + need_l + need_r > n:
+            with self.assertRaises(ValueError):
+                holdout._plant_window(100, n, gap, kl, kr, p, rng)
+            return
+        first_del, tb, ta = holdout._plant_window(100, n, gap, kl, kr, p, rng)
+        left = first_del - 100 - tb
+        right = 100 + n - 1 - (first_del + gap - 1) - ta
+        self.assertGreaterEqual(min(tb, ta), 0)
+        self.assertEqual(left, kl if kl is not None else first_del - 100)
+        self.assertEqual(right, kr if kr is not None else n - (first_del - 100) - gap)
+        self.assertGreaterEqual(left, need_l)
+        self.assertGreaterEqual(right, need_r)
+        if kl is None:
+            self.assertEqual(tb, 0)
+        if kr is None:
+            self.assertEqual(ta, 0)
+
+
+class StandardProfileTests(unittest.TestCase):
+    """The default profile is v004's draw; the v005 truth columns describe it."""
+
+    def test_explicit_standard_equals_default(self):
+        planted, truth = holdout.plant_gaps(BASE, GAPS, per_gap=2, seed=7)
+        for profile in ('standard', holdout.STANDARD_PROFILE):
+            again, truth_again = holdout.plant_gaps(BASE, GAPS, per_gap=2, seed=7,
+                                                    profile=profile)
+            self.assertTrue(again.equals(planted))
+            self.assertTrue(truth_again.equals(truth))
+        self.assertEqual(truth.schema, holdout.TRUTH_SCHEMA)
+        self.assertEqual(truth.schema.names[:9], list(holdout.TRUTH_V004_NAMES))
+        self.assertEqual(truth.schema.names[9:],
+                         ['profile', 'category', 'left_frames', 'right_frames'])
+        self.assertEqual(set(truth['profile'].to_pylist()), {'standard'})
+        self.assertEqual(truth['category'].null_count, truth.num_rows)
+        for row in truth.to_pylist():          # every tracklet of BASE spans 0 .. N_FRAMES - 1
+            self.assertEqual(row['left_frames'], row['deleted_first_frame'] - 0)
+            self.assertEqual(row['right_frames'], N_FRAMES - 1 - row['deleted_last_frame'])
+        self.assertEqual(check_halves(self, BASE, planted, truth),
+                         BASE.num_rows - planted.num_rows)
+
+    def test_standard_ignores_profile_fields(self):
+        # Under 'standard' the min_tracklet_len argument rules, not the profile's.
+        custom = holdout.HalfProfile('standard', min_tracklet_len=5, long_min=2, mid_min=1)
+        a = holdout.plant_gaps(BASE, GAPS, per_gap=2, seed=3, profile=custom)
+        b = holdout.plant_gaps(BASE, GAPS, per_gap=2, seed=3)
+        self.assertTrue(a[0].equals(b[0]) and a[1].equals(b[1]))
+        with self.assertRaises(ValueError):
+            holdout.plant_gaps(BASE, (1,), per_gap=1, min_tracklet_len=N_FRAMES + 1,
+                               profile=custom)
+
+    def test_decoy_flicker_frames(self):
+        base = make_observations(cue_crabs(16))
+        planted, truth = holdout.plant_gaps(base, (1, 3), per_gap=2, seed=5, decoys=2,
+                                            flicker=1)
+        self.assertEqual(check_halves(self, base, planted, truth),
+                         base.num_rows - planted.num_rows)
+        for row in truth.filter(pc.equal(truth['role'], 'flicker')).to_pylist():
+            self.assertEqual(row['left_frames'] + 2 * row['gap_frames'] + 1
+                             + row['right_frames'], N_FRAMES)
+
+
+class ShortProfileTests(unittest.TestCase):
+    """``profile='short'`` on 12 synthetic 60-frame tracklets."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.planted, cls.truth = holdout.plant_gaps(BASE, GAPS, per_gap=2, seed=7,
+                                                    profile='short')
+
+    def test_regression_D009_short_profile_trims_halves(self):
+        # D-009: plants used to keep >= 3 frames per side of tracklets >= 40 frames, so a
+        # learned scorer never saw a 1-frame positive. The short profile trims the halves.
+        truth, planted = self.truth, self.planted
+        self.assertEqual(truth.schema, holdout.TRUTH_SCHEMA)
+        self.assertEqual(truth.num_rows, 6)
+        self.assertEqual(set(truth['profile'].to_pylist()), {'short'})
+        self.assertTrue(set(truth['category'].to_pylist()) <= set(holdout.CATEGORIES))
+        expected = check_halves(self, BASE, planted, truth)
+        self.assertEqual(BASE.num_rows - planted.num_rows, expected)
+        for row in truth.to_pylist():
+            self.assertEqual(row['deleted_last_frame'] - row['deleted_first_frame'] + 1,
+                             row['gap_frames'])
+            for side in ('left', 'right'):
+                n_side = tracklet_rows(planted, row[f'{side}_id'])
+                n_side = pc.sum(n_side['accepted_for_tracking']).as_py()
+                self.assertEqual(n_side, row[f'{side}_frames'])
+        # This seed exercises a left half trimmed at its start and a short side.
+        rows = truth.to_pylist()
+        self.assertTrue(any(r['deleted_first_frame'] - r['left_frames'] > 0 for r in rows))
+        self.assertTrue(any(min(r['left_frames'], r['right_frames']) <= SHORT_MAX
+                            for r in rows))
+        # Untouched tracklets stay byte-identical.
+        touched = pa.array(truth['original_id'].to_pylist() + truth['right_id'].to_pylist())
+        keep_base = pc.invert(pc.fill_null(pc.is_in(BASE['tracklet_id'], touched), False))
+        keep_planted = pc.invert(pc.fill_null(pc.is_in(planted['tracklet_id'], touched), False))
+        self.assertTrue(BASE.filter(keep_base).equals(planted.filter(keep_planted)))
+
+    def test_deterministic_and_differs_from_standard(self):
+        again, truth = holdout.plant_gaps(BASE, GAPS, per_gap=2, seed=7, profile='short')
+        self.assertTrue(again.equals(self.planted))
+        self.assertTrue(truth.equals(self.truth))
+        same_obj = holdout.plant_gaps(BASE, GAPS, per_gap=2, seed=7,
+                                      profile=holdout.SHORT_PROFILE)
+        self.assertTrue(same_obj[1].equals(self.truth))
+        standard = holdout.plant_gaps(BASE, GAPS, per_gap=2, seed=7)[1]
+        self.assertFalse(standard.select(list(holdout.TRUTH_V004_NAMES)).equals(
+            self.truth.select(list(holdout.TRUTH_V004_NAMES))))
+        other_seed = holdout.plant_gaps(BASE, GAPS, per_gap=2, seed=8, profile='short')[1]
+        self.assertFalse(other_seed.equals(self.truth))
+
+    def test_shorter_gaps_independent_of_longer(self):
+        for kwargs in (dict(), dict(decoys=1, flicker=1)):
+            base = make_observations(size_crabs(20)) if kwargs else BASE
+            _, short = holdout.plant_gaps(base, (1, 3), per_gap=2, seed=11, profile='short',
+                                          **kwargs)
+            _, longer = holdout.plant_gaps(base, (1, 3, 5), per_gap=2, seed=11,
+                                           profile='short', **kwargs)
+            head = longer.filter(pc.less_equal(longer['gap_frames'], 3))
+            self.assertTrue(head.equals(short), kwargs)
+
+    def test_eligibility_by_length(self):
+        lengths = [9, 9, 9, 10, 11, 12, 13, 14, 15]
+        base = make_observations(length_crabs(lengths))
+        ids = base['tracklet_id'].unique().to_pylist()
+        n_of = {t: tracklet_rows(base, t).num_rows for t in ids}
+        # Both sides 1..3 frames: every 10..15-frame tracklet is plantable for gap 1.
+        both_short = holdout.HalfProfile('short', 10, probabilities=(1.0, 0.0, 0.0, 0.0, 0.0))
+        for seed in range(10):
+            planted, truth = holdout.plant_gaps(base, (1,), per_gap=6, seed=seed,
+                                                profile=both_short)
+            self.assertEqual(sorted(n_of[t] for t in truth['original_id'].to_pylist()),
+                             [10, 11, 12, 13, 14, 15])
+            self.assertEqual(check_halves(self, base, planted, truth),
+                             base.num_rows - planted.num_rows)
+        with self.assertRaises(ValueError):          # the 9-frame tracklets never qualify
+            holdout.plant_gaps(base, (1,), per_gap=7, seed=0, profile=both_short)
+        # The default short profile: some 10..15-frame plants, never a 9-frame one; a draw
+        # that no tracklet can hold (here: a long side >= 10 frames) raises.
+        planted_lengths, raised = set(), 0
+        for seed in range(30):
+            try:
+                planted, truth = holdout.plant_gaps(base, (1,), per_gap=1, seed=seed,
+                                                    profile='short')
+            except ValueError:
+                raised += 1
+                continue
+            planted_lengths |= {n_of[t] for t in truth['original_id'].to_pylist()}
+            check_halves(self, base, planted, truth)
+        self.assertTrue(planted_lengths and planted_lengths <= set(range(10, 16)))
+        self.assertGreater(raised, 0)
+
+    def test_pool_exhaustion_raises(self):
+        with self.assertRaises(ValueError):
+            holdout.plant_gaps(BASE, GAPS, per_gap=5, profile='short')     # 15 plants, 12 crabs
+        with self.assertRaises(ValueError):
+            holdout.plant_gaps(BASE, (N_FRAMES - 1,), per_gap=1, profile='short')
+
+    def test_decoy_target_trimmed_donor_not(self):
+        base = make_observations(size_crabs(20))
+        planted, truth = holdout.plant_gaps(base, (1, 3), per_gap=2, seed=5, decoys=2,
+                                            flicker=1, profile='short')
+        roles = truth['role'].to_pylist()
+        self.assertGreaterEqual(roles.count('decoy_target'), 2)
+        self.assertEqual(roles.count('decoy_target'), roles.count('decoy_donor'))
+        self.assertEqual(check_halves(self, base, planted, truth),
+                         base.num_rows - planted.num_rows)
+        self.assertEqual(assert_decoy_geometry(self, base, planted, truth),
+                         roles.count('decoy_target'))
+        targets = truth.filter(pc.equal(truth['role'], 'decoy_target')).to_pylist()
+        self.assertTrue(all(r['category'] in holdout.CATEGORIES for r in targets))
+        self.assertTrue(any(r['left_frames'] + r['gap_frames'] + r['right_frames'] < N_FRAMES
+                            for r in targets))
+        for row in truth.filter(pc.equal(truth['role'], 'flicker')).to_pylist():
+            self.assertIsNone(row['category'])
+            self.assertEqual(row['left_frames'] + 2 * row['gap_frames'] + 1
+                             + row['right_frames'], N_FRAMES)
+
+    def test_untrimmed_decoys(self):
+        base = make_observations(size_crabs(20))
+        profile = holdout.HalfProfile('short', 10, trim_decoys=False)
+        planted, truth = holdout.plant_gaps(base, (1, 3), per_gap=2, seed=5, decoys=2,
+                                            profile=profile)
+        targets = truth.filter(pc.equal(truth['role'], 'decoy_target')).to_pylist()
+        self.assertGreaterEqual(len(targets), 2)
+        for row in targets:
+            self.assertIsNone(row['category'])
+            self.assertEqual(row['left_frames'] + row['gap_frames'] + row['right_frames'],
+                             N_FRAMES)
+            self.assertGreaterEqual(min(row['left_frames'], row['right_frames']), 3)
+        assert_decoy_geometry(self, base, planted, truth)
+        self.assertEqual(check_halves(self, base, planted, truth),
+                         base.num_rows - planted.num_rows)
+
+    @settings(deadline=None, max_examples=40)
+    @given(per_gap=st.integers(1, 4),
+           gaps=st.lists(st.integers(1, 20), min_size=1, max_size=3),
+           seed=st.integers(0, 2**31))
+    def test_property_categories_and_no_reuse(self, per_gap, gaps, seed):
+        if per_gap * len(gaps) > 12:
+            with self.assertRaises(ValueError):
+                holdout.plant_gaps(BASE, gaps, per_gap=per_gap, seed=seed, profile='short')
+            return
+        planted, truth = holdout.plant_gaps(BASE, gaps, per_gap=per_gap, seed=seed,
+                                            profile='short')
+        self.assertEqual(truth.num_rows, per_gap * len(gaps))
+        originals = truth['original_id'].to_pylist()
+        self.assertEqual(len(set(originals)), len(originals))
+        self.assertEqual(truth['gap_frames'].to_pylist(),
+                         [g for g in gaps for _ in range(per_gap)])
+        self.assertTrue(set(truth['category'].to_pylist()) <= set(holdout.CATEGORIES))
+        self.assertEqual(check_halves(self, BASE, planted, truth),
+                         BASE.num_rows - planted.num_rows)
+
+
+class LinkMixTests(unittest.TestCase):
+    """``link_side_lengths`` and ``link_mix`` on hand-built tables."""
+
+    def test_side_lengths(self):
+        rows = []
+        for tracklet, n_frames in (('A', 1), ('B', 2), ('C', 12), ('D', 5)):
+            rows += [{'tracklet_id': tracklet, 'accepted_for_tracking': True}] * n_frames
+        rows += [{'tracklet_id': 'C', 'accepted_for_tracking': False},
+                 {'tracklet_id': None, 'accepted_for_tracking': True}]
+        obs = pa.Table.from_pylist(rows)
+        links = links_table([('A', 'B', 'linked'), ('C', 'D', 'refused_gate'),
+                             ('D', 'C', 'linked'), ('B', 'Z', 'linked')])
+        n_a, n_b = holdout.link_side_lengths(obs, links)
+        self.assertEqual(n_a.tolist(), [1, 5, 2])
+        self.assertEqual(n_b.tolist(), [2, 12, 0])
+        self.assertEqual(n_a.dtype, np.int64)
+
+    def test_mix_exact(self):
+        pairs = [(1, 1), (3, 2), (2, 2), (1, 10), (40, 3), (4, 9), (5, 30), (2, 6), (12, 10),
+                 (0, 5)]
+        n_a, n_b = zip(*pairs)
+        mix = holdout.link_mix(np.array(n_a), np.array(n_b))
+        self.assertEqual(mix['n'], 10)
+        self.assertEqual(tuple(mix[k] for k in holdout.CATEGORIES + ('other',)),
+                         (0.3, 0.2, 0.1, 0.2, 0.1, 0.1))     # short_mid: (2, 6)
+        self.assertAlmostEqual(sum(mix[k] for k in holdout.CATEGORIES + ('other',)), 1.0)
+        # Sides of 1..3 frames: 1 x3, 2 x4, 3 x2.
+        self.assertEqual(mix['short_weights'], (3 / 9, 4 / 9, 2 / 9))
+        wide = holdout.link_mix(np.array(n_a), np.array(n_b), short_max=4, long_min=6)
+        self.assertEqual(tuple(wide[k] for k in holdout.CATEGORIES + ('other',)),
+                         (0.3, 0.4, 0.0, 0.1, 0.1, 0.1))
+        self.assertEqual(set(mix), set(holdout.CATEGORIES) | {'other', 'short_weights', 'n'})
+        self.assertEqual(len(wide['short_weights']), 4)
+
+    def test_mix_empty_and_invalid(self):
+        mix = holdout.link_mix(np.array([], dtype=int), np.array([], dtype=int))
+        self.assertEqual(mix['n'], 0)
+        self.assertTrue(math.isnan(mix['mid']) and math.isnan(mix['short_weights'][0]))
+        with self.assertRaises(ValueError):
+            holdout.link_mix(np.array([1, 2]), np.array([1]))
+        with self.assertRaises(ValueError):
+            holdout.link_mix(np.array([1]), np.array([1]), short_max=5, long_min=5)
+        with self.assertRaises(ValueError):
+            holdout.link_mix(np.array([-1]), np.array([1]))
+
+    @settings(deadline=None, max_examples=40)
+    @given(st.lists(st.tuples(st.integers(0, 40), st.integers(0, 40)), min_size=1,
+                    max_size=50))
+    def test_mix_partitions(self, pairs):
+        n_a, n_b = (np.array(v) for v in zip(*pairs))
+        mix = holdout.link_mix(n_a, n_b)
+        self.assertAlmostEqual(sum(mix[k] for k in holdout.CATEGORIES + ('other',)), 1.0)
+        for a, b in zip(n_a, n_b):          # each link in exactly one bin
+            one = holdout.link_mix(np.array([a]), np.array([b]))
+            self.assertEqual(sorted(one[k] for k in holdout.CATEGORIES + ('other',)),
+                             [0.0] * 5 + [1.0])
+        self.assertEqual(mix, holdout.link_mix(n_b, n_a))          # symmetric in the sides
+
+
+@unittest.skipUnless(DEMO.exists(), 'demo parquet not present')
+class DemoProfileTests(unittest.TestCase):
+    """v005 profiles on the demo clip."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.obs = pq.read_table(DEMO)
+
+    def plant(self, seed: int, profile: str = 'standard'):
+        return holdout.plant_gaps(self.obs, DEMO_GAPS, 8, seed=seed, decoys=4, flicker=2,
+                                  cue_config=BridgeConfig(max_gap=30), profile=profile)
+
+    def test_standard_matches_v004_golden(self):
+        for seed in (0, 1):
+            folder = GOLDEN / f'seed_{seed}' / 'holdout_30'
+            if not (folder / 'planted_observations.parquet').is_file():
+                self.skipTest(f'v004 golden artefacts absent: {folder}')
+            planted, truth = self.plant(seed)
+            self.assertTrue(planted.equals(pq.read_table(folder / 'planted_observations.parquet')))
+            golden = pq.read_table(folder / 'holdout_truth.parquet')
+            self.assertTrue(truth.select(list(holdout.TRUTH_V004_NAMES)).equals(golden))
+            recorded = json.loads((folder / 'holdout_30.json').read_text())
+            self.assertEqual(recorded['input']['planted_rows'], planted.num_rows)
+            self.assertEqual(check_halves(self, self.obs, planted, truth),
+                             self.obs.num_rows - planted.num_rows)
+
+    def test_short_profile_plants(self):
+        counts = {c: 0 for c in holdout.CATEGORIES}
+        n_plants = 0
+        for seed in range(5):
+            planted, truth = self.plant(seed, 'short')
+            self.assertEqual(check_halves(self, self.obs, planted, truth),
+                             self.obs.num_rows - planted.num_rows)
+            rows = truth.to_pylist()
+            for gap in DEMO_GAPS:     # the pool suffices for every role at every gap
+                roles = [r['role'] for r in rows if r['gap_frames'] == gap]
+                self.assertEqual((roles.count('plant'), roles.count('decoy_target'),
+                                  roles.count('flicker')), (8, 4, 2), (seed, gap))
+            plants = [r for r in rows if r['role'] == 'plant']
+            self.assertEqual(len(plants), 80)
+            self.assertTrue(any(min(r['left_frames'], r['right_frames']) == 1 for r in plants))
+            for r in plants:
+                counts[r['category']] += 1
+            n_plants += len(plants)
+        # Pooled over 400 plants (one seed of 80 can stray by > 0.12: seed 3 has 42 both_short).
+        for category, prob in zip(holdout.CATEGORIES, holdout.CATEGORY_PROBABILITIES):
+            self.assertGreater(counts[category], 0)
+            self.assertAlmostEqual(counts[category] / n_plants, prob, delta=0.06, msg=category)
+
+    def test_natural_link_mix(self):
+        from gap_bridging import pipeline
+        with tempfile.TemporaryDirectory() as tmp:
+            pipeline.run(DEMO, Path(tmp), BridgeConfig(max_gap=30))
+            links = pq.read_table(Path(tmp) / 'links.parquet')
+        mix = holdout.link_mix(*holdout.link_side_lengths(self.obs, links))
+        self.assertGreater(mix['n'], 500)
+        for category, prob in zip(holdout.CATEGORIES, holdout.CATEGORY_PROBABILITIES):
+            self.assertAlmostEqual(mix[category], prob, delta=0.05, msg=category)
+        self.assertEqual(mix['other'], 0.0)
+        for got, want in zip(mix['short_weights'], holdout.SHORT_LENGTH_WEIGHTS):
+            self.assertAlmostEqual(got, want, delta=0.05)
+
+    def test_run_holdout_short_with_features(self):
+        from gap_bridging import features
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / 'out'
+            summary = holdout.run_holdout(DEMO, out, BridgeConfig(max_gap=30), (1, 5, 30),
+                                          per_gap=4, seed=0, decoys=1, flicker=1,
+                                          export_features=True, profile='short')
+            recorded = json.loads((out / 'holdout_30.json').read_text())
+            feats = pq.read_table(out / 'bridged' / features.PAIR_FEATURES_NAME)
+            links = pq.read_table(out / 'bridged' / 'links.parquet')
+            truth = pq.read_table(out / 'holdout_truth.parquet')
+        self.assertEqual(recorded, summary)
+        self.assertEqual(summary['profile']['name'], 'short')
+        self.assertEqual(summary['profile'], holdout.SHORT_PROFILE.to_dict())
+        self.assertEqual(feats.num_rows, links.num_rows)
+        self.assertEqual(set(truth['profile'].to_pylist()), {'short'})
+        self.assertEqual(summary['scores'][-1]['planted'],
+                         truth.filter(pc.is_in(truth['role'], pa.array(
+                             ['plant', 'decoy_target']))).num_rows)

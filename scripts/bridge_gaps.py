@@ -233,7 +233,8 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
           holdout_run: bool = False, holdout_gaps: list[int] = list(DEFAULT_HOLDOUT_GAPS),
           per_gap: int = 8, seed: int = 0, force: bool = False, video: Path | None = None,
           bridges_from: int | None = None, figures_on: bool = True, decoys: int = 0,
-          flicker: int = 0, export_features: bool = True) -> list[dict]:
+          flicker: int = 0, export_features: bool = True,
+          profile: str = 'standard') -> list[dict]:
     """Bridge at every horizon, optionally score a hold-out, write the CSVs and figures.
 
     Parameters
@@ -269,6 +270,11 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
         directory (v004 training input; ``bridge_gaps.py train``); default
         True as on the command line (``--no-export-features``). Applies only
         under ``cfg.gate_model == 'sqrt'``: a linear sweep never exports.
+    profile : str
+        Hold-out planting profile (v005): ``standard`` (halves of tracklets
+        of at least 40 frames, at least 3 frames kept per side) or ``short``
+        (half lengths drawn from the demo's natural-link mix, tracklets of at
+        least 10 frames); see :class:`gap_bridging.holdout.HalfProfile`.
 
     Returns
     -------
@@ -301,7 +307,8 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
                                          per_gap, seed=seed, force=force, decoys=decoys,
                                          flicker=flicker,
                                          export_features=(export_features
-                                                          and cfg.gate_model == 'sqrt'))
+                                                          and cfg.gate_model == 'sqrt'),
+                                         profile=profile)
             overall = result['scores'][-1]
             row.update({'holdout_planted': overall['planted'],
                         'holdout_precision': _nan(overall['precision']),
@@ -462,6 +469,9 @@ def build_parser() -> argparse.ArgumentParser:
     sw.add_argument('--bridges-from', type=int, default=None,
                     help='horizon whose bridges are rendered (default the largest)')
     sw.add_argument('--no-figures', action='store_true', help='skip the figures')
+    sw.add_argument('--profile', choices=('standard', 'short'), default='standard',
+                    help='hold-out planting profile (v005): standard, or short (half lengths '
+                         'drawn from the natural-link mix, tracklets >= 10 frames)')
     sw.add_argument('--no-export-features', action='store_true',
                     help='do not write pair_features.parquet in the hold-out runs (v004; '
                          'written under gate_model sqrt only)')
@@ -566,7 +576,8 @@ def main(argv: list[str] | None = None) -> int:
                          per_gap=args.per_gap, seed=args.seed, force=args.force,
                          video=args.video, bridges_from=args.bridges_from,
                          figures_on=not args.no_figures, decoys=args.decoys,
-                         flicker=args.flicker, export_features=not args.no_export_features)
+                         flicker=args.flicker, export_features=not args.no_export_features,
+                         profile=args.profile)
             print(f"[sweep] wrote {args.out / SUMMARY_NAME} ({len(rows)} horizons)", flush=True)
     except (FileExistsError, FileNotFoundError, ValueError) as error:
         print(f"bridge_gaps: error: {error}", file=sys.stderr, flush=True)
