@@ -493,3 +493,112 @@ class TruthSchemaToleranceTests(unittest.TestCase):
         got, ref = self._rescore_with(
             lambda t: t.append_column('profile', pa.array(['standard'] * t.num_rows)))
         self.assertEqual(self._counts(got), self._counts(ref))
+
+
+# --------------------------------------------------------------------------- #
+# v005: demo link floor and profile line
+# --------------------------------------------------------------------------- #
+def write_summary(sweep: Path, links_by_horizon: Dict[int, int]) -> None:
+    """A minimal ``sweep_summary.csv`` (only the columns compare reads)."""
+    with open(sweep / compare.SWEEP_SUMMARY_NAME, 'w', newline='') as handle:
+        writer = csv.DictWriter(handle, fieldnames=['max_gap', 'links', 'trajectories'])
+        writer.writeheader()
+        for h, n in sorted(links_by_horizon.items()):
+            writer.writerow({'max_gap': h, 'links': n, 'trajectories': 0})
+
+
+class DemoFloorTests(unittest.TestCase):
+    """``compare_variants(demo_horizon=...)`` adds the demo link floor to the verdict."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        root = Path(cls.tmp.name)
+        path = root / 'observations.parquet'
+        pq.write_table(cue_scene(), path)
+        cls.sweeps = [root / f'seed_{seed}' for seed in SEEDS]
+        for sweep, seed in zip(cls.sweeps, SEEDS):
+            build_sweep(sweep, path, seed)
+        cls.better = [root / f'better_{seed}' for seed in SEEDS]
+        cls.worse = [root / f'worse_{seed}' for seed in SEEDS]
+        for src, b, w in zip(cls.sweeps, cls.better, cls.worse):
+            shutil.copytree(src, b)
+            shutil.copytree(src, w)
+        for sweep in cls.sweeps:
+            write_summary(sweep, {h: 100 for h in HORIZONS})
+        for sweep in cls.better:
+            write_summary(sweep, {h: 120 for h in HORIZONS})
+        for sweep in cls.worse:
+            write_summary(sweep, {h: 99 for h in HORIZONS})
+        cls.patch = mock.patch.object(labels, 'truth_folds', fake_truth_folds)
+        cls.patch.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.patch.stop()
+        cls.tmp.cleanup()
+
+    def test_demo_links_reads_summary(self):
+        self.assertEqual(compare.demo_links(self.sweeps[0], HORIZONS[0]), 100)
+        with self.assertRaises(ValueError):
+            compare.demo_links(self.sweeps[0], 999)
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(FileNotFoundError):
+                compare.demo_links(Path(tmp), HORIZONS[0])
+
+    def test_floor_folds_into_verdict(self):
+        h = HORIZONS[0]
+        result = compare.compare_variants({'current': self.sweeps, 'better': self.better,
+                                           'worse': self.worse}, fold='all', demo_horizon=h)
+        v = result['variants']
+        self.assertEqual(result['demo_horizon'], h)
+        self.assertEqual(result['profile'], 'standard')
+        self.assertEqual((v['current']['demo_links'], v['better']['demo_links'],
+                          v['worse']['demo_links']), (100, 120, 99))
+        self.assertTrue(v['current']['promotion']['demo_ok'])
+        self.assertTrue(v['better']['promotion']['demo_ok'])
+        self.assertFalse(v['worse']['promotion']['demo_ok'])
+        self.assertFalse(v['worse']['promotion']['ok'])
+        self.assertIn(compare.DEMO_FAIL, v['worse']['promotion']['failing'])
+        self.assertNotIn(compare.DEMO_FAIL, v['better']['promotion']['failing'])
+        # identical hold-out scores: better passes everything, worse fails only the floor
+        self.assertTrue(v['better']['promotion']['ok'])
+        self.assertEqual([f for f in v['worse']['promotion']['failing'] if f != compare.DEMO_FAIL], [])
+        text = compare.markdown_tables(result)
+        self.assertIn(f'demo links @ {h}', text)
+        self.assertIn('hold-out profile `standard`', text)
+        self.assertIn('99 (floor 100)', text)
+
+    def test_without_demo_horizon_verdict_unchanged(self):
+        result = compare.compare_variants({'current': self.sweeps, 'better': self.better},
+                                          fold='all')
+        self.assertIsNone(result['demo_horizon'])
+        self.assertNotIn('demo_ok', result['variants']['better']['promotion'])
+        self.assertNotIn('demo links', compare.markdown_tables(result))
+
+    def test_disagreeing_seeds_raise(self):
+        write_summary(self.worse[1], {h: 98 for h in HORIZONS})
+        try:
+            with self.assertRaises(ValueError):
+                compare.compare_variants({'current': self.sweeps, 'worse': self.worse},
+                                         fold='all', demo_horizon=HORIZONS[0])
+        finally:
+            write_summary(self.worse[1], {h: 99 for h in HORIZONS})
+
+    def test_write_comparison_records_demo_keys(self):
+        result = compare.compare_variants({'current': self.sweeps, 'better': self.better},
+                                          fold='all', demo_horizon=HORIZONS[0])
+        with tempfile.TemporaryDirectory() as tmp:
+            compare.write_comparison(result, Path(tmp), Path(tmp) / 'r.md')
+            verdicts = json.loads((Path(tmp) / compare.PROMOTION_NAME).read_text())
+            self.assertEqual(verdicts['demo_horizon'], HORIZONS[0])
+            self.assertEqual(verdicts['profile'], 'standard')
+            self.assertEqual(verdicts['variants']['better']['promotion']['demo_floor'], 100)
+
+    def test_cli_flag(self):
+        parser = argparse.ArgumentParser()
+        compare.add_arguments(parser)
+        args = parser.parse_args(['--variant', f'a={self.sweeps[0]}', '--out', 'x',
+                                  '--demo-horizon', '5'])
+        self.assertEqual(args.demo_horizon, 5)
+        self.assertIsNone(parser.parse_args(['--variant', f'a={self.sweeps[0]}', '--out', 'x']).demo_horizon)

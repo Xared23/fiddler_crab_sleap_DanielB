@@ -58,6 +58,8 @@ from gap_bridging.labels import DEFAULT_SALT, DEFAULT_TEST_FRACTION
 FOLD_CHOICES = ('test', 'train', 'all')
 DEFAULT_THROUGH_GAP = 30
 FALLBACK_HORIZON = 30
+SWEEP_SUMMARY_NAME = 'sweep_summary.csv'   # bridge_gaps.SUMMARY_NAME (no import: cycle)
+DEMO_FAIL = 'demo:links'
 HOLDOUT_DIR = re.compile(r'^holdout_(\d+)$')
 # Same columns as bridge_gaps.BY_GAP_COLUMNS / POOLED_*_COLUMNS (bridge_gaps imports
 # this package, so the tuples are repeated here; a test checks they agree).
@@ -272,6 +274,35 @@ def check_same_plants(variants: Mapping[str, Sequence[Path]]) -> list[int]:
     return horizons
 
 
+def demo_links(sweep_dir: Path, horizon: int) -> int:
+    """Number of links of the sweep's full (unplanted) run at ``horizon``.
+
+    Read from ``sweep_summary.csv`` (column ``links`` of the row ``max_gap ==
+    horizon``). Raises FileNotFoundError without the CSV and ValueError when
+    the horizon is not in it.
+    """
+    path = Path(sweep_dir) / SWEEP_SUMMARY_NAME
+    if not path.is_file():
+        raise FileNotFoundError(f"{path} is missing; the sweep did not write its summary")
+    with open(path, newline='') as handle:
+        for row in csv.DictReader(handle):
+            if int(row['max_gap']) == int(horizon):
+                return int(row['links'])
+    raise ValueError(f"{path} has no row for max_gap {horizon}")
+
+
+def profile_of(sweep_dir: Path) -> str:
+    """Hold-out planting profile of a sweep (``holdout_<h>.json`` ``profile.name``;
+    ``'standard'`` for JSON written before profiles existed)."""
+    dirs = holdout_dirs(Path(sweep_dir))
+    if not dirs:
+        return 'standard'
+    h, d = dirs[0]
+    summary = json.loads((d / f'holdout_{h}.json').read_text())
+    profile = summary.get('profile')
+    return str(profile.get('name', 'standard')) if isinstance(profile, dict) else 'standard'
+
+
 def promotion_check(current_by_gap: Sequence[dict], candidate_by_gap: Sequence[dict],
                     horizon: int, through_gap: int = DEFAULT_THROUGH_GAP) -> dict:
     """Does a candidate keep precision 1 and lose no recall at one horizon?
@@ -329,7 +360,7 @@ def promotion_check(current_by_gap: Sequence[dict], candidate_by_gap: Sequence[d
 def compare_variants(variants: Mapping[str, Sequence[Path]], fold: str = 'test',
                      through_gap: int = DEFAULT_THROUGH_GAP, rule_precision: float = 1.0,
                      salt: str = DEFAULT_SALT, test_fraction: float = DEFAULT_TEST_FRACTION,
-                     baseline: str | None = None) -> dict:
+                     baseline: str | None = None, demo_horizon: int | None = None) -> dict:
     """Pool every variant's seeds on one fold, apply the horizon rule and check promotion.
 
     Parameters
@@ -347,12 +378,20 @@ def compare_variants(variants: Mapping[str, Sequence[Path]], fold: str = 'test',
         Variant every other is checked against (default the first). The
         check runs at the baseline's chosen horizon, or at
         :data:`FALLBACK_HORIZON` when no horizon passes the rule.
+    demo_horizon : int, optional
+        v005 demo link floor: when given, every variant's ``demo_links`` at
+        this horizon (``sweep_summary.csv`` of each sweep; the seeds must
+        agree, since the full run does not depend on the seed) must be at
+        least the baseline's for ``promotion['ok']``; the verdict gains
+        ``demo_links``, ``demo_floor`` and ``demo_ok`` and ``failing`` gains
+        ``'demo:links'``. None leaves the v004 verdict unchanged.
 
     Returns
     -------
     dict
         ``fold``, ``through_gap``, ``rule_precision``, ``baseline``,
-        ``horizon`` (of the promotion check) and ``variants``: ``name ->
+        ``horizon`` (of the promotion check), ``demo_horizon``, ``profile``
+        (of the baseline's first sweep) and ``variants``: ``name ->
         {'sweeps', 'by_gap', 'by_horizon', 'chosen', 'promotion'}`` with the
         pooled rows, the rule table (``by_horizon`` plus ``rule_pass`` etc.)
         and the chosen horizon. The baseline is checked against itself, which
@@ -381,13 +420,32 @@ def compare_variants(variants: Mapping[str, Sequence[Path]], fold: str = 'test',
         chosen, table = holdout.apply_rule(by_gap, by_horizon, rule_precision)
         out[name] = {'sweeps': [str(d) for d in variants[name]], 'by_gap': by_gap,
                      'by_horizon': table, 'chosen': chosen}
+        if demo_horizon is not None:
+            counts = sorted({demo_links(Path(d), demo_horizon) for d in variants[name]})
+            if len(counts) != 1:
+                raise ValueError(f"variant {name!r}: demo links at max_gap {demo_horizon} differ "
+                                 f"across its sweeps ({counts}); the full run must not depend "
+                                 "on the seed")
+            out[name]['demo_links'] = counts[0]
     horizon = out[baseline]['chosen']
     horizon = FALLBACK_HORIZON if horizon is None else horizon
     for name in names:
-        out[name]['promotion'] = promotion_check(out[baseline]['by_gap'], out[name]['by_gap'],
-                                                 horizon, through_gap)
+        verdict = promotion_check(out[baseline]['by_gap'], out[name]['by_gap'], horizon,
+                                  through_gap)
+        if demo_horizon is not None:
+            floor = out[baseline]['demo_links']
+            verdict['demo_horizon'] = int(demo_horizon)
+            verdict['demo_links'] = int(out[name]['demo_links'])
+            verdict['demo_floor'] = int(floor)
+            verdict['demo_ok'] = out[name]['demo_links'] >= floor
+            if not verdict['demo_ok']:
+                verdict['failing'].append(DEMO_FAIL)
+            verdict['ok'] = bool(verdict['ok'] and verdict['demo_ok'])
+        out[name]['promotion'] = verdict
     return {'fold': fold, 'through_gap': int(through_gap), 'rule_precision': float(rule_precision),
-            'baseline': baseline, 'horizon': int(horizon), 'variants': out}
+            'baseline': baseline, 'horizon': int(horizon),
+            'demo_horizon': None if demo_horizon is None else int(demo_horizon),
+            'profile': profile_of(Path(variants[baseline][0])), 'variants': out}
 
 
 # ============================================================
@@ -420,9 +478,12 @@ def markdown_tables(result: dict) -> str:
     names = list(result['variants'])
     variants = result['variants']
     horizons = sorted({int(r['max_gap']) for v in variants.values() for r in v['by_gap']})
-    lines = [f"Fold `{result['fold']}`; baseline `{result['baseline']}`; rule precision "
-             f"{result['rule_precision']:g}; promotion at `max_gap` {result['horizon']} "
-             f"through planted gap {result['through_gap']}."]
+    demo_h = result.get('demo_horizon')
+    lines = [f"Fold `{result['fold']}`; hold-out profile `{result.get('profile', 'standard')}`; "
+             f"baseline `{result['baseline']}`; rule precision {result['rule_precision']:g}; "
+             f"promotion at `max_gap` {result['horizon']} through planted gap "
+             f"{result['through_gap']}"
+             + (f"; demo link floor at `max_gap` {demo_h}." if demo_h is not None else '.')]
     if result.get('command'):
         lines += ['', 'Generated by:', '', '```bash', result['command'], '```']
     for horizon in horizons:
@@ -466,13 +527,18 @@ def markdown_tables(result: dict) -> str:
     rows = []
     for name in names:
         v, p = variants[name], variants[name]['promotion']
-        rows.append([name, str(v['chosen']), 'yes' if p['precision_ok'] else 'no',
-                     'yes' if p['recall_ok'] else 'no',
-                     '**promote**' if p['ok'] and name != result['baseline']
-                     else ('baseline' if name == result['baseline'] else 'no'),
-                     ' '.join(p['failing']) or '–'])
-    lines += _table(['variant', 'chosen `max_gap`', 'precision 1', 'recall ≥ baseline',
-                     'verdict', 'failing'], rows, right=99)
+        row = [name, str(v['chosen']), 'yes' if p['precision_ok'] else 'no',
+               'yes' if p['recall_ok'] else 'no']
+        if demo_h is not None:
+            row += [f"{p['demo_links']} (floor {p['demo_floor']})", 'yes' if p['demo_ok'] else 'no']
+        row += ['**promote**' if p['ok'] and name != result['baseline']
+                else ('baseline' if name == result['baseline'] else 'no'),
+                ' '.join(p['failing']) or '–']
+        rows.append(row)
+    header = ['variant', 'chosen `max_gap`', 'precision 1', 'recall ≥ baseline']
+    if demo_h is not None:
+        header += [f'demo links @ {demo_h}', 'demo ≥ baseline']
+    lines += _table(header + ['verdict', 'failing'], rows, right=99)
     return '\n'.join(lines) + '\n'
 
 
@@ -519,8 +585,8 @@ def write_comparison(result: dict, out_dir: Path, docs_path: Path | None = None,
                     for n in names for r in result['variants'][n]['by_horizon']]
     _write_csv(out_dir / COMPARISON_GAP_NAME, COMPARISON_GAP_COLUMNS, gap_rows)
     _write_csv(out_dir / COMPARISON_HORIZON_NAME, COMPARISON_HORIZON_COLUMNS, horizon_rows)
-    verdicts = {k: result[k] for k in ('fold', 'through_gap', 'rule_precision', 'baseline',
-                                       'horizon')}
+    verdicts = {k: result.get(k) for k in ('fold', 'through_gap', 'rule_precision', 'baseline',
+                                           'horizon', 'demo_horizon', 'profile')}
     verdicts.update({'command': result.get('command'),
                      'variants': {n: {'sweeps': result['variants'][n]['sweeps'],
                                       'chosen': result['variants'][n]['chosen'],
@@ -562,6 +628,9 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help='largest planted gap of the promotion check (default 30)')
     parser.add_argument('--rule-precision', type=float, default=1.0,
                         help='precision floor of the horizon rule (default 1.0)')
+    parser.add_argument('--demo-horizon', type=int, default=None,
+                        help='v005: also require each variant\'s full-run links at this '
+                             'max_gap (sweep_summary.csv) to be at least the baseline\'s')
     parser.add_argument('--docs', type=Path, default=None,
                         help='write the Markdown tables to this file')
     parser.add_argument('--salt', default=DEFAULT_SALT, help='fold hash salt')
@@ -585,7 +654,7 @@ def main(args: argparse.Namespace) -> dict:
         variants[name] = dirs
     result = compare_variants(variants, fold=args.fold, through_gap=args.through_gap,
                               rule_precision=args.rule_precision, salt=args.salt,
-                              test_fraction=args.test_fraction)
+                              test_fraction=args.test_fraction, demo_horizon=args.demo_horizon)
     result['command'] = getattr(args, 'command_line', None) or shlex.join(
         [Path(sys.executable).name] + sys.argv)
     write_comparison(result, args.out, args.docs, args.force)
