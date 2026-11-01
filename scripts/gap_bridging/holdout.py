@@ -634,8 +634,12 @@ def run_holdout(observations_path: Path, out_dir: Path, cfg: BridgeConfig,
     force : bool
         Overwrite existing outputs (also passed to :func:`pipeline.run`).
     export_features : bool
-        Also write ``bridged/pair_features.parquet`` (v004 training input);
-        the recorded ``config`` stays the caller's ``cfg``.
+        Also write ``bridged/pair_features.parquet`` (v004 training input)
+        when ``cfg.gate_model == 'sqrt'``; ignored under the linear gate
+        model (``features.pair_feature_table`` is sqrt-only). The ``config``
+        recorded in ``holdout_<max_gap>.json`` stays the caller's ``cfg``,
+        while the ``bridged/`` marker records the configuration actually run
+        (``export_pair_features: true`` when exporting).
 
     Returns
     -------
@@ -665,6 +669,7 @@ def run_holdout(observations_path: Path, out_dir: Path, cfg: BridgeConfig,
     out_dir.mkdir(parents=True, exist_ok=True)
     pq.write_table(planted, out_dir / PLANTED_NAME)
     pq.write_table(truth, out_dir / TRUTH_NAME)
+    export_features = bool(export_features) and cfg.gate_model == 'sqrt'
     run_cfg = replace(cfg, export_pair_features=True) if export_features else cfg
     pipeline.run(out_dir / PLANTED_NAME, out_dir / BRIDGED_DIR, run_cfg, force)
     links = pq.read_table(out_dir / BRIDGED_DIR / 'links.parquet')

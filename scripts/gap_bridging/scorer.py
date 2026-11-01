@@ -12,9 +12,14 @@ assignment in :func:`gap_bridging.candidates.link_tracklets`.
 On disk a scorer is two files: ``<name>.joblib`` (``{'hgb', 'calibrator'}``)
 and the manifest ``<name>.json`` (:class:`ScorerManifest`: scikit-learn
 version, feature order, monotonic constraints, hyperparameters, threshold,
-training-data hash and metrics). ``load_scorer`` refuses a model whose
-scikit-learn version or feature order differs from the running code, since
-pickled estimators are not portable across versions.
+training-data hash, metrics and the feature-relevant config keys).
+``load_scorer`` refuses a model whose scikit-learn version or feature order
+differs from the running code, since pickled estimators are not portable
+across versions; ``resolve_scorer`` (and ``load_scorer`` given a config)
+also refuses a config whose feature keys
+(:data:`gap_bridging.features.FEATURE_CONFIG_KEYS`) differ from the ones the
+training features were computed with. A manifest without ``feature_config``
+(written before that check existed) is accepted with a printed warning.
 
 scikit-learn and joblib are imported lazily: importing this module (as the
 pipeline does) does not import them until a model is fitted or loaded.
@@ -24,19 +29,20 @@ pipeline does) does not import them until a model is fitted or loaded.
 Sam
 11/2026
 """
-from __future__ import annotations
 
 # ============================================================
 # IMPORTS
 # ============================================================
 
 # ----- standard library -----
-from dataclasses import dataclass, fields
+from __future__ import annotations
+
+from dataclasses import dataclass, field, fields
 import functools
 import json
 import math
 from pathlib import Path
-from typing import Any, Protocol, Tuple
+from typing import Any, Optional, Protocol, Tuple
 
 # ----- numerics -----
 import numpy as np
@@ -108,6 +114,9 @@ class ScorerManifest:
     are pair-level metrics on the held-out test fold (``{}`` when there is
     none); the promotion decision uses the test fold through the full
     pipeline (hold-out sweep with ``cost_model: learned``), not these.
+    ``feature_config`` is :func:`gap_bridging.features.feature_config` of
+    the hold-out configs the training features came from (``{}`` for a
+    manifest written before it was recorded).
     """
     sklearn_version: str
     feature_names: Tuple[str, ...]
@@ -127,6 +136,7 @@ class ScorerManifest:
     sweeps: Tuple[str, ...]
     created: str                 # ISO 8601, UTC
     git_commit: str = ''         # '' if unknown
+    feature_config: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         assert len(self.feature_names) == len(self.monotonic_cst), "one constraint per feature"
@@ -148,7 +158,10 @@ class ScorerManifest:
 
     @classmethod
     def from_json(cls, d: dict) -> 'ScorerManifest':
-        """Inverse of :meth:`to_json` (lists back to tuples, ``None`` metrics to NaN)."""
+        """Inverse of :meth:`to_json` (lists back to tuples, ``None`` metrics to NaN).
+
+        Optional fields (``git_commit``, ``feature_config``) may be absent.
+        """
         names = {f.name for f in fields(cls)}
         unknown = set(d) - names
         if unknown:
@@ -320,8 +333,57 @@ def save_scorer(scorer: LinkScorer, path: Path, force: bool = False) -> None:
     meta.write_text(text + '\n')
 
 
-def load_scorer(path: Path) -> LinkScorer:
+def check_feature_config(manifest: ScorerManifest, cfg: BridgeConfig, path: Path) -> None:
+    """Refuse a config whose feature keys differ from the scorer's training config.
+
+    Parameters
+    ----------
+    manifest : ScorerManifest
+        The scorer's manifest.
+    cfg : BridgeConfig
+        The config the scorer is about to be used with.
+    path : Path
+        The model file (for messages).
+
+    Raises
+    ------
+    ValueError
+        If ``features.feature_config(cfg) != manifest.feature_config``; the
+        message lists each differing key with both values. A manifest
+        without ``feature_config`` only prints a warning (once per path).
+    """
+    from gap_bridging import features      # lazy: features may import candidates, which imports this
+
+    if not manifest.feature_config:
+        _warn_no_feature_config(str(path))
+        return
+    expected = dict(manifest.feature_config)
+    actual = features.feature_config(cfg)
+    if actual != expected:
+        keys = sorted(set(actual) | set(expected))
+        differ = {k: (expected.get(k), actual.get(k)) for k in keys
+                  if expected.get(k) != actual.get(k)}
+        raise ValueError(f"scorer {path} was trained on features computed with a different config; "
+                         f"differing keys (trained, current): {differ}; retrain it or use the "
+                         f"training config's values")
+
+
+@functools.lru_cache(maxsize=None)
+def _warn_no_feature_config(path: str) -> None:
+    """Print, once per model path, that its manifest predates ``feature_config``."""
+    print(f"[scorer] WARNING: {path} has no feature_config in its manifest (older model); "
+          f"cannot check that the config computes the features it was trained on", flush=True)
+
+
+def load_scorer(path: Path, cfg: Optional[BridgeConfig] = None) -> LinkScorer:
     """Read a scorer written by :func:`save_scorer`.
+
+    Parameters
+    ----------
+    path : Path
+        The model file.
+    cfg : BridgeConfig, optional
+        When given, checked with :func:`check_feature_config`.
 
     Raises
     ------
@@ -330,7 +392,8 @@ def load_scorer(path: Path) -> LinkScorer:
     ScorerVersionError
         If the installed scikit-learn differs from the manifest's.
     ValueError
-        If the manifest's feature order differs from ``features.FEATURE_NAMES``.
+        If the manifest's feature order differs from ``features.FEATURE_NAMES``
+        or ``cfg``'s feature keys differ from the manifest's.
     """
     path = Path(path)
     meta = manifest_path(path)
@@ -349,6 +412,8 @@ def load_scorer(path: Path) -> LinkScorer:
     if tuple(manifest.feature_names) != tuple(features.FEATURE_NAMES):
         raise ValueError(f"scorer {path} expects features {list(manifest.feature_names)}, "
                          f"this code produces {list(features.FEATURE_NAMES)}; retrain it")
+    if cfg is not None:
+        check_feature_config(manifest, cfg, path)
     import joblib
 
     payload = joblib.load(path)
@@ -371,7 +436,9 @@ def resolve_scorer(cfg: BridgeConfig) -> LinkScorer:
     Raises
     ------
     ValueError
-        If ``cfg.cost_model`` is not ``'learned'`` or ``cfg.scorer_path`` is unset.
+        If ``cfg.cost_model`` is not ``'learned'``, ``cfg.scorer_path`` is
+        unset, or ``cfg``'s feature keys differ from the manifest's
+        (:func:`check_feature_config`).
     FileNotFoundError
         If the model file is missing.
     """
@@ -382,4 +449,6 @@ def resolve_scorer(cfg: BridgeConfig) -> LinkScorer:
     path = Path(cfg.scorer_path)
     if not path.is_file():
         return load_scorer(path)    # raises FileNotFoundError with the hint
-    return cached_scorer(str(path), path.stat().st_mtime_ns)
+    scorer = cached_scorer(str(path), path.stat().st_mtime_ns)
+    check_feature_config(scorer.manifest, cfg, path)
+    return scorer

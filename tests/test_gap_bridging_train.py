@@ -16,7 +16,11 @@ Sam
 # ============================================================
 
 # ----- standard library -----
+import argparse
+import contextlib
 import csv
+from dataclasses import replace
+import io
 import json
 from pathlib import Path
 import sys
@@ -37,8 +41,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 # ----- local modules -----
-from gap_bridging import features, holdout, labels, scorer, train  # noqa: E402
-from gap_bridging.config import load_config  # noqa: E402
+from gap_bridging import features, holdout, labels, scorer, tables, train  # noqa: E402
+from gap_bridging.config import BridgeConfig, load_config  # noqa: E402
+from pipeline_common import sha256  # noqa: E402
 
 # ============================================================
 # CONSTANTS
@@ -93,8 +98,8 @@ def fake_label_pairs(pairs: pa.Table, truth: pa.Table, salt: str = '',
         out['fold'].append('unlabelled' if original is None else fake_fold(original))
         out['role_a'].append(ra['role'] if ra else None)
         out['role_b'].append(rb['role'] if rb else None)
-        out['original_a'].append(ra['original_id'] if ra else None)
-        out['original_b'].append(rb['original_id'] if rb else None)
+        out['original_a'].append(ra['original_id'] if ra else a)     # every side has an original
+        out['original_b'].append(rb['original_id'] if rb else b)
     return pa.Table.from_pydict(out, schema=labels.LABELLED_SCHEMA)
 
 
@@ -163,9 +168,21 @@ def pair_row(rng: np.random.Generator, a: str, b: str, gap: int, positive: bool,
     return row
 
 
+def write_bridged(bridged: Path, pairs: pa.Table) -> None:
+    """``pair_features.parquet``, a ``links.parquet`` with as many rows and the marker listing both."""
+    pq.write_table(pairs, bridged / features.PAIR_FEATURES_NAME)
+    links = pa.table({'tracklet_a': pairs['tracklet_a'], 'tracklet_b': pairs['tracklet_b']})
+    pq.write_table(links, bridged / train.LINKS_NAME)
+    outputs = {name: {'sha256': sha256(bridged / name), 'rows': pairs.num_rows}
+               for name in (features.PAIR_FEATURES_NAME, train.LINKS_NAME)}
+    (bridged / tables.COMPLETE_NAME).write_text(json.dumps({'outputs': outputs}))
+
+
 def make_sweep(root: Path, seed: int = 0, n_plants: int = 40, n_decoys: int = 4,
-               horizons: Sequence[int] = HORIZONS, write_features: bool = True) -> Path:
-    """A fake sweep directory: ``holdout_<h>/`` with truth, pair features and the JSON.
+               horizons: Sequence[int] = HORIZONS, write_features: bool = True,
+               cfg: BridgeConfig = BridgeConfig()) -> Path:
+    """A fake sweep directory: ``holdout_<h>/`` with truth, pair features, links, the
+    bridged marker and ``holdout_<h>.json`` with ``config`` (``cfg`` at ``max_gap = h``).
 
     Plants ``o000..``: left ``oNNN``, right ``oNNN_r``, gap ``PLANT_GAPS[i % 3]``.
     Per plant: the true pair, two negatives to other plants' right halves (one
@@ -207,9 +224,11 @@ def make_sweep(root: Path, seed: int = 0, n_plants: int = 40, n_decoys: int = 4,
         pq.write_table(truth_table, run / holdout.TRUTH_NAME)
         if write_features:
             rows = [r for r in pairs if r['gap_frames'] <= h]
-            pq.write_table(pa.Table.from_pylist(rows, schema=features.PAIR_FEATURES_SCHEMA),
-                           run / holdout.BRIDGED_DIR / features.PAIR_FEATURES_NAME)
-        (run / f'holdout_{h}.json').write_text('{}\n')
+            write_bridged(run / holdout.BRIDGED_DIR,
+                          pa.Table.from_pylist(rows, schema=features.PAIR_FEATURES_SCHEMA))
+        config = cfg.to_dict()
+        config['max_gap'] = h
+        (run / f'holdout_{h}.json').write_text(json.dumps({'config': config}) + '\n')
     (sweep / 'holdout_99').mkdir()          # incomplete: no JSON
     (sweep / 'max_gap_5').mkdir()
     return sweep
@@ -374,7 +393,8 @@ class DataTests(Patched):
 
     def test_collect(self):
         sweep = make_sweep(self.tmp, n_plants=40)
-        table = train.collect_training_rows([sweep], 'salt', 0.4)
+        table, feature_cfg = train.collect_training_rows([sweep], 'salt', 0.4)
+        self.assertEqual(feature_cfg, features.feature_config(BridgeConfig()))
         keys = list(zip(table['tracklet_a'].to_pylist(), table['tracklet_b'].to_pylist()))
         self.assertEqual(len(keys), len(set(keys)), "deduplicated across horizons")
         self.assertIn(('o000', 'o000_r'), keys)                      # gap 2, both horizons
@@ -389,13 +409,13 @@ class DataTests(Patched):
         self.assertEqual(sum(table['label'].to_pylist()), 40)
         roles = list(zip(table['label'].to_pylist(), table['role_b'].to_pylist()))
         self.assertEqual(roles.count((0, 'decoy_donor')), 4)
-        dropped = train.collect_training_rows([sweep], 'salt', 0.4, drop_donor_negatives=True)
+        dropped, _ = train.collect_training_rows([sweep], 'salt', 0.4, drop_donor_negatives=True)
         self.assertEqual(dropped.num_rows, 120)
         self.assertNotIn('decoy_donor', dropped['role_b'].to_pylist())
 
     def test_collect_two_sweeps(self):
         a, b = make_sweep(self.tmp, seed=0), make_sweep(self.tmp, seed=1)
-        table = train.collect_training_rows([a, b], 'salt', 0.4)
+        table, _ = train.collect_training_rows([a, b], 'salt', 0.4)
         self.assertEqual(set(table['sweep'].to_pylist()), {str(a), str(b)})
         self.assertEqual(table.num_rows, 2 * 124)
 
@@ -408,8 +428,66 @@ class DataTests(Patched):
         with self.assertRaises(FileNotFoundError):
             train.collect_training_rows([self.tmp / 'empty'], 'salt', 0.4)
 
+    def _bridged(self, sweep: Path, h: int = HORIZONS[0]) -> Path:
+        return sweep / f'holdout_{h}' / holdout.BRIDGED_DIR
+
+    def assert_refused(self, sweep: Path, h: int = HORIZONS[0]) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            train.collect_training_rows([sweep], 'salt', 0.4)
+        self.assertIn(str(self._bridged(sweep, h)), str(ctx.exception))
+
+    def test_regression_stale_features_rewritten_after_marker(self):
+        """Review finding 4: a pair-features file that is not the marker's is refused."""
+        sweep = make_sweep(self.tmp)
+        path = self._bridged(sweep) / features.PAIR_FEATURES_NAME
+        pq.write_table(pq.read_table(path).slice(1), path)        # stale / tampered content
+        self.assert_refused(sweep)
+
+    def test_regression_marker_without_pair_features(self):
+        """A later run without feature export leaves the old file; its marker does not list it."""
+        sweep = make_sweep(self.tmp)
+        marker = self._bridged(sweep) / tables.COMPLETE_NAME
+        d = json.loads(marker.read_text())
+        del d['outputs'][features.PAIR_FEATURES_NAME]
+        marker.write_text(json.dumps(d))
+        self.assert_refused(sweep)
+        marker.unlink()
+        self.assert_refused(sweep)
+
+    def test_regression_row_count_differs_from_links(self):
+        sweep = make_sweep(self.tmp)
+        links = self._bridged(sweep) / train.LINKS_NAME
+        pq.write_table(pq.read_table(links).slice(1), links)
+        self.assert_refused(sweep)
+
+    def test_regression_feature_config_must_agree(self):
+        """Review finding 6: every sweep and horizon must share the feature keys."""
+        a = make_sweep(self.tmp, seed=0)
+        b = make_sweep(self.tmp, seed=1, cfg=BridgeConfig(gap_penalty=0.2))
+        with self.assertRaisesRegex(ValueError, 'gap_penalty'):
+            train.collect_training_rows([a, b], 'salt', 0.4)
+        # Within one sweep: one horizon with another prediction horizon.
+        path = a / f'holdout_{HORIZONS[1]}' / f'holdout_{HORIZONS[1]}.json'
+        d = json.loads(path.read_text())
+        d['config']['prediction_horizon_frames'] = 5
+        path.write_text(json.dumps(d))
+        with self.assertRaisesRegex(ValueError, 'prediction_horizon_frames'):
+            train.collect_training_rows([a], 'salt', 0.4)
+        path.write_text('{}')
+        with self.assertRaisesRegex(ValueError, 'config'):
+            train.collect_training_rows([a], 'salt', 0.4)
+        # max_gap differs per horizon and is not a feature key.
+        _, cfg = train.collect_training_rows([b], 'salt', 0.4)
+        self.assertEqual(cfg, features.feature_config(BridgeConfig(gap_penalty=0.2)))
+
+    def test_groups_use_the_planted_side(self):
+        table, _ = train.collect_training_rows([make_sweep(self.tmp)], 'salt', 0.4)
+        u = table.filter(pc.equal(table['tracklet_a'], 'u001'))
+        self.assertEqual(u['original_a'].to_pylist(), ['u001'])     # unplanted END: itself
+        self.assertEqual(train._groups(u).tolist(), ['o002'])        # group: planted START's
+
     def test_split_folds(self):
-        table = train.collect_training_rows([make_sweep(self.tmp)], 'salt', 0.4)
+        table, _ = train.collect_training_rows([make_sweep(self.tmp)], 'salt', 0.4)
         folds = train.split_folds(table)
         self.assertEqual(set(folds), {'train', 'test'})
         n = 0
@@ -423,7 +501,7 @@ class DataTests(Patched):
                          + train.split_folds(u)['test'][2].tolist(), ['o002'])
 
     def test_table_sha256_chunking_invariant(self):
-        table = train.collect_training_rows([make_sweep(self.tmp)], 'salt', 0.4)
+        table, _ = train.collect_training_rows([make_sweep(self.tmp)], 'salt', 0.4)
         chunked = pa.concat_tables([table.slice(0, 10), table.slice(10)])
         self.assertEqual(train.table_sha256(table), train.table_sha256(chunked))
         self.assertNotEqual(train.table_sha256(table), train.table_sha256(table.slice(1)))
@@ -457,6 +535,10 @@ class TrainCommandTests(Patched):
         self.assertGreaterEqual(m.oof_metrics['precision'], 1.0)
         self.assertIn('roc_auc', m.test_metrics)
         self.assertIn('out-of-fold', m.hyperparameters['note'])
+        self.assertTrue(m.hyperparameters['target_reached'])
+        self.assertEqual(m.calibration, 'sigmoid')
+        self.assertLess(m.threshold, 1.0)
+        self.assertEqual(m.feature_config, features.feature_config(BridgeConfig()))
         loaded = scorer.load_scorer(out)
         self.assertEqual(loaded.manifest.to_json(), m.to_json())
         self.assertEqual(loaded.threshold, m.threshold)
@@ -478,6 +560,66 @@ class TrainCommandTests(Patched):
         with self.assertRaises(FileExistsError):
             train.train_command(self.sweeps, out, FAST, 'salt', 0.4, None, force=False)
         train.train_command(self.sweeps, out, FAST, 'salt', 0.4, None, force=True)
+
+    def test_regression_defaults_are_sigmoid(self):
+        """Review finding 3: isotonic puts the threshold at p = 1 (D-010); sigmoid is the default."""
+        self.assertEqual(train.TrainParams().calibration, 'sigmoid')
+        self.assertFalse(train.TrainParams().allow_degenerate_threshold)
+        parser = argparse.ArgumentParser()
+        train.add_arguments(parser)
+        args = parser.parse_args(['--sweeps', 'a', '--out', 'm.joblib'])
+        self.assertEqual((args.calibration, args.allow_degenerate_threshold), ('sigmoid', False))
+        args = parser.parse_args(['--sweeps', 'a', '--out', 'm.joblib',
+                                  '--allow-degenerate-threshold'])
+        self.assertTrue(args.allow_degenerate_threshold)
+
+    def _quiet(self, fn, *args):
+        with contextlib.redirect_stdout(io.StringIO()):
+            return fn(*args)
+
+    def test_regression_degenerate_threshold_refused(self):
+        out = self.tmp / 'iso.joblib'
+        with mock.patch.object(train, 'choose_threshold', lambda p, y, t: 1.5):
+            with self.assertRaisesRegex(ValueError, 'degenerate threshold.*--calibration sigmoid'):
+                self._quiet(train.train_command, self.sweeps, out, FAST, 'salt', 0.4)
+            self.assertFalse(out.exists() or scorer.manifest_path(out).exists())
+            allowed = replace(FAST, allow_degenerate_threshold=True)
+            m = self._quiet(train.train_command, self.sweeps, out, allowed, 'salt', 0.4)
+        self.assertEqual(m.threshold, 1.0)
+        self.assertTrue(out.is_file())
+        self.assertTrue(m.hyperparameters['allow_degenerate_threshold'])
+
+    def test_isotonic_on_separable_data_is_degenerate(self):
+        """The real D-010 path: isotonic calibration of separable OOF scores gives p = 1."""
+        iso = replace(FAST, calibration='isotonic')
+        with self.assertRaisesRegex(ValueError, 'degenerate threshold 1.0'):
+            self._quiet(train.train_command, self.sweeps, self.tmp / 'i.joblib', iso, 'salt', 0.4)
+        m = self._quiet(train.train_command, self.sweeps, self.tmp / 'i.joblib',
+                        replace(iso, allow_degenerate_threshold=True), 'salt', 0.4)
+        self.assertEqual((m.threshold, m.hyperparameters['target_reached']), (1.0, True))
+        m = self._quiet(train.train_command, self.sweeps, self.tmp / 's.joblib', FAST, 'salt', 0.4)
+        self.assertLess(m.threshold, 1.0)
+
+    def test_regression_unreachable_target_refused(self):
+        """Review finding 8: a threshold whose OOF precision misses the target is refused."""
+        out = self.tmp / 'low.joblib'
+        with mock.patch.object(train, 'choose_threshold', lambda p, y, t: 0.0):
+            with self.assertRaisesRegex(ValueError, 'unreachable'):
+                self._quiet(train.train_command, self.sweeps, out, FAST, 'salt', 0.4)
+            self.assertFalse(out.exists())
+            allowed = replace(FAST, allow_degenerate_threshold=True)
+            m = self._quiet(train.train_command, self.sweeps, out, allowed, 'salt', 0.4)
+        self.assertFalse(m.hyperparameters['target_reached'])
+        self.assertLess(m.oof_metrics['precision'], 1.0)
+
+    def test_choose_threshold_fallback_clipped_admits_negative(self):
+        """The fallback nextafter(max negative) above 1 clips to 1 and admits that negative."""
+        p = np.array([0.2, 1.0])
+        y = np.array([1, 0])
+        t = min(max(train.choose_threshold(p, y, 1.0), train.THRESHOLD_FLOOR), 1.0)
+        self.assertEqual(t, 1.0)
+        self.assertFalse(train.target_reached(p, y, t, 1.0))
+        self.assertTrue(train.target_reached(np.array([0.2, 0.9]), np.array([0, 1]), 0.9, 1.0))
 
     def test_no_test_fold(self):
         out = self.tmp / 'oof.joblib'

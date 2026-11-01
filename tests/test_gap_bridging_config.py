@@ -137,6 +137,21 @@ class ValidationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_config(path)
 
+    def test_regression_export_features_requires_sqrt(self):
+        # pair_feature_table is sqrt-only: a linear export must fail at construction,
+        # before any linking work.
+        with self.assertRaises(ValueError):
+            BridgeConfig(gate_model='linear', export_pair_features=True)
+        BridgeConfig(gate_model='linear')                       # either alone is fine
+        BridgeConfig(export_pair_features=True)
+
+    def test_regression_export_features_requires_sqrt_via_yaml(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'c.yaml'
+            path.write_text("gate_model: linear\nexport_pair_features: true\n")
+            with self.assertRaises(ValueError):
+                load_config(path)
+
     def test_defaults_preserve_v003_behaviour(self):
         cfg = BridgeConfig()
         self.assertEqual((cfg.cost_model, cfg.assignment, cfg.unmatched_cost_mode,

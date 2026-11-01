@@ -1,6 +1,29 @@
 {
   "calibration": "sigmoid",
-  "created": "2026-11-01T20:00:22+00:00",
+  "created": "2026-11-01T20:26:32+00:00",
+  "feature_config": {
+    "appearance_cues": true,
+    "claw_side_confidence": 0.9,
+    "claw_side_min_frames": 5,
+    "claw_side_weight": 0.15,
+    "gap_penalty": 0.06,
+    "gate_model": "sqrt",
+    "max_velocity_px_per_frame": 6.0,
+    "motion_weight": 0.3,
+    "prediction_error_ratio": 1.5,
+    "prediction_horizon_frames": 3,
+    "radius_k_px": 3.73,
+    "radius_min_px": 6.0,
+    "radius_r0_px": 0.0,
+    "radius_safety": 1.25,
+    "shoulder_vector_cost_cap_px": 12.0,
+    "shoulder_vector_weight": 0.15,
+    "size_cost_cap": 3.0,
+    "size_noise_px": 1.0,
+    "size_scale_px": 3.0,
+    "size_weight": 0.1,
+    "velocity_window": 3
+  },
   "feature_names": [
     "gap",
     "dist",
@@ -31,8 +54,9 @@
     "axis_flip",
     "hand_cost"
   ],
-  "git_commit": "0b412713198fd2787e8b7e6160bbe5faf0cba72f",
+  "git_commit": "32d2970f7e4ca858cac13809981fe9e65a2cce14",
   "hyperparameters": {
+    "allow_degenerate_threshold": false,
     "calibration": "sigmoid",
     "drop_donor_negatives": false,
     "l2_regularization": 1.0,
@@ -44,7 +68,8 @@
     "n_splits_used": 5,
     "note": "calibration and threshold use train-fold out-of-fold predictions (slightly optimistic); promotion uses the test fold through the full pipeline",
     "seed": 0,
-    "target_precision": 1.0
+    "target_precision": 1.0,
+    "target_reached": true
   },
   "monotonic_cst": [
     -1,
@@ -78,18 +103,18 @@
   ],
   "n_positive_test": 306,
   "n_positive_train": 468,
-  "n_test": 792,
-  "n_train": 1201,
+  "n_test": 484,
+  "n_train": 924,
   "oof_metrics": {
-    "brier": 0.030400436963745225,
-    "f1": 0.7969151670951157,
-    "log_loss": 0.11552159294639512,
-    "n": 1201,
+    "brier": 0.03430334549254954,
+    "f1": 0.5166402535657686,
+    "log_loss": 0.1309734768041596,
+    "n": 924,
     "n_pos": 468,
     "precision": 1.0,
-    "recall": 0.6623931623931624,
-    "roc_auc": 0.9890014108977274,
-    "threshold": 0.9804879236449231
+    "recall": 0.3482905982905983,
+    "roc_auc": 0.9870529689608637,
+    "threshold": 0.9944455744357957
   },
   "salt": "gap_bridging_v004",
   "sklearn_version": "1.9.1",
@@ -102,16 +127,16 @@
   ],
   "test_fraction": 0.4,
   "test_metrics": {
-    "brier": 0.03255957424184908,
-    "f1": 0.7636363636363637,
-    "log_loss": 0.13426294454328694,
-    "n": 792,
+    "brier": 0.03894306249421217,
+    "f1": 0.5145631067961165,
+    "log_loss": 0.15843432253323758,
+    "n": 484,
     "n_pos": 306,
     "precision": 1.0,
-    "recall": 0.6176470588235294,
-    "roc_auc": 0.9830549503752118,
-    "threshold": 0.9804879236449231
+    "recall": 0.3464052287581699,
+    "roc_auc": 0.9848167731512081,
+    "threshold": 0.9944455744357957
   },
-  "threshold": 0.9804879236449231,
-  "training_data_sha256": "e04185d48b937f62a13f8b61052df49cb10415cf026831650d568d588bb39c98"
+  "threshold": 0.9944455744357957,
+  "training_data_sha256": "d8cc4dae977c9057d6ab2a0216e260f1e219c942f5a34dc4a168e7dab8b6eaed"
 }

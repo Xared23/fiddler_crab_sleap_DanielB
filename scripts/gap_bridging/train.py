@@ -3,33 +3,47 @@
 """
 Train the learned link scorer from hold-out sweeps (v004, ``bridge_gaps.py train``).
 
-Data. Every ``holdout_<h>/`` of a sweep directory (``bridge_gaps.py sweep
---holdout``) holds the candidate pairs of the planted run
-(``bridged/pair_features.parquet``) and the planted truth
-(``holdout_truth.parquet``). :func:`gap_bridging.labels.label_pairs` labels
-each pair (positive: rejoins a planted gap; negative: touches a planted half
-but is not its partner; unlabelled otherwise) and assigns the train/test
-fold from the original tracklet id; :func:`gap_bridging.labels.dedupe_pairs`
-keeps one row per pair across the sweep's horizons. Only motion-gated pairs
-(``gate`` ``''`` or ``'max_cost'``, i.e. those the assignment can see) with a
-label are kept; optionally the negatives whose START is a decoy donor are
-dropped (``drop_donor_negatives``).
+Data. Every completed ``holdout_<h>/`` of a sweep directory (``bridge_gaps.py
+sweep --holdout``; completed means ``holdout_<h>.json`` is present, the file
+:func:`gap_bridging.holdout.run_holdout` writes last) holds the candidate
+pairs of the planted run (``bridged/pair_features.parquet``) and the planted
+truth (``holdout_truth.parquet``). The pair features must be the ones of
+that run: ``bridged/GAP_BRIDGING_COMPLETE.json`` must list them with their
+sha256, and their row count must equal ``links.parquet``'s, so a stale file
+of an earlier run is refused. Every hold-out's ``config`` must agree on the
+feature keys (:data:`gap_bridging.features.FEATURE_CONFIG_KEYS`); that subset
+is stored in the manifest so the scorer refuses a config that would compute
+different features. :func:`gap_bridging.labels.label_pairs` labels each pair
+(positive: rejoins a planted gap; negative: touches a planted half but is
+not its partner; unlabelled otherwise, including pairs whose two sides'
+originals fall in different folds) and assigns the train/test fold from the
+originals; :func:`gap_bridging.labels.dedupe_pairs` keeps one row per pair
+across the sweep's horizons. Only motion-gated pairs (``gate`` ``''`` or
+``'max_cost'``, i.e. those the assignment can see) with a label are kept;
+optionally the negatives whose START is a decoy donor are dropped
+(``drop_donor_negatives``).
 
 Model. A ``HistGradientBoostingClassifier`` with the monotonic constraints of
 :data:`gap_bridging.features.MONOTONIC` (P(link) non-increasing in distance,
 error, gap, the cue terms and the hand cost), shallow trees and no early
 stopping. Out-of-fold (OOF) probabilities on the train fold come from
-``StratifiedGroupKFold`` grouped by the planted original tracklet (all pairs
-of one plant, decoy or flicker stay in one fold); a calibrator (isotonic or
-sigmoid) is fitted on them, then the classifier is refit on the whole train
-fold.
+``StratifiedGroupKFold`` grouped by the original of the pair's planted side
+(``original_a`` when the END is planted, else ``original_b``), so all pairs
+of one plant, decoy or flicker stay in one CV fold (both originals of a
+labelled pair are in the same train/test fold by construction); a
+calibrator (sigmoid by default, or isotonic) is fitted on them, then the
+classifier is refit on the whole train fold.
 
 Threshold. The smallest calibrated OOF probability at which the OOF
 precision reaches ``target_precision`` (recall maximal under that
 constraint). Calibration and threshold both use the OOF predictions, which
 is slightly optimistic; the test fold is reported at pair level in the
 manifest, and the promotion decision uses the test fold through the full
-pipeline (hold-out sweep with ``cost_model: learned``).
+pipeline (hold-out sweep with ``cost_model: learned``). Training refuses a
+threshold of 1 (every accepted cost ``-log p`` would be 0, D-010; isotonic
+calibration typically produces it) and a target precision that no OOF
+threshold reaches, unless ``allow_degenerate_threshold``; the manifest
+records ``target_reached`` in ``hyperparameters``.
 
 Outputs: the model and manifest (:func:`gap_bridging.scorer.save_scorer`),
 ``<model stem>_metrics.csv`` (per planted gap length, test fold or OOF) and
@@ -38,18 +52,20 @@ optionally the config overlay (``--write-config``).
 Sam
 11/2026
 """
-from __future__ import annotations
 
 # ============================================================
 # IMPORTS
 # ============================================================
 
 # ----- standard library -----
+from __future__ import annotations
+
 import argparse
 import csv
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 import hashlib
+import json
 import math
 import os
 from pathlib import Path
@@ -65,9 +81,10 @@ import pyarrow.parquet as pq
 import yaml
 
 # ----- local modules -----
-from gap_bridging import features, holdout, labels
+from gap_bridging import features, holdout, labels, tables
 from gap_bridging.scorer import (CALIBRATIONS, LinkScorer, ScorerManifest, SigmoidCalibrator,
                                  calibrated_probability, manifest_path, save_scorer)
+from pipeline_common import sha256
 
 # ============================================================
 # CONSTANTS
@@ -85,6 +102,8 @@ THRESHOLD_FLOOR = 1e-12          # learned_min_probability must be in (0, 1]
 OOF_NOTE = ("calibration and threshold use train-fold out-of-fold predictions (slightly "
             "optimistic); promotion uses the test fold through the full pipeline")
 ROOT = Path(__file__).resolve().parents[2]
+LINKS_NAME = 'links.parquet'
+DEGENERATE_HINT = "use --calibration sigmoid or lower --target-precision"
 
 # ============================================================
 # PARAMETERS
@@ -93,7 +112,14 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @dataclass(frozen=True)
 class TrainParams:
-    """Classifier, cross-validation and threshold settings."""
+    """Classifier, cross-validation and threshold settings.
+
+    ``calibration`` defaults to ``'sigmoid'``: isotonic calibration maps the
+    top raw scores to exactly 1, which puts a precision-1.0 threshold at
+    ``p = 1`` (D-010). ``allow_degenerate_threshold`` lets
+    :func:`train_command` save a model whose threshold is 1 or whose target
+    precision is unreachable on the OOF predictions (refused otherwise).
+    """
     seed: int = 0
     max_depth: int = 3
     max_iter: int = 200
@@ -101,9 +127,10 @@ class TrainParams:
     min_samples_leaf: int = 20
     l2_regularization: float = 1.0
     n_splits: int = 5
-    calibration: str = 'isotonic'           # or 'sigmoid'
+    calibration: str = 'sigmoid'            # or 'isotonic'
     target_precision: float = 1.0
     drop_donor_negatives: bool = False
+    allow_degenerate_threshold: bool = False
 
     def __post_init__(self) -> None:
         if self.calibration not in CALIBRATIONS:
@@ -125,7 +152,9 @@ def holdout_dirs(sweep_dir: Path) -> List[Tuple[int, Path]]:
     """``(horizon, dir)`` of the completed ``holdout_<h>/`` runs of a sweep, by horizon.
 
     A directory counts when it contains ``holdout_<h>.json`` (written last by
-    :func:`gap_bridging.holdout.run_holdout`).
+    :func:`gap_bridging.holdout.run_holdout`); this is the only completeness
+    criterion of a hold-out run. Its pair features are then verified against
+    the bridged run's marker (:func:`read_pair_features`).
     """
     sweep_dir = Path(sweep_dir)
     found = []
@@ -136,9 +165,81 @@ def holdout_dirs(sweep_dir: Path) -> List[Tuple[int, Path]]:
     return sorted(found)
 
 
+def read_pair_features(run_dir: Path) -> pa.Table:
+    """The ``bridged/pair_features.parquet`` of a hold-out run, verified fresh.
+
+    Parameters
+    ----------
+    run_dir : Path
+        A completed ``holdout_<h>/`` directory.
+
+    Returns
+    -------
+    pa.Table
+        The pair features table.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the pair features file is missing.
+    ValueError
+        If ``bridged/GAP_BRIDGING_COMPLETE.json`` is missing or does not list
+        the file under ``outputs``, the recorded sha256 differs from the
+        file's, or its row count differs from ``links.parquet``'s (a stale
+        file from an earlier run).
+    """
+    bridged = Path(run_dir) / holdout.BRIDGED_DIR
+    feature_path = bridged / features.PAIR_FEATURES_NAME
+    if not feature_path.is_file():
+        raise FileNotFoundError(f"pair features not found: {feature_path}; {SWEEP_HINT}")
+    marker_path = bridged / tables.COMPLETE_NAME
+    if not marker_path.is_file():
+        raise ValueError(f"{bridged}: no {tables.COMPLETE_NAME}; the run did not complete; "
+                         f"{SWEEP_HINT}")
+    outputs = json.loads(marker_path.read_text()).get('outputs', {})
+    entry = outputs.get(features.PAIR_FEATURES_NAME)
+    if not isinstance(entry, dict) or 'sha256' not in entry:
+        raise ValueError(f"{bridged}: {tables.COMPLETE_NAME} does not list "
+                         f"{features.PAIR_FEATURES_NAME} (stale file of an earlier run?); "
+                         f"{SWEEP_HINT}")
+    if entry['sha256'] != sha256(feature_path):
+        raise ValueError(f"{bridged}: {features.PAIR_FEATURES_NAME} does not match the sha256 "
+                         f"in {tables.COMPLETE_NAME}; {SWEEP_HINT}")
+    links_path = bridged / LINKS_NAME
+    if not links_path.is_file():
+        raise ValueError(f"{bridged}: {LINKS_NAME} is missing; {SWEEP_HINT}")
+    pairs = pq.read_table(feature_path)
+    n_links = pq.ParquetFile(links_path).metadata.num_rows
+    if pairs.num_rows != n_links:
+        raise ValueError(f"{bridged}: {features.PAIR_FEATURES_NAME} has {pairs.num_rows} rows "
+                         f"but {LINKS_NAME} has {n_links}; {SWEEP_HINT}")
+    return pairs
+
+
+def read_feature_config(run_dir: Path) -> dict:
+    """The feature keys (:func:`gap_bridging.features.feature_config`) of a hold-out run.
+
+    Read from the ``config`` of ``holdout_<h>.json``.
+
+    Raises
+    ------
+    ValueError
+        If the JSON has no ``config`` or the config lacks a feature key.
+    """
+    run_dir = Path(run_dir)
+    path = run_dir / f'{run_dir.name}.json'
+    config = json.loads(path.read_text()).get('config')
+    if not isinstance(config, dict):
+        raise ValueError(f"{path} has no 'config'; {SWEEP_HINT}")
+    try:
+        return features.feature_config(config)
+    except ValueError as exc:
+        raise ValueError(f"{path}: {exc}") from exc
+
+
 def collect_training_rows(sweep_dirs: Sequence[Path], salt: str = labels.DEFAULT_SALT,
                           test_fraction: float = labels.DEFAULT_TEST_FRACTION,
-                          drop_donor_negatives: bool = False) -> pa.Table:
+                          drop_donor_negatives: bool = False) -> Tuple[pa.Table, dict]:
     """Labelled, deduplicated, motion-gated pairs of several sweeps.
 
     Parameters
@@ -152,18 +253,27 @@ def collect_training_rows(sweep_dirs: Sequence[Path], salt: str = labels.DEFAULT
 
     Returns
     -------
-    pa.Table
+    table : pa.Table
         :data:`gap_bridging.labels.LABELLED_SCHEMA` plus a string column
         ``sweep`` (the sweep directory); labels 0 and 1 only.
+    feature_cfg : dict
+        The feature keys of the hold-out configs
+        (:func:`gap_bridging.features.feature_config`), equal across every
+        sweep and horizon.
 
     Raises
     ------
     FileNotFoundError
         If a sweep has no completed hold-out or a hold-out has no pair features.
+    ValueError
+        If pair features are stale (:func:`read_pair_features`) or two
+        hold-outs disagree on a feature key (the message lists the keys).
     """
     if not sweep_dirs:
         raise ValueError("no sweep directories given")
     parts = []
+    feature_cfg: Optional[dict] = None
+    feature_cfg_source: Optional[Path] = None
     for sweep_dir in sweep_dirs:
         runs = holdout_dirs(Path(sweep_dir))
         if not runs:
@@ -171,10 +281,14 @@ def collect_training_rows(sweep_dirs: Sequence[Path], salt: str = labels.DEFAULT
                                     f"{SWEEP_HINT}")
         tables, horizons = [], []
         for horizon, run_dir in runs:
-            feature_path = run_dir / holdout.BRIDGED_DIR / features.PAIR_FEATURES_NAME
-            if not feature_path.is_file():
-                raise FileNotFoundError(f"pair features not found: {feature_path}; {SWEEP_HINT}")
-            pairs = pq.read_table(feature_path)
+            run_cfg = read_feature_config(run_dir)
+            if feature_cfg is None:
+                feature_cfg, feature_cfg_source = run_cfg, run_dir
+            elif run_cfg != feature_cfg:
+                differ = [k for k in features.FEATURE_CONFIG_KEYS if run_cfg[k] != feature_cfg[k]]
+                raise ValueError(f"hold-out configs disagree on feature keys {differ}: "
+                                 f"{feature_cfg_source} vs {run_dir}")
+            pairs = read_pair_features(run_dir)
             truth = pq.read_table(run_dir / holdout.TRUTH_NAME)
             tables.append(labels.label_pairs(pairs, truth, salt, test_fraction))
             horizons.append(horizon)
@@ -189,12 +303,21 @@ def collect_training_rows(sweep_dirs: Sequence[Path], salt: str = labels.DEFAULT
         table = table.append_column('sweep', pa.array([str(sweep_dir)] * table.num_rows,
                                                       pa.string()))
         parts.append(table)
-    return pa.concat_tables(parts).combine_chunks()
+    assert feature_cfg is not None
+    return pa.concat_tables(parts).combine_chunks(), feature_cfg
 
 
 def _groups(table: pa.Table) -> np.ndarray:
-    """Planted original id per row (``original_a``, else ``original_b``)."""
-    groups = pc.coalesce(table['original_a'], table['original_b'])
+    """CV group per row: the original of the planted side.
+
+    ``original_a`` when the END is planted (``role_a`` not null), else
+    ``original_b``. Since ``labels.label_pairs`` fills both originals and
+    labels a pair only when they share a fold, the group lies in the row's
+    fold either way; using the planted side keeps every pair of one plant,
+    decoy or flicker in one CV group.
+    """
+    planted_a = pc.is_valid(table['role_a'])
+    groups = pc.if_else(planted_a, table['original_a'], table['original_b'])
     assert groups.null_count == 0, "every labelled pair must touch a planted half"
     return np.asarray(groups.to_pylist(), dtype=object)
 
@@ -203,8 +326,8 @@ def split_folds(table: pa.Table) -> Dict[str, Tuple[np.ndarray, np.ndarray, np.n
     """``fold -> (X, y, groups)`` for ``'train'``, ``'test'`` and any other fold present.
 
     ``X`` is ``(n, F)`` from :func:`gap_bridging.features.feature_matrix`,
-    ``y`` the int labels and ``groups`` the planted original ids. A fold
-    with no rows gives empty arrays.
+    ``y`` the int labels and ``groups`` the CV groups (:func:`_groups`: the
+    original of the planted side). A fold with no rows gives empty arrays.
     """
     present = set(table['fold'].to_pylist()) if table.num_rows else set()
     names = ['train', 'test'] + sorted(f for f in present if f not in ('train', 'test'))
@@ -323,7 +446,9 @@ def choose_threshold(p: np.ndarray, y: np.ndarray, target_precision: float) -> f
     ``precision({p >= t}) >= target_precision`` (so recall is maximal under
     the constraint). If no ``t`` qualifies: just above the highest negative
     (``nextafter(max p[y == 0], inf)``); with no negatives at all, the
-    smallest positive probability.
+    smallest positive probability. The fallback selects no pair (or, once
+    clipped to 1, admits a negative at ``p = 1``); :func:`train_command`
+    refuses it through :func:`target_reached`.
     """
     p = np.asarray(p, dtype=float)
     y = np.asarray(y).astype(np.int64)
@@ -345,7 +470,19 @@ def choose_threshold(p: np.ndarray, y: np.ndarray, target_precision: float) -> f
 
 
 def _ratio(num: float, den: float) -> float:
+    """``num / den`` as a float; NaN when ``den`` is 0 (e.g. precision with no predictions)."""
     return float(num) / float(den) if den else math.nan
+
+
+def target_reached(p: np.ndarray, y: np.ndarray, threshold: float,
+                   target_precision: float) -> bool:
+    """Whether ``{p >= threshold}`` holds a positive and has precision ``>= target``.
+
+    False when nothing is predicted positive (the :func:`choose_threshold`
+    fallback) or when clipping the threshold to 1 admitted negatives.
+    """
+    precision = metrics(p, y, threshold)['precision']
+    return bool(math.isfinite(precision) and precision >= target_precision - 1e-9)
 
 
 def _roc_auc(p: np.ndarray, y: np.ndarray) -> float:
@@ -453,6 +590,7 @@ def metrics_csv_path(model_path: Path) -> Path:
 
 
 def _write_metrics_csv(path: Path, fold: str, rows: List[dict]) -> None:
+    """Write :func:`per_gap_metrics` rows to ``path`` (:data:`METRICS_FIELDS`, ``fold`` column set)."""
     with open(path, 'w', newline='') as fh:
         writer = csv.DictWriter(fh, fieldnames=list(METRICS_FIELDS))
         writer.writeheader()
@@ -511,7 +649,20 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
     -------
     ScorerManifest
         The saved manifest. The threshold is clipped into ``[1e-12, 1]``
-        (the range ``learned_min_probability`` accepts).
+        (the range ``learned_min_probability`` accepts); ``feature_config``
+        holds the hold-outs' feature keys and ``hyperparameters`` records
+        ``target_reached``.
+
+    Raises
+    ------
+    FileExistsError
+        If an output exists and ``force`` is false.
+    ValueError
+        If the train fold is empty, the data are inconsistent
+        (:func:`collect_training_rows`), or, unless
+        ``params.allow_degenerate_threshold``, the clipped threshold is
+        ``>= 1`` (every accepted pair would cost 0) or the target precision
+        is not reached on the OOF predictions. Nothing is written then.
     """
     import sklearn
 
@@ -520,7 +671,8 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
     existing = [str(p) for p in (out, manifest_path(out), csv_path) if p.exists()]
     if existing and not force:
         raise FileExistsError(f"training outputs already exist (use --force): {existing}")
-    table = collect_training_rows(sweeps, salt, test_fraction, params.drop_donor_negatives)
+    table, feature_cfg = collect_training_rows(sweeps, salt, test_fraction,
+                                               params.drop_donor_negatives)
     folds = split_folds(table)
     X_train, y_train, g_train = folds['train']
     X_test, y_test, _ = folds['test']
@@ -534,6 +686,17 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
     threshold = float(min(max(raw_threshold, THRESHOLD_FLOOR), 1.0))
     if threshold != raw_threshold:
         print(f"[train] threshold {raw_threshold!r} clipped to {threshold!r}", flush=True)
+    reached = target_reached(p_oof, y_train, threshold, params.target_precision)
+    if threshold >= 1.0 and not params.allow_degenerate_threshold:
+        raise ValueError(f"degenerate threshold {threshold!r}: every accepted pair would cost 0; "
+                         f"{DEGENERATE_HINT} (or --allow-degenerate-threshold)")
+    if not reached and not params.allow_degenerate_threshold:
+        raise ValueError(f"target precision {params.target_precision} is unreachable on the "
+                         f"out-of-fold predictions (threshold {threshold!r}); lower "
+                         f"--target-precision (or --allow-degenerate-threshold)")
+    if not reached or threshold >= 1.0:
+        print(f"[train] WARNING: degenerate threshold {threshold!r} (target reached: {reached}) "
+              f"kept by allow_degenerate_threshold", flush=True)
     oof_metrics = metrics(p_oof, y_train, threshold)
     if y_test.size:
         p_test = calibrated_probability(hgb, calibrator, X_test)
@@ -544,7 +707,7 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
         gap_fold, gap_table, gap_p = 'oof', table.filter(pc.equal(table['fold'], 'train')), p_oof
     hyper = asdict(params)
     hyper.update({'n_splits_used': effective_splits(y_train, g_train, params.n_splits),
-                  'note': OOF_NOTE})
+                  'target_reached': reached, 'note': OOF_NOTE})
     manifest = ScorerManifest(
         sklearn_version=sklearn.__version__, feature_names=tuple(features.FEATURE_NAMES),
         monotonic_cst=tuple(features.MONOTONIC.get(n, 0) for n in features.FEATURE_NAMES),
@@ -553,7 +716,8 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
         n_test=int(y_test.size), n_positive_train=int(y_train.sum()),
         n_positive_test=int(y_test.sum()), oof_metrics=oof_metrics, test_metrics=test_metrics,
         salt=salt, test_fraction=float(test_fraction), sweeps=tuple(str(s) for s in sweeps),
-        created=datetime.now(timezone.utc).isoformat(timespec='seconds'), git_commit=git_commit())
+        created=datetime.now(timezone.utc).isoformat(timespec='seconds'), git_commit=git_commit(),
+        feature_config=dict(feature_cfg))
     save_scorer(LinkScorer(hgb, calibrator, manifest), out, force=force)
     _write_metrics_csv(csv_path, gap_fold, per_gap_metrics(gap_table, gap_p, threshold))
     print(f"[train] threshold {threshold:.6g}; OOF precision {oof_metrics['precision']:.4f} "
@@ -587,9 +751,14 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--min-samples-leaf', type=int, default=d.min_samples_leaf)
     parser.add_argument('--l2-regularization', type=float, default=d.l2_regularization)
     parser.add_argument('--n-splits', type=int, default=d.n_splits)
-    parser.add_argument('--calibration', choices=CALIBRATIONS, default=d.calibration)
+    parser.add_argument('--calibration', choices=CALIBRATIONS, default=d.calibration,
+                        help=f'probability calibration (default {d.calibration}; isotonic tends '
+                             'to put the threshold at p = 1)')
     parser.add_argument('--target-precision', type=float, default=d.target_precision)
     parser.add_argument('--drop-donor-negatives', action='store_true')
+    parser.add_argument('--allow-degenerate-threshold', action='store_true',
+                        help='save a model whose threshold is 1 or whose target precision is '
+                             'unreachable on the out-of-fold predictions (refused otherwise)')
     parser.add_argument('--force', action='store_true', help='overwrite existing outputs')
 
 
@@ -600,6 +769,7 @@ def run_from_args(args: argparse.Namespace) -> ScorerManifest:
                      min_samples_leaf=args.min_samples_leaf,
                      l2_regularization=args.l2_regularization, n_splits=args.n_splits,
                      calibration=args.calibration, target_precision=args.target_precision,
-                     drop_donor_negatives=args.drop_donor_negatives)
+                     drop_donor_negatives=args.drop_donor_negatives,
+                     allow_degenerate_threshold=args.allow_degenerate_threshold)
     return train_command(args.sweeps, args.out, params, args.salt, args.test_fraction,
                          args.write_config, args.force)

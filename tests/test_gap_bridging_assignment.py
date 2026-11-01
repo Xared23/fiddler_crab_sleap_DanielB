@@ -39,7 +39,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 from gap_bridging import candidates, features, geometry  # noqa: E402
 from gap_bridging.candidates import link_tracklets  # noqa: E402
 from gap_bridging.config import BridgeConfig  # noqa: E402
-from gap_bridging.types import DECISIONS, Endpoint  # noqa: E402
+from gap_bridging.types import DECISIONS, SHOULDER, Endpoint  # noqa: E402
 
 # ============================================================
 # CONSTANTS
@@ -146,6 +146,73 @@ def legacy_pair_costs_sqrt(ends, starts, rows, cols, cfg):
     return dt, cost, candidates._gate_labels(cost, disp_ok, err_ok, max_cost, side_veto)
 
 
+# ----- frozen v003 linear cost path (f6840ff: scripts/gap_bridging/candidates.py) -----
+def v003_shoulder_vectors(points: List[Endpoint]) -> np.ndarray:
+    """Image-frame shoulder-shell vectors ``R(heading) @ offsets[1]``; NaN if unknown."""
+    out = np.full((len(points), 2), np.nan)
+    for k, p in enumerate(points):
+        h = float(p.heading)
+        off = np.asarray(p.offsets, dtype=float)[SHOULDER]
+        if math.isfinite(h) and np.all(np.isfinite(off)):
+            c, s = math.cos(h), math.sin(h)
+            out[k] = (c * off[0] - s * off[1], s * off[0] + c * off[1])
+    return out
+
+
+def v003_stack(points: List[Endpoint]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Stack positions (n,2), velocities (n,2) and vel_known (n,) of endpoints."""
+    pos = np.array([np.asarray(p.pos, dtype=float) for p in points]).reshape(-1, 2)
+    vel = np.array([np.asarray(p.vel, dtype=float) for p in points]).reshape(-1, 2)
+    known = np.array([bool(p.vel_known) for p in points], dtype=bool)
+    assert pos.shape == vel.shape == (len(points), 2)
+    return pos, vel, known
+
+
+def v003_pair_geometry(ends, starts, rows, cols, horizon, cap):
+    """Frame separation, displacement, prediction error and shoulder change per pair."""
+    pa, va, ka = (x[rows] for x in v003_stack(ends))
+    pb, vb, kb = (x[cols] for x in v003_stack(starts))
+    dt = (np.array([s.frame for s in starts], dtype=np.int64)[cols]
+          - np.array([e.frame for e in ends], dtype=np.int64)[rows])
+    assert np.all(dt >= 2), "candidate pairs must have gap >= 1"
+    steps = dt if horizon is None else np.minimum(dt, int(horizon))
+    t = steps.astype(float)[:, None]
+    dist = np.linalg.norm(pb - pa, axis=1)
+    forward = np.linalg.norm(pb - (pa + va * t), axis=1)
+    backward = np.linalg.norm(pa - (pb - vb * t), axis=1)
+    n_known = ka.astype(float) + kb.astype(float)
+    summed = np.where(ka, forward, 0.0) + np.where(kb, backward, 0.0)
+    err = np.where(n_known > 0, summed / np.maximum(n_known, 1.0), dist)
+    ua = v003_shoulder_vectors(ends)[rows]
+    ub = v003_shoulder_vectors(starts)[cols]
+    du = np.linalg.norm(ua - ub, axis=1)
+    shoulder = np.where(np.isfinite(du), np.minimum(np.nan_to_num(du, nan=0.0),
+                                                    cap), 0.0)
+    return dt, dist, err, shoulder
+
+
+def v003_gate_labels(cost, disp_ok, err_ok, max_cost, side_veto=None):
+    """First failing gate per pair: displacement, prediction error, claw side, max cost."""
+    gate = np.full(len(cost), '', dtype=object)
+    gate[~(np.isfinite(cost) & (cost <= max_cost))] = 'max_cost'
+    if side_veto is not None:
+        gate[np.asarray(side_veto, dtype=bool)] = 'claw_side'
+    gate[~err_ok] = 'prediction_error'
+    gate[~disp_ok] = 'displacement'
+    return gate
+
+
+def v003_pair_costs_linear(ends, starts, rows, cols, cfg):
+    """Verbatim body of the v003 ``_pair_costs_linear`` with its helpers frozen above."""
+    dt, dist, err, shoulder = v003_pair_geometry(ends, starts, rows, cols, None,
+                                                 cfg.shoulder_vector_cost_cap_px)
+    w = cfg.motion_weight
+    cost = (1 - w) * dist / dt + w * err / dt + cfg.shoulder_vector_weight * shoulder
+    disp_ok = dist <= cfg.max_body_displacement_px * dt
+    err_ok = err <= cfg.max_prediction_error_px * dt
+    return dt, cost, v003_gate_labels(cost, disp_ok, err_ok, cfg.max_assignment_cost)
+
+
 def hand_pair_features(ends, starts, rows, cols, cfg):
     """Stand-in for ``features.pair_features``: only the hand_cost column is filled."""
     dt, cost, gate = candidates._pair_costs_sqrt(ends, starts, rows, cols,
@@ -179,6 +246,18 @@ class ConstantScorer:
 
     def cost(self, X: np.ndarray) -> np.ndarray:
         return np.full(len(X), -math.log(self.p))
+
+
+class ExactScorer:
+    """Scorer returning ``-np.log(p)`` for every pair, as ``scorer.Scorer.cost`` does."""
+    feature_names = features.FEATURE_NAMES
+
+    def __init__(self, p: float):
+        self.p = float(p)
+        self.threshold = self.p
+
+    def cost(self, X: np.ndarray) -> np.ndarray:
+        return -np.log(np.full(len(X), self.p))
 
 
 @st.composite
@@ -462,6 +541,36 @@ class LearnedCostTests(unittest.TestCase):
                 else:
                     self.assertEqual(d.decision, 'linked')
 
+    def test_regression_probability_at_minimum_is_not_refused(self):
+        # math.log and np.log differ by one ulp at this t; the gate limit must use the
+        # scorer's np.log so that p == learned_min_probability passes.
+        t = 0.9571529830729761
+        self.assertNotEqual(-math.log(t), float(-np.log(t)))
+        cfg = self.learned(learned_min_probability=t)
+        ends, starts = lone_pair()
+        e, s, rows, cols = sorted_pairs(ends, starts, cfg)
+        with mock.patch.object(features, 'pair_features', side_effect=zero_pair_features):
+            _, cost, gate = candidates._pair_costs(e, s, rows, cols, cfg, scorer=ExactScorer(t))
+            links, decisions = link_tracklets(ends, starts, cfg, scorer=ExactScorer(t))
+        self.assertEqual(cost[0], -np.log(t))
+        self.assertEqual(list(gate), [''])
+        self.assertNotEqual(decisions[0].decision, 'refused_gate')
+        self.assertNotEqual(decisions[0].reason, 'max_cost')
+        self.assertEqual(links, [('A', 'B')])
+
+    @settings(deadline=None, max_examples=200)
+    @example(t=0.9571529830729761)
+    @given(st.floats(0.5, 1.0, exclude_max=True))
+    def test_property_max_cost_gate_iff_below_minimum(self, t):
+        cfg = self.learned(learned_min_probability=t)
+        e, s, rows, cols = sorted_pairs(*lone_pair(), cfg)
+        below = float(np.nextafter(t, 0.0))
+        with mock.patch.object(features, 'pair_features', side_effect=zero_pair_features):
+            at = candidates._pair_costs(e, s, rows, cols, cfg, scorer=ExactScorer(t))[2]
+            under = candidates._pair_costs(e, s, rows, cols, cfg, scorer=ExactScorer(below))[2]
+        self.assertEqual(list(at), [''])
+        self.assertEqual(list(under), [candidates.GATE_MAX_COST])
+
     def test_motion_gates_unchanged_whatever_the_scorer(self):
         far = [ep('A', 10, (0., 0.), vel_known=False)], [ep('B', 12, (20., 0.), vel_known=False)]
         _, hand = link_tracklets(*far, SQRT)
@@ -583,15 +692,19 @@ class RefactorTests(unittest.TestCase):
 
     @settings(deadline=None, max_examples=100)
     @given(scenes(), st.integers(1, 30))
-    def test_linear_pair_costs_untouched(self, scene, max_gap):
+    def test_linear_pair_costs_match_frozen_v003(self, scene, max_gap):
+        # Guard independent of the current module: the v003 body is frozen in this file.
         cfg = replace(LINEAR, max_gap=max_gap)
         ends, starts, rows, cols = sorted_pairs(*scene, cfg)
         if rows.size == 0:
             return
         new = candidates._pair_costs(ends, starts, rows, cols, cfg)
-        old = candidates._pair_costs_linear(ends, starts, rows, cols, cfg)
-        for x, y in zip(old, new):
-            np.testing.assert_array_equal(np.asarray(x), np.asarray(y))
+        with np.errstate(divide='ignore', invalid='ignore'):
+            old = v003_pair_costs_linear(ends, starts, rows, cols, cfg)
+        np.testing.assert_array_equal(old[0], new[0])
+        self.assertEqual(new[0].dtype, np.int64)
+        np.testing.assert_array_equal(old[1], new[1])     # bitwise on finite values, NaN-equal
+        self.assertEqual(list(old[2]), list(new[2]))
 
 
 if __name__ == '__main__':

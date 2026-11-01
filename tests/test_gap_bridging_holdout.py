@@ -840,3 +840,28 @@ class HoldoutFeatureExportTests(unittest.TestCase):
             positives = labelled.filter(pc.equal(labelled['label'], 1))
             self.assertEqual(positives.num_rows, truth.num_rows)   # every plant is enumerated
             self.assertTrue(set(labelled['fold'].to_pylist()) <= set(labels.FOLDS))
+            # The caller's cfg is recorded in holdout_<h>.json; the bridged marker records the
+            # configuration actually run, with the export switched on.
+            marker = json.loads((out / 'bridged' / tables.COMPLETE_NAME).read_text())
+            self.assertFalse(summary['config']['export_pair_features'])
+            self.assertTrue(marker['config']['export_pair_features'])
+            self.assertIn(features.PAIR_FEATURES_NAME, marker['outputs'])
+
+    def test_regression_linear_export_is_skipped(self):
+        # features.pair_feature_table is sqrt-only: under the linear model the export
+        # request is ignored instead of failing after the linking.
+        from gap_bridging import features
+        crabs = [straight_crab(c, 0, N_FRAMES, (200.0 + 500.0 * c, 300.0 + 400.0 * (c % 2)),
+                               (0.5, 0.2)) for c in range(1, 5)]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'observations.parquet'
+            pq.write_table(make_observations(crabs), path)
+            out = Path(tmp) / 'out'
+            cfg = BridgeConfig(max_gap=5, gate_model='linear')
+            summary = holdout.run_holdout(path, out, cfg, GAPS, per_gap=1, seed=3,
+                                          export_features=True)
+            self.assertFalse((out / 'bridged' / features.PAIR_FEATURES_NAME).exists())
+            self.assertNotIn('pair_features', summary['outputs'])
+            marker = json.loads((out / 'bridged' / tables.COMPLETE_NAME).read_text())
+            self.assertFalse(marker['config']['export_pair_features'])
+            self.assertNotIn(features.PAIR_FEATURES_NAME, marker['outputs'])

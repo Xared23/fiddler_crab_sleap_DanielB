@@ -203,15 +203,20 @@ class LabelExampleTests(unittest.TestCase):
     def test_role_and_original_columns(self):
         end_side = {r['left_id']: r for r in self.truth}
         start_side = {r['right_id']: r for r in self.truth}
+        half_original = {}
         for r in self.truth:
             if r['role'] == 'flicker':
                 end_side[r['middle_id']] = start_side[r['middle_id']] = r
+            for k in ('left_id', 'right_id', 'middle_id'):
+                if r[k] is not None:
+                    half_original[r[k]] = r['original_id']
         for (a, b), r in self.rows.items():
             ta, tb = end_side.get(a), start_side.get(b)
             self.assertEqual(r['role_a'], ta['role'] if ta else None)
-            self.assertEqual(r['original_a'], ta['original_id'] if ta else None)
             self.assertEqual(r['role_b'], tb['role'] if tb else None)
-            self.assertEqual(r['original_b'], tb['original_id'] if tb else None)
+            # Every side has an original: its truth row's for any half, else itself.
+            self.assertEqual(r['original_a'], half_original.get(a, a))
+            self.assertEqual(r['original_b'], half_original.get(b, b))
             if r['label'] != -1:
                 self.assertTrue(ta or tb)
 
@@ -314,6 +319,69 @@ class DedupeTests(unittest.TestCase):
         self.assertEqual(out.num_rows, tables[-1].num_rows)
 
 
+def key_table(pairs: List[Tuple[str, str]]) -> pa.Table:
+    """A PAIR_FEATURES_SCHEMA table with the given (END, START) keys, gate '' and null features."""
+    rows = [dict({'video_id': 'v', 'tracklet_a': a, 'tracklet_b': b, 'gap_frames': 1, 'gate': ''},
+                 **{name: None for name in FEATURE_NAMES}) for a, b in pairs]
+    return pa.Table.from_pylist(rows, schema=PAIR_FEATURES_SCHEMA)
+
+
+def truth_table(rows: List[dict]) -> pa.Table:
+    """A TRUTH_SCHEMA table from ``{left_id, right_id, original_id[, role, middle_id]}`` dicts."""
+    full = [dict({'gap_frames': 1, 'deleted_first_frame': 10, 'deleted_last_frame': 10,
+                  'role': 'plant', 'middle_id': None, 'partner_id': None}, **r) for r in rows]
+    return pa.Table.from_pylist(full, schema=holdout.TRUTH_SCHEMA)
+
+
+class OriginalFoldTests(unittest.TestCase):
+    """Regression (review finding 5): the unplanted side's original also decides the fold."""
+
+    FRACTION = 0.5
+
+    @classmethod
+    def setUpClass(cls):
+        want = {'t0': 'test', 't1': 'train', 't3': 'test', 't4': 'train'}
+        cls.salt = next(f"s{k}" for k in range(10000)
+                        if all(fold_of(o, f"s{k}", cls.FRACTION) == f for o, f in want.items()))
+        cls.truth = truth_table([
+            {'left_id': 't0', 'right_id': 't0/holdout001', 'original_id': 't0'},
+            {'left_id': 't1', 'right_id': 't1/holdout002', 'original_id': 't1'}])
+        pairs = [('t0/holdout001', 't1/holdout002'),   # END of t0's right half -> t1's right half
+                 ('t1', 't3'),                         # t1's planted END -> unplanted t3 (test)
+                 ('t1', 't4'),                         # t1's planted END -> unplanted t4 (train)
+                 ('t4', 't1/holdout002'),              # unplanted END (train) -> planted START
+                 ('t1', 't1/holdout002'),              # the true pair
+                 ('t0', 't1/holdout002'),              # both planted, folds differ
+                 ('t3', 't0/holdout001')]              # unplanted END (test) -> planted START
+        cls.rows = by_pair(label_pairs(key_table(pairs), cls.truth, cls.salt, cls.FRACTION))
+
+    def check(self, key, label, fold, originals, roles):
+        r = self.rows[key]
+        self.assertEqual((r['label'], r['fold']), (label, fold), key)
+        self.assertEqual((r['original_a'], r['original_b']), originals, key)
+        self.assertEqual((r['role_a'], r['role_b']), roles, key)
+
+    def test_end_of_right_half_maps_to_its_original(self):
+        self.check(('t0/holdout001', 't1/holdout002'), -1, 'unlabelled', ('t0', 't1'),
+                   (None, 'plant'))
+
+    def test_unplanted_side_in_other_fold_is_unlabelled(self):
+        self.check(('t1', 't3'), -1, 'unlabelled', ('t1', 't3'), ('plant', None))
+
+    def test_same_fold_pairs_keep_labels(self):
+        self.check(('t1', 't4'), 0, 'train', ('t1', 't4'), ('plant', None))
+        self.check(('t4', 't1/holdout002'), 0, 'train', ('t4', 't1'), (None, 'plant'))
+        self.check(('t1', 't1/holdout002'), 1, 'train', ('t1', 't1'), ('plant', 'plant'))
+        self.check(('t3', 't0/holdout001'), 0, 'test', ('t3', 't0'), (None, 'plant'))
+        self.check(('t0', 't1/holdout002'), -1, 'unlabelled', ('t0', 't1'), ('plant', 'plant'))
+
+    def test_half_of_two_originals_rejected(self):
+        bad = truth_table([{'left_id': 'a', 'right_id': 'x', 'original_id': 'a'},
+                           {'left_id': 'x', 'right_id': 'y', 'original_id': 'b'}])
+        with self.assertRaises(ValueError):
+            label_pairs(key_table([('a', 'x')]), bad)
+
+
 # ============================================================
 # PROPERTY TESTS
 # ============================================================
@@ -363,6 +431,42 @@ class FoldPropertyTests(unittest.TestCase):
 
 
 class LabelPropertyTests(unittest.TestCase):
+
+    @settings(deadline=None, max_examples=60)
+    @given(st.lists(st.sampled_from(['none', 'plant', 'flicker']), min_size=2, max_size=8),
+           st.lists(st.tuples(st.integers(0, 100), st.integers(0, 100)), min_size=1, max_size=40),
+           st.text(max_size=6), st.floats(0.0, 1.0))
+    def test_property_labelled_rows_share_the_originals_fold(self, kinds, picks, salt, fraction):
+        truth_rows, ends, starts, original_of = [], [], [], {}
+        for k, kind in enumerate(kinds):
+            o = f"t{k}"
+            if kind == 'none':
+                ends.append(o)
+                starts.append(o)
+                original_of[o] = o
+                continue
+            row = {'left_id': o, 'right_id': f"{o}/holdout001", 'original_id': o, 'role': kind}
+            if kind == 'flicker':
+                row['middle_id'] = f"{o}/holdout002"
+            truth_rows.append(row)
+            halves = [o, f"{o}/holdout001"] + ([row['middle_id']] if kind == 'flicker' else [])
+            ends.extend(halves)
+            starts.extend(halves)
+            original_of.update({h: o for h in halves})
+        pairs = sorted({(ends[i % len(ends)], starts[j % len(starts)]) for i, j in picks})
+        truth = truth_table(truth_rows) if truth_rows else truth_table(
+            [{'left_id': 'zz', 'right_id': 'zz/holdout001', 'original_id': 'zz'}])
+        out = label_pairs(key_table(pairs), truth, salt, fraction)
+        for r in out.to_pylist():
+            a, b = r['tracklet_a'], r['tracklet_b']
+            self.assertEqual(r['original_a'], original_of.get(a, a))
+            self.assertEqual(r['original_b'], original_of.get(b, b))
+            if r['label'] == -1:
+                self.assertEqual(r['fold'], 'unlabelled')
+                continue
+            self.assertTrue(r['role_a'] is not None or r['role_b'] is not None)
+            self.assertEqual(fold_of(r['original_a'], salt, fraction), r['fold'])
+            self.assertEqual(fold_of(r['original_b'], salt, fraction), r['fold'])
 
     @settings(deadline=None, max_examples=8)
     @given(st.integers(0, 1000), st.sampled_from([(1,), (2, 4), (1, 3, 6)]),

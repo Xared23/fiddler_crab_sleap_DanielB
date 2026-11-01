@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 from hypothesis import given, settings, strategies as st
 import numpy as np
@@ -820,6 +821,36 @@ class FeatureExportTests(unittest.TestCase):
             self.assertEqual(marker['gate']['cost_model'], 'hand')
             with self.assertRaises(FileExistsError):
                 pipeline.run(path, out, cfg)
+
+    def test_regression_force_rerun_without_export_removes_stale_features(self):
+        from gap_bridging import features
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_parquet(scene_table(), Path(tmp))
+            out = Path(tmp) / 'run'
+            first = pipeline.run(path, out, replace(CFG, export_pair_features=True))
+            self.assertIn(features.PAIR_FEATURES_NAME, first['outputs'])
+            self.assertTrue((out / features.PAIR_FEATURES_NAME).is_file())
+            with self.assertRaises(FileExistsError):               # still refused without force
+                pipeline.run(path, out, CFG)
+            self.assertTrue((out / features.PAIR_FEATURES_NAME).is_file())
+            marker = pipeline.run(path, out, CFG, force=True)
+            self.assertFalse((out / features.PAIR_FEATURES_NAME).exists())
+            self.assertNotIn(features.PAIR_FEATURES_NAME, marker['outputs'])
+            on_disk = json.loads((out / tables.COMPLETE_NAME).read_text())
+            self.assertEqual(sorted(on_disk['outputs']), sorted(OUTPUTS))
+            for name in OUTPUTS:
+                self.assertEqual(marker['outputs'][name], first['outputs'][name])
+
+    def test_package_versions_missing_package_is_empty(self):
+        def missing(name):
+            raise pipeline.metadata.PackageNotFoundError(name)
+        with mock.patch.object(pipeline.metadata, 'version', side_effect=missing):
+            versions = pipeline.package_versions()
+        self.assertEqual(set(versions), set(pipeline.VERSIONED_PACKAGES))
+        self.assertTrue(versions)
+        self.assertTrue(all(v == '' for v in versions.values()))
+        installed = pipeline.package_versions()
+        self.assertTrue(installed['numpy'])
 
     def test_learned_without_model_fails_before_writing(self):
         with tempfile.TemporaryDirectory() as tmp:

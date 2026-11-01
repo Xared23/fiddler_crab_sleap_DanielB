@@ -54,7 +54,8 @@ v004 options (all off by default):
 * ``cfg.cost_model = 'learned'``: the cost is ``-log p`` from a scorer over
   ``features.pair_features`` (``_pair_costs_learned``); the sqrt motion gates
   and the claw-side veto are unchanged, and the thresholds are
-  ``cfg.cost_thresholds()`` (``-log`` of the configured probabilities).
+  ``cfg.cost_thresholds()`` (``-log`` of the configured probabilities; the
+  ``max_cost`` gate is recomputed with ``np.log`` in ``_pair_costs_learned``).
 
 Sam
 10/2026
@@ -561,9 +562,10 @@ def _pair_costs_learned(ends: List[Endpoint], starts: List[Endpoint], rows: np.n
     (evaluated with ``cost_model='hand'``) of the pairs that pass both motion
     gates are scored by ``scorer.cost``; pairs failing a motion gate get a NaN
     cost (their audit rows report NaN under either model) and are not scored.
-    ``max_cost`` gate at ``cfg.cost_thresholds()['max_assignment_cost']``
-    ``= -log learned_min_probability``, so a pair is refused ``max_cost`` iff
-    ``p < learned_min_probability``.
+    ``max_cost`` gate at ``-np.log(cfg.learned_min_probability)``, computed
+    here with the same ``np.log`` the scorer uses for ``-log p`` (not
+    ``cfg.cost_thresholds()``, whose ``math.log`` can differ by one ulp), so a
+    pair is refused ``max_cost`` iff ``p < learned_min_probability``.
 
     Parameters
     ----------
@@ -601,7 +603,7 @@ def _pair_costs_learned(ends: List[Endpoint], starts: List[Endpoint], rows: np.n
         assert scored.shape == (int(motion_ok.sum()),), "scorer.cost must return one value per row"
         assert np.all(np.isfinite(scored)), "scorer.cost must be finite on motion-gated pairs"
         cost[motion_ok] = scored
-    max_cost = cfg.cost_thresholds()['max_assignment_cost']
+    max_cost = float(-np.log(cfg.learned_min_probability))     # same np.log as scorer.cost
     return dt, cost, _gate_labels(cost, disp_ok, err_ok, max_cost, side_veto)
 
 
@@ -757,6 +759,12 @@ def _assign(rows: np.ndarray, cols: np.ndarray, cost: np.ndarray, assignable: np
     so the two modes differ only inside contested components, where the
     dummy sets how much total cost a second link may add before the solver
     prefers to leave an endpoint unmatched.
+
+    Degenerate case: under adaptive pricing a component whose costs are all
+    0 gets a dummy of 0 too, so linking and leaving unmatched tie; a lone
+    pair then links only through the solver's tie-breaking, and a contested
+    zero-cost component is resolved arbitrarily. Costs of exactly 0 arise
+    under the learned cost model when a probability is exactly 1.
     """
     assert mode in ('fixed', 'adaptive'), f"unknown unmatched_cost_mode {mode!r}"
     assigned = np.zeros(len(rows), dtype=bool)

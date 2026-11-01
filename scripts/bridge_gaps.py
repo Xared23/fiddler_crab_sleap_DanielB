@@ -233,7 +233,7 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
           holdout_run: bool = False, holdout_gaps: list[int] = list(DEFAULT_HOLDOUT_GAPS),
           per_gap: int = 8, seed: int = 0, force: bool = False, video: Path | None = None,
           bridges_from: int | None = None, figures_on: bool = True, decoys: int = 0,
-          flicker: int = 0, export_features: bool = False) -> list[dict]:
+          flicker: int = 0, export_features: bool = True) -> list[dict]:
     """Bridge at every horizon, optionally score a hold-out, write the CSVs and figures.
 
     Parameters
@@ -266,7 +266,9 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
         Write the figures.
     export_features : bool
         Write ``pair_features.parquet`` in every hold-out's ``bridged/``
-        directory (v004 training input; ``bridge_gaps.py train``).
+        directory (v004 training input; ``bridge_gaps.py train``); default
+        True as on the command line (``--no-export-features``). Applies only
+        under ``cfg.gate_model == 'sqrt'``: a linear sweep never exports.
 
     Returns
     -------
@@ -297,7 +299,9 @@ def sweep(observations: Path, out: Path, max_gaps: list[int], cfg: BridgeConfig,
             print(f"[sweep] max_gap {horizon}: hold-out gaps {gaps} x {per_gap}", flush=True)
             result = holdout.run_holdout(observations, out / f'holdout_{horizon}', run_cfg, gaps,
                                          per_gap, seed=seed, force=force, decoys=decoys,
-                                         flicker=flicker, export_features=export_features)
+                                         flicker=flicker,
+                                         export_features=(export_features
+                                                          and cfg.gate_model == 'sqrt'))
             overall = result['scores'][-1]
             row.update({'holdout_planted': overall['planted'],
                         'holdout_precision': _nan(overall['precision']),
@@ -459,7 +463,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help='horizon whose bridges are rendered (default the largest)')
     sw.add_argument('--no-figures', action='store_true', help='skip the figures')
     sw.add_argument('--no-export-features', action='store_true',
-                    help='do not write pair_features.parquet in the hold-out runs (v004)')
+                    help='do not write pair_features.parquet in the hold-out runs (v004; '
+                         'written under gate_model sqrt only)')
     sw.add_argument('--force', action='store_true', help='overwrite existing outputs')
 
     po = sub.add_parser('pool', help='pool the hold-out of several sweeps (seeds) and apply '

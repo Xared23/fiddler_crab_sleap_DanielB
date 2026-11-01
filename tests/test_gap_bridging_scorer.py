@@ -12,7 +12,9 @@ Sam
 # ============================================================
 
 # ----- standard library -----
+import contextlib
 from dataclasses import replace
+import io
 import json
 import math
 import os
@@ -106,6 +108,15 @@ class ManifestTests(unittest.TestCase):
         json.dumps(d, allow_nan=False)
         back = scorer.ScorerManifest.from_json(d)
         self.assertTrue(math.isnan(back.test_metrics['roc_auc']))
+
+    def test_feature_config_round_trip_and_old_manifest(self):
+        fc = features.feature_config(BridgeConfig())
+        m = manifest(feature_config=fc)
+        back = scorer.ScorerManifest.from_json(json.loads(json.dumps(m.to_json())))
+        self.assertEqual(back.feature_config, fc)
+        old = manifest(feature_config=fc).to_json()
+        del old['feature_config']                    # a manifest written before the field
+        self.assertEqual(scorer.ScorerManifest.from_json(old).feature_config, {})
 
     def test_unknown_key_rejected(self):
         d = manifest().to_json()
@@ -265,6 +276,55 @@ class PersistenceTests(unittest.TestCase):
         s = scorer.resolve_scorer(cfg)
         self.assertIsInstance(s, scorer.LinkScorer)
         self.assertIs(scorer.resolve_scorer(replace(cfg)), s)
+
+
+class FeatureConfigTests(unittest.TestCase):
+    """Review finding 6: a scorer refuses a config that computes different features."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.tmp = Path(self._tmp.name)
+        self.base = BridgeConfig(cost_model='learned')
+        fitted = fitted_scorer()
+        self.path = self.tmp / 'model.joblib'
+        tied = scorer.LinkScorer(fitted.hgb, fitted.calibrator, manifest(
+            feature_config=features.feature_config(self.base)))
+        scorer.save_scorer(tied, self.path)
+        self.old_path = self.tmp / 'old.joblib'
+        scorer.save_scorer(fitted, self.old_path)            # manifest without feature_config
+
+    def cfg(self, path, **changes):
+        return replace(self.base, scorer_path=str(path), **changes)
+
+    def test_matching_config_accepted(self):
+        # max_gap, the learned thresholds and the assignment are not feature keys.
+        cfg = self.cfg(self.path, max_gap=60, learned_min_probability=0.9, assignment='global')
+        self.assertIsInstance(scorer.resolve_scorer(cfg), scorer.LinkScorer)
+        scorer.load_scorer(self.path, cfg)
+
+    def test_mismatch_lists_keys(self):
+        for changes in ({'gap_penalty': 0.2}, {'radius_k_px': 4.0, 'appearance_cues': False},
+                        {'prediction_horizon_frames': 5}, {'shoulder_vector_cost_cap_px': 6.0}):
+            cfg = self.cfg(self.path, **changes)
+            with self.assertRaises(ValueError) as ctx:
+                scorer.resolve_scorer(cfg)
+            for key in changes:
+                self.assertIn(key, str(ctx.exception))
+            with self.assertRaises(ValueError):
+                scorer.load_scorer(self.path, cfg)
+        scorer.load_scorer(self.path)                         # no cfg: no check
+
+    def test_old_manifest_warns_once(self):
+        scorer._warn_no_feature_config.cache_clear()
+        cfg = self.cfg(self.old_path, gap_penalty=0.2)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            first = scorer.resolve_scorer(cfg)
+            scorer.resolve_scorer(cfg)
+        self.assertIsInstance(first, scorer.LinkScorer)
+        self.assertEqual(buf.getvalue().count('WARNING'), 1)
+        self.assertIn('feature_config', buf.getvalue())
 
 
 class LazyImportTests(unittest.TestCase):

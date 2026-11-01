@@ -317,6 +317,19 @@ class FeatureColumnTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             feature_matrix(pa.table({'gap': [1.0]}))
 
+    def test_feature_config(self):
+        cfg = BridgeConfig()
+        got = features.feature_config(cfg)
+        self.assertEqual(tuple(got), features.FEATURE_CONFIG_KEYS)
+        self.assertEqual(got, {k: cfg.to_dict()[k] for k in features.FEATURE_CONFIG_KEYS})
+        self.assertEqual(features.feature_config(cfg.to_dict()), got)      # holdout JSON form
+        self.assertEqual(features.feature_config(replace(cfg, max_gap=7, cost_model='learned')), got)
+        self.assertNotEqual(features.feature_config(replace(cfg, gap_penalty=0.2)), got)
+        partial = cfg.to_dict()
+        del partial['radius_k_px']
+        with self.assertRaisesRegex(ValueError, 'radius_k_px'):
+            features.feature_config(partial)
+
     def test_feature_matrix_nulls_and_subset(self):
         table = pa.table({'gap': pa.array([1.0, None]), 'dist': pa.array([None, 2.5])})
         X = feature_matrix(table, ('dist', 'gap'))
@@ -330,7 +343,8 @@ class RivalCountTests(unittest.TestCase):
 
     e3 (claw side -1) -> s1 (claw side +1) is claw-side vetoed; every pair into
     s3 (20 px away) fails the displacement gate. By hand, with rivals counted
-    over motion-gated pairs with dt' <= dt:
+    over pairs with gate '' or 'max_cost' (motion gates passed and not
+    claw-side vetoed) and dt' <= dt:
     """
 
     EXPECTED = {   # (a, b): (gate, n_rival_starts, n_rival_ends)
@@ -370,6 +384,31 @@ class RivalCountTests(unittest.TestCase):
                 self.assertEqual(d.decision, 'refused_gate')
                 self.assertEqual(d.reason.split(';')[0], gate)
                 self.assertTrue(math.isfinite(cost))   # features keep the gated pair's cost
+
+    @settings(deadline=None, max_examples=200)
+    @given(st.integers(1, 40).flatmap(lambda n: st.tuples(
+        st.lists(st.integers(0, 4), min_size=n, max_size=n),
+        st.lists(st.integers(0, 4), min_size=n, max_size=n),
+        st.lists(st.integers(2, 9), min_size=n, max_size=n),
+        st.lists(st.booleans(), min_size=n, max_size=n))))
+    def test_property_rival_counts_match_brute_force(self, arrays):
+        rows, cols, dt, ok = (np.asarray(a) for a in arrays)
+        ok = ok.astype(bool)
+        for group in (rows, cols):
+            got = features._rival_counts(group.astype(np.int64), dt.astype(np.int64), ok)
+            want = [sum(1 for q in range(group.size)
+                        if q != k and group[q] == group[k] and ok[q] and dt[q] <= dt[k])
+                    for k in range(group.size)]
+            np.testing.assert_array_equal(got, np.asarray(want, dtype=float))
+
+    def test_rivals_exclude_claw_side_vetoed_pairs(self):
+        table = pair_feature_table(*self.scene(), SQRT, 'v')
+        rows = {(r['tracklet_a'], r['tracklet_b']): r for r in table.to_pylist()}
+        # e3 -> s1 is vetoed: it is no rival of e3 -> s2 (same END, shorter dt) ...
+        self.assertEqual(rows[('e3', 's1')]['gate'], 'claw_side')
+        self.assertEqual(rows[('e3', 's2')]['n_rival_starts'], 0)
+        # ... nor of e1 -> s1 / e2 -> s1 (same START, same dt).
+        self.assertEqual(rows[('e1', 's1')]['n_rival_ends'], 1)
 
 
 # ============================================================

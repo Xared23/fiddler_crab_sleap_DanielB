@@ -2,7 +2,7 @@
 # global assignment and adaptive dummy cost. Keep learned_* equal to gap_bridging_v004_learned.yaml.
 cost_model: learned
 scorer_path: link_scorer_v001.joblib
-learned_min_probability: 0.9804879236449231
+learned_min_probability: 0.9944455744357957
 learned_unmatched_probability: 0.5
 learned_margin: 0.0
 assignment: global

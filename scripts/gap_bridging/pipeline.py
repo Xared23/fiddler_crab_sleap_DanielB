@@ -330,7 +330,9 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
     cfg : BridgeConfig
         Linking, recovery and fill parameters.
     force : bool
-        Overwrite existing outputs.
+        Overwrite existing outputs. Without ``cfg.export_pair_features`` a
+        ``pair_features.parquet`` left by an earlier exporting run is deleted
+        (just before the write), so no stale, unlisted feature file survives.
 
     Returns
     -------
@@ -349,7 +351,9 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
         (v004: wall seconds per stage, ``time.perf_counter``) and ``outputs``
         (sha256 and rows per file; with ``cfg.export_pair_features`` also
         ``pair_features.parquet``). ``gate`` also carries ``cost_model``,
-        ``assignment`` and ``unmatched_cost_mode`` (v004).
+        ``assignment`` and ``unmatched_cost_mode`` (v004). ``timings`` is
+        wall-clock and the only block that differs between two runs of the
+        same input and configuration.
 
     Raises
     ------
@@ -491,6 +495,9 @@ def run(observations_path: Path, out_dir: Path, cfg: BridgeConfig, force: bool =
     timings['total'] = round(sum(timings.values()), 6)   # every stage before the write
     summary = {'config': cfg.to_dict(), 'gate': gate, 'input': source, 'counts': counts,
                'versions': package_versions(), 'timings': timings}
+    stale = out_dir / features.PAIR_FEATURES_NAME
+    if force and not cfg.export_pair_features and stale.exists():
+        stale.unlink()                                       # not listed in this run's marker
     marker = tables.write_outputs(out_dir, observations, trajectory_table, links_table, summary,
                                   force, extra=extra or None)
     _progress('write', started, f"outputs in {out_dir}")

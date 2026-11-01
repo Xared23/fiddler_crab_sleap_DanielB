@@ -125,6 +125,9 @@ class BridgeConfig:
             raise ValueError("cost_model must be 'hand' or 'learned'")
         if self.cost_model == "learned" and self.gate_model != "sqrt":
             raise ValueError("cost_model 'learned' requires gate_model 'sqrt'")
+        if self.export_pair_features and self.gate_model != "sqrt":
+            raise ValueError("export_pair_features requires gate_model 'sqrt' "
+                             "(features.pair_feature_table is sqrt-only)")
         if (not 0 < self.learned_min_probability <= 1 or not 0 < self.learned_unmatched_probability <= 1
                 or self.learned_margin < 0):
             raise ValueError("learned probabilities must be in (0, 1] and learned_margin >= 0")

@@ -10,6 +10,16 @@ partner, and unlabelled otherwise. Folds are a deterministic function of the
 ORIGINAL (pre-plant) tracklet id, so that every plant, decoy and flicker cut
 from one tracklet, under every seed, lands in the same fold.
 
+Originals. Every side of a pair has an ORIGINAL: the truth ``original_id``
+when the tracklet is a planted left, right or middle half (whichever of its
+two ends the pair uses, so the START of a left half and the END of a right
+half ``X/holdout001`` both map to ``X``), otherwise the tracklet id itself
+(an unplanted tracklet is its own original). The fold of a labelled pair is
+the common fold of its two originals; a pair whose originals fall in
+different folds is unlabelled, so that no tracklet of a test-fold original
+(planted under another seed, or the untouched end of a half) enters
+training as the other side of a train-fold pair.
+
 Planted sides. The END side (``tracklet_a``) of a pair is planted when it is
 a truth ``left_id`` (any role) or a flicker ``middle_id``; the START side
 (``tracklet_b``) when it is a truth ``right_id`` (any role) or a flicker
@@ -19,8 +29,8 @@ a truth ``left_id`` (any role) or a flicker ``middle_id``; the START side
   (middle, right) of a ``flicker``.
 * ``-1``: neither side planted; the (left, right) of a ``flicker`` (the middle
   lies between them) and of a ``decoy_donor`` (its right half was translated,
-  so the geometry is fake); both sides planted from originals in different
-  folds.
+  so the geometry is fake); the two sides' originals in different folds
+  (planted or not).
 * ``0``: every other pair with a planted side, among them the decoy hard
   negative (target left, donor right) and any END into a donor's moved right
   half (``role_b == 'decoy_donor'``; a trainer may drop those).
@@ -169,25 +179,28 @@ Side = Tuple[str, str, str]       # (role, original_id, fold) of a planted side
 
 
 def _planted_sides(columns: Dict[str, list], folds: List[str]
-                   ) -> Tuple[Dict[str, Side], Dict[str, Side], set, set]:
+                   ) -> Tuple[Dict[str, Side], Dict[str, Side], set, set, Dict[str, str]]:
     """
-    Planted END and START sides, positive pairs and explicitly unlabelled pairs.
+    Planted END and START sides, positive and unlabelled pairs, half originals.
 
     Returns
     -------
-    (end_side, start_side, positive, unlabelled) : tuple
-        ``tracklet_id -> (role, original, fold)`` for the END and START sides,
-        and two sets of ``(tracklet_a, tracklet_b)``.
+    (end_side, start_side, positive, unlabelled, original_of) : tuple
+        ``tracklet_id -> (role, original, fold)`` for the END and START sides;
+        two sets of ``(tracklet_a, tracklet_b)``; and ``tracklet_id ->
+        original_id`` for every left, right and middle half (both ends).
 
     Raises
     ------
     ValueError
-        If a tracklet is planted twice on the same side.
+        If a tracklet is planted twice on the same side or is a half of two
+        different originals.
     """
     end_side: Dict[str, Side] = {}
     start_side: Dict[str, Side] = {}
     positive: set = set()
     unlabelled: set = set()
+    original_of: Dict[str, str] = {}
 
     def put(table: Dict[str, Side], tracklet: str, value: Side, which: str) -> None:
         if tracklet in table:
@@ -198,6 +211,10 @@ def _planted_sides(columns: Dict[str, list], folds: List[str]
             columns['left_id'], columns['right_id'], columns['original_id'],
             columns['role'], columns['middle_id'])):
         value = (role, original, folds[k])
+        for half in (left, right) + ((middle,) if role == 'flicker' else ()):
+            if original_of.setdefault(half, original) != original:
+                raise ValueError(f"tracklet {half!r} is a half of originals "
+                                 f"{original_of[half]!r} and {original!r}")
         put(end_side, left, value, 'END')
         put(start_side, right, value, 'START')
         if role == 'flicker':
@@ -210,7 +227,7 @@ def _planted_sides(columns: Dict[str, list], folds: List[str]
         else:
             positive.add((left, right))
     assert not positive & unlabelled, "a pair cannot be both positive and unlabelled"
-    return end_side, start_side, positive, unlabelled
+    return end_side, start_side, positive, unlabelled, original_of
 
 
 def label_pairs(features: pa.Table, truth: pa.Table, salt: str = DEFAULT_SALT,
@@ -233,11 +250,12 @@ def label_pairs(features: pa.Table, truth: pa.Table, salt: str = DEFAULT_SALT,
     pa.Table
         :data:`LABELLED_SCHEMA`: the features rows (same order) plus
         ``label`` (1, 0 or -1, see the module docstring); ``fold`` ('train' or
-        'test' from the planted side's original for labels 0 and 1,
-        'unlabelled' for -1); ``role_a``/``original_a`` of the truth row that
-        planted ``tracklet_a`` as an END side and ``role_b``/``original_b``
-        of the row that planted ``tracklet_b`` as a START side (null when not
-        planted).
+        'test', the common fold of ``original_a`` and ``original_b``, for
+        labels 0 and 1; 'unlabelled' for -1); ``role_a`` of the truth row that
+        planted ``tracklet_a`` as an END side and ``role_b`` of the row that
+        planted ``tracklet_b`` as a START side (null when not planted); and
+        ``original_a``/``original_b``, the ORIGINAL of each side (module
+        docstring), never null.
 
     Raises
     ------
@@ -251,7 +269,13 @@ def label_pairs(features: pa.Table, truth: pa.Table, salt: str = DEFAULT_SALT,
     features = features.select(PAIR_FEATURES_SCHEMA.names).cast(PAIR_FEATURES_SCHEMA)
     columns = _truth_columns(truth)
     folds = [fold_of(o, salt, test_fraction) for o in columns['original_id']]
-    end_side, start_side, positive, unlabelled = _planted_sides(columns, folds)
+    end_side, start_side, positive, unlabelled, original_of = _planted_sides(columns, folds)
+    fold_cache: Dict[str, str] = {}
+
+    def fold_of_original(original: str) -> str:
+        if original not in fold_cache:
+            fold_cache[original] = fold_of(original, salt, test_fraction)
+        return fold_cache[original]
 
     a_ids = features['tracklet_a'].to_pylist()
     b_ids = features['tracklet_b'].to_pylist()
@@ -264,20 +288,26 @@ def label_pairs(features: pa.Table, truth: pa.Table, salt: str = DEFAULT_SALT,
     original_b: List[Optional[str]] = [None] * n
     for k, (a, b) in enumerate(zip(a_ids, b_ids)):
         side_a, side_b = end_side.get(a), start_side.get(b)
+        original_a[k], original_b[k] = original_of.get(a, a), original_of.get(b, b)
         if side_a is not None:
-            role_a[k], original_a[k] = side_a[0], side_a[1]
+            role_a[k] = side_a[0]
+            assert side_a[1] == original_a[k], "a planted side's original is its truth row's"
         if side_b is not None:
-            role_b[k], original_b[k] = side_b[0], side_b[1]
+            role_b[k] = side_b[0]
+            assert side_b[1] == original_b[k], "a planted side's original is its truth row's"
         if side_a is None and side_b is None:
             continue
         if (a, b) in unlabelled:
             continue
-        if side_a is not None and side_b is not None and side_a[2] != side_b[2]:
+        fold_a, fold_b = fold_of_original(original_a[k]), fold_of_original(original_b[k])
+        if fold_a != fold_b:
             assert (a, b) not in positive, "a true pair shares its original"
             continue
         label[k] = POSITIVE if (a, b) in positive else NEGATIVE
-        fold[k] = (side_a if side_a is not None else side_b)[2]
+        fold[k] = fold_a
     assert all((f == 'unlabelled') == (lab == UNLABELLED) for f, lab in zip(fold, label))
+    assert all(f == 'unlabelled' or fold_of_original(oa) == fold_of_original(ob) == f
+               for f, oa, ob in zip(fold, original_a, original_b)), "fold is the originals' fold"
     out = features
     for name, values, kind in (('label', label, pa.int8()), ('fold', fold, pa.string()),
                                ('role_a', role_a, pa.string()), ('role_b', role_b, pa.string()),

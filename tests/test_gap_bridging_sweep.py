@@ -389,3 +389,40 @@ class TrainCompareCliTests(unittest.TestCase):
         self.assertEqual(markers['0.7']['config']['learned_margin'], 0.7)
         self.assertEqual(markers['0.7']['config']['minimum_cost_margin_sqrt'],
                          BridgeConfig().minimum_cost_margin_sqrt)
+
+
+# --------------------------------------------------------------------------- #
+# v004 fix wave: feature export only under the sqrt gate model
+# --------------------------------------------------------------------------- #
+class LinearSweepExportTests(unittest.TestCase):
+    """``sweep --holdout`` exports pair features by default, but a linear (v001/v002)
+    sweep must neither export nor fail (``features.pair_feature_table`` is sqrt-only)."""
+
+    def test_regression_linear_holdout_sweep_runs_without_export(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            path = tmp / 'observations.parquet'
+            pq.write_table(sweep_scene(), path)
+            config = tmp / 'linear.yaml'
+            config.write_text('gate_model: linear\n')
+            out = tmp / 'sweep'
+            code = bridge_gaps.main(['sweep', '--observations', str(path), '--out', str(out),
+                                     '--config', str(config), '--max-gaps', '3',
+                                     '--holdout', '--holdout-gaps', '1,2', '--per-gap', '1',
+                                     '--no-figures'])
+            self.assertEqual(code, 0)
+            self.assertTrue(nonempty(out / 'holdout_3' / 'bridged' / 'links.parquet'))
+            self.assertEqual(list(out.rglob('pair_features.parquet')), [])
+            marker = json.loads((out / 'holdout_3' / 'bridged'
+                                 / 'GAP_BRIDGING_COMPLETE.json').read_text())
+            self.assertEqual(marker['gate']['gate_model'], 'linear')
+            self.assertFalse(marker['config']['export_pair_features'])
+            summary = json.loads((out / 'holdout_3' / 'holdout_3.json').read_text())
+            self.assertNotIn('pair_features', summary['outputs'])
+
+    def test_sweep_python_default_exports_like_the_cli(self):
+        import inspect
+        default = inspect.signature(bridge_gaps.sweep).parameters['export_features'].default
+        self.assertIs(default, True)
+        self.assertFalse(bridge_gaps.parse_args(['sweep', '--observations', 'o', '--out', 'w',
+                                                 '--max-gaps', '3']).no_export_features)

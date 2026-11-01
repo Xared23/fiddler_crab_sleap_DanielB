@@ -9,7 +9,12 @@ A variant is a list of sweep directories (one per seed) written by
 (:func:`gap_bridging.labels.truth_folds`, keyed on the ORIGINAL tracklet id),
 so a learned scorer trained on the ``train`` fold is judged on ``test``
 plants only; ``fold='all'`` reproduces the sweep's ``holdout_by_gap.csv``.
-``compare_variants`` pools every variant's seeds
+Each truth row is kept by its own fold; decoy donors need no special rule,
+since :func:`gap_bridging.holdout.score_links` skips them and reads the donor
+from its target's ``partner_id``. ``compare_variants`` first checks that all
+variants were scored on the same plants (same sweep count, same horizons,
+identical ``holdout_truth.parquet`` per sweep index and horizon), then pools
+every variant's seeds
 (:func:`gap_bridging.holdout.pool_sweeps`), applies the horizon rule
 (:func:`gap_bridging.holdout.apply_rule`) and checks each variant against a
 baseline (``promotion_check``: precision 1 and no recall loss at every planted
@@ -91,24 +96,33 @@ def _horizon(holdout_dir: Path) -> int:
 
 
 def _keep_fold(truth: pa.Table, fold: str) -> pa.Table:
-    """Truth rows of one fold; a decoy donor also follows its target's fold.
+    """Truth rows whose own ``fold`` (of their ``original_id``) is ``fold``.
 
-    ``truth`` carries ``fold`` (of each row's ``original_id``). A row is kept
-    when its own fold matches, and a ``decoy_donor`` row also when the fold of
-    its partner (the target's left half, mapped to the target's original id)
-    matches. Donors are not scored themselves, so keeping one in both folds
-    does not double-count anything.
+    Decoy donors get no special treatment: :func:`gap_bridging.holdout.score_links`
+    skips ``decoy_donor`` rows and takes the donor from the target row's
+    ``partner_id``, so whether a donor row is kept never changes a score.
     """
-    rows = truth.to_pylist()
-    original_of = {r['left_id']: r['original_id'] for r in rows}
-    fold_of = {r['original_id']: r['fold'] for r in rows}
-    keep = []
-    for r in rows:
-        partner_fold = None
-        if r['role'] == 'decoy_donor' and r['partner_id'] is not None:
-            partner_fold = fold_of.get(original_of.get(r['partner_id'], r['partner_id']))
-        keep.append(r['fold'] == fold or partner_fold == fold)
-    return truth.filter(pa.array(keep, pa.bool_()))
+    return truth.filter(pc.equal(truth['fold'], fold))
+
+
+def holdout_dirs(sweep_dir: Path) -> list[tuple[int, Path]]:
+    """``(horizon, dir)`` of the completed ``holdout_<h>/`` runs of a sweep, by horizon.
+
+    A directory counts when it holds ``holdout_<h>.json`` (written last by
+    :func:`gap_bridging.holdout.run_holdout`; the criterion of
+    :func:`gap_bridging.train.holdout_dirs`), the truth table and the bridged
+    links and observations.
+    """
+    sweep_dir = Path(sweep_dir)
+    found = []
+    for child in sweep_dir.iterdir() if sweep_dir.is_dir() else ():
+        match = HOLDOUT_DIR.match(child.name)
+        if (match and child.is_dir() and (child / f'{child.name}.json').is_file()
+                and (child / holdout.TRUTH_NAME).is_file()
+                and (child / holdout.BRIDGED_DIR / 'links.parquet').is_file()
+                and (child / holdout.BRIDGED_DIR / 'observations.parquet').is_file()):
+            found.append((int(match.group(1)), child))
+    return sorted(found)
 
 
 def _by_gap_row(max_gap: int, score: dict) -> dict:
@@ -176,24 +190,84 @@ def sweep_fold_rows(sweep_dir: Path, fold: str, salt: str = DEFAULT_SALT,
                     test_fraction: float = DEFAULT_TEST_FRACTION) -> list[dict]:
     """:func:`fold_scores` of every ``holdout_<h>/`` directory of a sweep, by ascending ``h``.
 
+    Only completed runs count (:func:`holdout_dirs`).
+
     Raises
     ------
     FileNotFoundError
-        If the sweep has no ``holdout_<h>/`` directory.
+        If the sweep has no completed ``holdout_<h>/`` directory.
     """
     sweep_dir = Path(sweep_dir)
-    dirs = sorted((p for p in sweep_dir.iterdir()
-                   if p.is_dir() and HOLDOUT_DIR.match(p.name)
-                   and (p / holdout.TRUTH_NAME).is_file()),
-                  key=lambda p: int(HOLDOUT_DIR.match(p.name).group(1)))
+    dirs = [d for _, d in holdout_dirs(sweep_dir)]
     if not dirs:
-        raise FileNotFoundError(f"no holdout_<max_gap>/ directories under {sweep_dir}")
+        raise FileNotFoundError(f"no completed holdout_<max_gap>/ directories under {sweep_dir}")
     return [row for d in dirs for row in fold_scores(d, fold, salt, test_fraction)]
 
 
 # ============================================================
 # COMPARISON
 # ============================================================
+
+
+def _sorted_truth(path: Path) -> pa.Table:
+    """A truth table without schema metadata, rows sorted on every column."""
+    table = pq.read_table(path)
+    table = table.replace_schema_metadata(None)
+    return table.sort_by([(name, 'ascending') for name in table.schema.names])
+
+
+def check_same_plants(variants: Mapping[str, Sequence[Path]]) -> list[int]:
+    """Check that every variant was scored on the same planted gaps.
+
+    ``run_holdout`` draws decoys with the variant's own config, and seed lists
+    are free-form, so per-gap recall is comparable across variants only when,
+    for every sweep index and horizon, the variants hold the same truth table.
+
+    Parameters
+    ----------
+    variants : mapping
+        ``name -> sweep directories``; the first variant is the reference.
+
+    Returns
+    -------
+    list of int
+        The common horizons, ascending.
+
+    Raises
+    ------
+    ValueError
+        If the variants have different numbers of sweep directories, a sweep
+        holds a different set of completed horizons than the reference's
+        first sweep, or a truth table (rows sorted, schema metadata ignored)
+        differs from the reference variant's at the same sweep index and
+        horizon. The message names the variant, the sweep index and the
+        horizon.
+    """
+    names = list(variants)
+    reference = names[0]
+    counts = {name: len(variants[name]) for name in names}
+    if len(set(counts.values())) != 1:
+        raise ValueError(f"variants have different numbers of sweep directories: {counts}")
+    runs = {name: [dict(holdout_dirs(Path(d))) for d in variants[name]] for name in names}
+    horizons = sorted(runs[reference][0])
+    for name in names:
+        for index, found in enumerate(runs[name]):
+            if sorted(found) != horizons:
+                raise ValueError(f"variant {name!r} sweep {index} ({variants[name][index]}) "
+                                 f"holds horizons {sorted(found)}, expected {horizons} "
+                                 f"(variant {reference!r} sweep 0)")
+    for index in range(counts[reference]):
+        for horizon in horizons:
+            expected = _sorted_truth(runs[reference][index][horizon] / holdout.TRUTH_NAME)
+            for name in names[1:]:
+                got = _sorted_truth(runs[name][index][horizon] / holdout.TRUTH_NAME)
+                if not got.equals(expected):
+                    raise ValueError(
+                        f"variant {name!r} sweep {index} ({variants[name][index]}) horizon "
+                        f"{horizon}: holdout truth differs from variant {reference!r} "
+                        f"({variants[reference][index]}); the variants were not scored on "
+                        f"the same plants")
+    return horizons
 
 
 def promotion_check(current_by_gap: Sequence[dict], candidate_by_gap: Sequence[dict],
@@ -281,6 +355,13 @@ def compare_variants(variants: Mapping[str, Sequence[Path]], fold: str = 'test',
         pooled rows, the rule table (``by_horizon`` plus ``rule_pass`` etc.)
         and the chosen horizon. The baseline is checked against itself, which
         passes exactly when its own precision is 1 at every checked gap.
+
+    Raises
+    ------
+    ValueError
+        If there is no variant, a variant has no sweep, ``baseline`` is not a
+        variant, or the variants were not scored on the same plants
+        (:func:`check_same_plants`).
     """
     if not variants:
         raise ValueError("no variants to compare")
@@ -290,6 +371,7 @@ def compare_variants(variants: Mapping[str, Sequence[Path]], fold: str = 'test',
     baseline = names[0] if baseline is None else baseline
     if baseline not in variants:
         raise ValueError(f"baseline {baseline!r} is not a variant ({names})")
+    check_same_plants(variants)
     out: dict = {}
     for name in names:
         sweeps = [sweep_fold_rows(Path(d), fold, salt, test_fraction) for d in variants[name]]

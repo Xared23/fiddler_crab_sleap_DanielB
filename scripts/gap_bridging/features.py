@@ -8,9 +8,16 @@ One row per enumerated candidate pair, in the enumeration order of
 tracklet_id), then STARTs likewise), with the same R_max prefilter. The
 features are the quantities the hand cost is built from, kept separate and
 unweighted, plus tracklet-level context (lengths, cue sample sizes, rival
-counts). Rival counts use the pair's own ``dt`` as the window, so every value
-is identical at every horizon that enumerates the pair; this is what lets the
+counts). A rival of a pair is another pair from the same END (or into the
+same START) that passes both motion gates and is not claw-side vetoed (first
+failing gate ``''`` or ``'max_cost'``: the pairs the assignment can see).
+Rival counts use the pair's own ``dt`` as the window, so every value is
+identical at every horizon that enumerates the pair; this is what lets the
 trainer deduplicate pairs across horizons.
+
+Feature values (and the gate set) depend on the config keys of
+:data:`FEATURE_CONFIG_KEYS`; :func:`feature_config` extracts them so that a
+scorer can be tied to the configuration its training features came from.
 
 Features are always computed under the sqrt gate model with the hand cost
 (``cost_model='hand'``), whatever ``cfg.cost_model`` says, so a table written
@@ -45,7 +52,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import replace
-from typing import List, Sequence, Tuple
+from typing import Any, List, Mapping, Sequence, Tuple
 
 # ----- numerics -----
 import numpy as np
@@ -80,8 +87,8 @@ FEATURE_NAMES: Tuple[str, ...] = (
     'size_n_a', 'size_n_b',
     'claw_side_n_a', 'claw_side_n_b',
     'n_frames_a', 'n_frames_b',
-    'n_rival_starts',      # other motion-gated pairs from the same END with dt' <= dt
-    'n_rival_ends',        # other motion-gated pairs into the same START with dt' <= dt
+    'n_rival_starts',      # other gate-passing pairs (gate '' or 'max_cost') from the same END, dt' <= dt
+    'n_rival_ends',        # other gate-passing pairs (gate '' or 'max_cost') into the same START, dt' <= dt
     'axis_flip',           # 1.0 if _axis_flip (Shoulder axis reversed, claw fixed), else 0.0
     'hand_cost',           # the sqrt hand cost (finite when both motion gates pass)
 )
@@ -102,10 +109,52 @@ PAIR_FEATURES_SCHEMA = pa.schema(
 
 PAIR_FEATURES_NAME = 'pair_features.parquet'
 
+#: ``BridgeConfig`` keys that change a feature value or the gate column
+#: (motion gates, radius, prediction, cue terms and the hand cost). A scorer
+#: records them (``ScorerManifest.feature_config``) and refuses a config
+#: that differs. ``max_gap`` is absent: features do not depend on the horizon.
+FEATURE_CONFIG_KEYS: Tuple[str, ...] = (
+    'velocity_window', 'max_velocity_px_per_frame', 'motion_weight', 'shoulder_vector_weight',
+    'shoulder_vector_cost_cap_px', 'gate_model', 'radius_r0_px', 'radius_k_px', 'radius_safety',
+    'radius_min_px', 'prediction_error_ratio', 'prediction_horizon_frames', 'gap_penalty',
+    'appearance_cues', 'size_scale_px', 'size_noise_px', 'size_cost_cap', 'size_weight',
+    'claw_side_weight', 'claw_side_confidence', 'claw_side_min_frames')
+
 
 # ============================================================
 # HELPERS
 # ============================================================
+
+
+def feature_config(cfg: Any) -> dict:
+    """
+    The feature-relevant subset of a configuration.
+
+    Parameters
+    ----------
+    cfg : BridgeConfig or mapping
+        A config, or its ``to_dict()`` (e.g. the ``config`` of a
+        ``holdout_<h>.json``).
+
+    Returns
+    -------
+    dict
+        ``{key: value}`` for every key of :data:`FEATURE_CONFIG_KEYS`, in
+        that order; tuples as lists (as ``BridgeConfig.to_dict``).
+
+    Raises
+    ------
+    ValueError
+        If a mapping lacks one of the keys.
+    """
+    values = dict(cfg) if isinstance(cfg, Mapping) else cfg.to_dict()
+    missing = [key for key in FEATURE_CONFIG_KEYS if key not in values]
+    if missing:
+        raise ValueError(f"config lacks feature keys {missing}")
+    out = {key: (list(values[key]) if isinstance(values[key], tuple) else values[key])
+           for key in FEATURE_CONFIG_KEYS}
+    assert len(out) == len(FEATURE_CONFIG_KEYS)
+    return out
 
 
 def _ratio(num: np.ndarray, den: np.ndarray) -> np.ndarray:
@@ -127,7 +176,7 @@ def _side_cues(points: List[Endpoint], idx: np.ndarray) -> Tuple[np.ndarray, ...
 
 def _rival_counts(group: np.ndarray, dt: np.ndarray, ok: np.ndarray) -> np.ndarray:
     """
-    Number of other motion-gated pairs sharing a group with ``dt' <= dt``.
+    Number of other gate-passing pairs sharing a group with ``dt' <= dt``.
 
     Parameters
     ----------
@@ -136,7 +185,9 @@ def _rival_counts(group: np.ndarray, dt: np.ndarray, ok: np.ndarray) -> np.ndarr
     dt : np.ndarray
         ``(n,)`` int64 frame separation, ``>= 2``.
     ok : np.ndarray
-        ``(n,)`` bool, the pair passes both motion gates and the claw-side veto.
+        ``(n,)`` bool, the pair passes both motion gates and is not claw-side
+        vetoed (first failing gate ``''`` or ``'max_cost'``); only such pairs
+        count as rivals (a vetoed pair can never take the endpoint).
 
     Returns
     -------

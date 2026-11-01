@@ -18,6 +18,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import shutil
 import sys
 import tempfile
 from typing import Dict, List
@@ -129,6 +130,10 @@ class FoldScoreTests(unittest.TestCase):
         for seed in SEEDS:
             cls.sweeps.append(root / f'seed_{seed}')
             cls.expected.append(build_sweep(cls.sweeps[-1], path, seed))
+        # Same plants under other directories (a second "variant").
+        cls.copies = [root / f'copy_{seed}' for seed in SEEDS]
+        for sweep, copy in zip(cls.sweeps, cls.copies):
+            shutil.copytree(sweep, copy)
         cls.patch = mock.patch.object(labels, 'truth_folds', fake_truth_folds)
         cls.patch.start()
 
@@ -185,15 +190,29 @@ class FoldScoreTests(unittest.TestCase):
                      and fake_fold(r['original_id']) == fold]
             self.assertEqual(sum(r['flicker_planted'] for r in rows), len(flick))
 
-    def test_decoy_donor_follows_its_target(self):
-        truth = fake_truth_folds(pq.read_table(self.sweeps[0] / 'holdout_5'
-                                               / holdout.TRUTH_NAME))
+    def test_keep_fold_keeps_own_fold_and_donors_do_not_score(self):
+        directory = self.sweeps[0] / 'holdout_5'
+        truth = fake_truth_folds(pq.read_table(directory / holdout.TRUTH_NAME))
         for fold in ('train', 'test'):
             kept = compare._keep_fold(truth, fold).to_pylist()
-            targets = {r['left_id'] for r in kept if r['role'] == 'decoy_target'}
-            for r in truth.to_pylist():
-                if r['role'] == 'decoy_donor' and r['partner_id'] in targets:
-                    self.assertIn(r['left_id'], {k['left_id'] for k in kept})
+            self.assertEqual(kept, [r for r in truth.to_pylist() if r['fold'] == fold])
+        links = pq.read_table(directory / holdout.BRIDGED_DIR / 'links.parquet')
+        plain = truth.drop_columns(['fold'])
+        no_donors = plain.filter(pa.array([r != 'decoy_donor'
+                                           for r in plain['role'].to_pylist()]))
+        self.assertLess(no_donors.num_rows, plain.num_rows)
+        self.assertEqual(compare._json_safe(holdout.score_links(links, plain).to_pylist()),
+                         compare._json_safe(holdout.score_links(links, no_donors).to_pylist()))
+
+    def test_incomplete_holdout_dir_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sweep = Path(tmp) / 'sweep'
+            shutil.copytree(self.sweeps[0], sweep)
+            (sweep / 'holdout_10' / 'holdout_10.json').unlink()
+            self.assertEqual([h for h, _ in compare.holdout_dirs(sweep)], [5])
+            self.assertEqual({r['max_gap'] for r in compare.sweep_fold_rows(sweep, 'all')}, {5})
+            with self.assertRaisesRegex(ValueError, r"'b' sweep 0 .*horizons \[5\]"):
+                compare.compare_variants({'a': self.sweeps[:1], 'b': [sweep]}, fold='all')
 
     def test_unknown_fold_and_empty_sweep(self):
         with self.assertRaises(ValueError):
@@ -221,8 +240,31 @@ class FoldScoreTests(unittest.TestCase):
         self.assertEqual(planted, sum(r['planted'] for s in self.sweeps
                                       for r in compare.sweep_fold_rows(s, 'test')))
 
+    def test_same_plants_required(self):
+        self.assertEqual(compare.check_same_plants({'a': self.sweeps, 'b': self.copies}),
+                         list(HORIZONS))
+        with self.assertRaisesRegex(ValueError, 'different numbers of sweep directories'):
+            compare.compare_variants({'a': self.sweeps, 'b': self.copies[:1]}, fold='all')
+        with self.assertRaisesRegex(ValueError, r"'b' sweep 0 .*horizon 5"):
+            compare.compare_variants({'a': self.sweeps, 'b': self.sweeps[::-1]}, fold='all')
+        with tempfile.TemporaryDirectory() as tmp:
+            changed = Path(tmp) / 'seed_2'
+            shutil.copytree(self.sweeps[1], changed)
+            path = changed / 'holdout_10' / holdout.TRUTH_NAME
+            truth = pq.read_table(path).to_pylist()
+            truth[0]['deleted_last_frame'] += 1
+            pq.write_table(pa.Table.from_pylist(truth, schema=holdout.TRUTH_SCHEMA), path)
+            with self.assertRaisesRegex(ValueError, r"'b' sweep 1 .*horizon 10.*same plants"):
+                compare.compare_variants({'a': self.sweeps, 'b': [self.copies[0], changed]},
+                                         fold='test')
+            # Row order and schema metadata alone do not count as a difference.
+            truth[0]['deleted_last_frame'] -= 1
+            shuffled = pa.Table.from_pylist(truth[::-1], schema=holdout.TRUTH_SCHEMA)
+            pq.write_table(shuffled.replace_schema_metadata({'x': 'y'}), path)
+            compare.check_same_plants({'a': self.sweeps, 'b': [self.copies[0], changed]})
+
     def test_markdown_rows_and_variants(self):
-        result = compare.compare_variants({'cur': self.sweeps, 'new': self.sweeps[:1] * 2},
+        result = compare.compare_variants({'cur': self.sweeps, 'new': self.copies},
                                           fold='all', through_gap=10)
         text = compare.markdown_tables(result)
         for horizon in HORIZONS:
@@ -285,6 +327,12 @@ class FoldScoreTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 parser.parse_args(['--variant', bad, '--out', 'o'])
 
+    def test_parse_variant(self):
+        self.assertEqual(compare.parse_variant(' a =d1,,d2'), ('a', [Path('d1'), Path('d2')]))
+        for bad in ('a', 'a/b/c', '=d1', ' =d1', 'a=', 'a=,', 'a= , '):
+            with self.assertRaises(argparse.ArgumentTypeError, msg=bad):
+                compare.parse_variant(bad)
+
     def test_main_end_to_end(self):
         parser = argparse.ArgumentParser()
         compare.add_arguments(parser)
@@ -292,7 +340,7 @@ class FoldScoreTests(unittest.TestCase):
             docs = Path(tmp) / 'cmp.md'
             args = parser.parse_args(
                 ['--variant', f"cur={self.sweeps[0]},{self.sweeps[1]}",
-                 '--variant', f"new={self.sweeps[1]},{self.sweeps[0]}",
+                 '--variant', f"new={self.copies[0]},{self.copies[1]}",
                  '--out', str(Path(tmp) / 'out'), '--docs', str(docs),
                  '--fold', 'train', '--through-gap', '10'])
             result = compare.main(args)
