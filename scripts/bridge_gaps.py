@@ -346,6 +346,8 @@ def pool(sweep_dirs: list[Path], out: Path, rule_precision: float = 1.0,
     :func:`gap_bridging.holdout.apply_rule` (highest horizon with pooled
     precision ``>= rule_precision`` at every planted gap; decoy false links
     and plants beyond the horizon counted) and prints the per-horizon table.
+    Raises ValueError when the sweeps' hold-out profiles
+    (:func:`gap_bridging.compare.profile_of`) differ, naming each directory.
 
     Returns
     -------
@@ -358,6 +360,9 @@ def pool(sweep_dirs: list[Path], out: Path, rule_precision: float = 1.0,
             raise FileExistsError(f"outputs already exist in {out}: {name}; use --force")
     if not sweep_dirs:
         raise ValueError("no sweep directories given")
+    profiles = {str(d): compare.profile_of(Path(d)) for d in sweep_dirs}
+    if len(set(profiles.values())) > 1:
+        raise ValueError(f"sweeps of different hold-out profiles cannot be pooled: {profiles}")
     sweeps = [holdout.read_by_gap(Path(d) / BY_GAP_NAME) for d in sweep_dirs]
     by_gap, by_horizon = holdout.pool_sweeps(sweeps)
     chosen, table = holdout.apply_rule(by_gap, by_horizon, rule_precision)
@@ -469,7 +474,7 @@ def build_parser() -> argparse.ArgumentParser:
     sw.add_argument('--bridges-from', type=int, default=None,
                     help='horizon whose bridges are rendered (default the largest)')
     sw.add_argument('--no-figures', action='store_true', help='skip the figures')
-    sw.add_argument('--profile', choices=('standard', 'short'), default='standard',
+    sw.add_argument('--profile', choices=holdout.PROFILES, default='standard',
                     help='hold-out planting profile (v005): standard, or short (half lengths '
                          'drawn from the natural-link mix, tracklets >= 10 frames)')
     sw.add_argument('--no-export-features', action='store_true',

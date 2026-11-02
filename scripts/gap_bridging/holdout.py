@@ -108,6 +108,7 @@ MID_LENGTHS = (4, 5, 6, 7, 8, 9)               # drawn uniformly
 CATEGORY_PROBABILITIES = (0.40, 0.18, 0.21, 0.13, 0.08)   # demo links, horizon 30 (link_mix):
 # 0.401 / 0.177 / 0.214 / 0.127 / 0.081 of 827 links
 PROBABILITY_TOL = 1e-9
+DECOY_ATTEMPTS = 3            # short profile: decoy attempts per requested decoy
 
 # ============================================================
 # PLANTING PROFILES
@@ -536,13 +537,19 @@ def _choose_short(spans: Dict[int, Tuple[int, int]], ids: List[str], gap_lengths
     kept_left, kept_right)`` (:func:`draw_half_lengths`), take the unused
     tracklets with at least :func:`_window_need` frames (ValueError when
     none: plants are mandatory), pick one with ``rng.integers`` and place the
-    window (:func:`_plant_window`). Then ``decoys`` attempts, each drawing its
-    own ``(category, kept_left, kept_right)`` before scanning targets when
-    ``profile.trim_decoys`` (else the standard ``margin`` window over
-    tracklets of at least ``max(profile.min_tracklet_len, g + 2 margin)``
-    frames), then the standard flicker draw with ``profile.min_tracklet_len``.
-    Eligible tracklets are sorted by id; the shorter gap lengths never depend
-    on the longer ones.
+    window (:func:`_plant_window`). Then up to ``decoys`` decoy pairs, each
+    attempt drawing its own ``(category, kept_left, kept_right)`` before
+    scanning targets when ``profile.trim_decoys`` (else the standard
+    ``margin`` window over tracklets of at least
+    ``max(profile.min_tracklet_len, g + 2 margin)`` frames). An attempt whose
+    category no unused tracklet can hold is skipped and the next attempt
+    draws again (at most ``DECOY_ATTEMPTS * decoys`` attempts per gap), so
+    the recorded decoy categories are conditional on success, not the
+    profile's probabilities; the gap's decoys stop at the first attempt
+    whose targets find no donor (:func:`_choose_decoy` returns None) and,
+    without ``trim_decoys``, at an empty target pool. Then the standard
+    flicker draw with ``profile.min_tracklet_len``. Eligible tracklets are
+    sorted by id; the shorter gap lengths never depend on the longer ones.
     """
     rng = np.random.default_rng(seed)
     remaining = sorted(spans, key=lambda code: ids[code])
@@ -571,7 +578,10 @@ def _choose_short(spans: Dict[int, Tuple[int, int]], ids: List[str], gap_lengths
                         category, (trim_before, trim_after)))
             remaining = [c for c in remaining if c != code]
 
-        for _ in range(decoys):
+        n_decoys = 0
+        for _ in range(DECOY_ATTEMPTS * decoys):
+            if n_decoys == decoys:
+                break
             if profile.trim_decoys:
                 category, kept_left, kept_right = draw_half_lengths(rng, profile)
                 need = _window_need(gap, kept_left, kept_right, profile)
@@ -582,10 +592,16 @@ def _choose_short(spans: Dict[int, Tuple[int, int]], ids: List[str], gap_lengths
             else:
                 category, window = None, None
                 need = max(profile.min_tracklet_len, gap + 2 * margin)
-            pair = _choose_decoy(eligible(need), remaining, spans, ids, gap, margin, rng,
+            targets = eligible(need)
+            if not targets:
+                if profile.trim_decoys:    # this category does not fit; another draw may
+                    continue
+                break
+            pair = _choose_decoy(targets, remaining, spans, ids, gap, margin, rng,
                                  rows_of, frames, videos, cues, cfg, window=window)
             if pair is None:      # best effort: fewer decoys for this gap (see truth/scores)
                 break
+            n_decoys += 1
             target, donor, first_del, trims = pair
             run = [(first_del, first_del + gap - 1)]
             ops.append(('decoy_target', target, int(gap), run, len(ops) + 1, category, trims))
@@ -1153,7 +1169,9 @@ def run_holdout(observations_path: Path, out_dir: Path, cfg: BridgeConfig,
     -------
     dict
         Content of ``holdout_<max_gap>.json``: ``config``, ``seed``,
-        ``gap_lengths``, ``per_gap``, ``min_tracklet_len``, ``margin``,
+        ``gap_lengths``, ``per_gap``, ``min_tracklet_len`` (the effective
+        one: the argument under ``'standard'``, ``profile.min_tracklet_len``
+        otherwise), ``margin``,
         ``decoys``, ``flicker``, ``decoy_offset_px``, ``profile``
         (:meth:`HalfProfile.to_dict`), ``input``, ``scores``
         (per-gap rows then the ``-1`` row, NaN as null), ``overall``
@@ -1199,7 +1217,10 @@ def run_holdout(observations_path: Path, out_dir: Path, cfg: BridgeConfig,
     rows = [_json_safe(r) for r in scores.to_pylist()]
     summary = {
         'config': cfg.to_dict(), 'seed': int(seed), 'gap_lengths': [int(g) for g in gap_lengths],
-        'per_gap': int(per_gap), 'min_tracklet_len': int(min_tracklet_len), 'margin': int(margin),
+        'per_gap': int(per_gap),
+        'min_tracklet_len': int(min_tracklet_len if profile.name == 'standard'
+                                else profile.min_tracklet_len),
+        'margin': int(margin),
         'decoys': int(decoys), 'flicker': int(flicker), 'decoy_offset_px': float(decoy_offset_px),
         'profile': profile.to_dict(),
         'input': {'path': str(observations_path), 'rows': obs.num_rows,

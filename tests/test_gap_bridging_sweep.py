@@ -1,7 +1,9 @@
 """Tests for gap-bridging WP-D: radius fit, horizon sweep, hold-out CSVs and figures."""
 from __future__ import annotations
 
+import contextlib
 import csv
+import io
 import json
 import math
 from pathlib import Path
@@ -463,6 +465,36 @@ class SweepProfileTests(unittest.TestCase):
             self.assertEqual(summary['profile']['name'], profile)
             rows = read_csv(out / bridge_gaps.BY_GAP_NAME)
             self.assertEqual(list(rows[0]), list(bridge_gaps.BY_GAP_COLUMNS))
+
+    def test_regression_pool_refuses_mixed_profiles(self):
+        # pool read only holdout_by_gap.csv, so seeds of different profiles pooled silently.
+        std, short = self.outs['standard'], self.outs['short']
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / 'pooled'
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                code = bridge_gaps.main(['pool', '--sweeps', str(std), str(short),
+                                         '--out', str(out)])
+            self.assertEqual(code, 1)
+            self.assertIn('different hold-out profiles', err.getvalue())
+            self.assertIn(str(std), err.getvalue())
+            self.assertIn(str(short), err.getvalue())
+            self.assertFalse(out.exists())
+            with self.assertRaisesRegex(ValueError, "'standard'.*'short'"):
+                bridge_gaps.pool([std, short], out)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(bridge_gaps.main(['pool', '--sweeps', str(short), str(short),
+                                                   '--out', str(out)]), 0)
+            self.assertTrue((out / bridge_gaps.POOLED_GAP_NAME).is_file())
+
+    def test_profile_choices_are_holdout_profiles(self):
+        parser = bridge_gaps.build_parser()
+        sweep = next(a for a in parser._subparsers._group_actions[0].choices['sweep']._actions
+                     if a.dest == 'profile')
+        self.assertEqual(tuple(sweep.choices), holdout.PROFILES)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            bridge_gaps.parse_args(['sweep', '--observations', 'x', '--out', 'y',
+                                    '--profile', 'bogus'])
 
     def test_short_profile_plants_short_halves(self):
         truth = pq.read_table(self.outs['short'] / 'holdout_5' / 'holdout_truth.parquet').to_pandas()

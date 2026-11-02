@@ -256,6 +256,35 @@ def read_feature_config(run_dir: Path) -> dict:
         raise ValueError(f"{path}: {exc}") from exc
 
 
+def read_profile(run_dir: Path) -> str:
+    """Hold-out profile of one run: ``profile.name`` of ``holdout_<h>.json``.
+
+    ``'standard'`` when the JSON has no ``profile`` (written before v005).
+    """
+    run_dir = Path(run_dir)
+    profile = json.loads((run_dir / f'{run_dir.name}.json').read_text()).get('profile')
+    return str(profile.get('name', 'standard')) if isinstance(profile, dict) else 'standard'
+
+
+def training_profile(sweep_dirs: Sequence[Path]) -> str:
+    """The hold-out profile shared by every completed run of every sweep.
+
+    Read per run (:func:`holdout_dirs`, :func:`read_profile`); ``'standard'``
+    for runs written before profiles existed, and when no sweep has a
+    completed run (a sweep without one adds nothing). Raises ValueError when
+    no sweep is given or two runs disagree (the message names each sweep
+    directory and its profiles).
+    """
+    if not sweep_dirs:
+        raise ValueError("no sweep directories given")
+    profiles = {str(d): sorted({read_profile(run) for _, run in holdout_dirs(Path(d))})
+                for d in sweep_dirs}
+    names = {name for found in profiles.values() for name in found}
+    if len(names) > 1:
+        raise ValueError(f"training sweeps disagree on the hold-out profile: {profiles}")
+    return names.pop() if names else 'standard'
+
+
 def collect_training_rows(sweep_dirs: Sequence[Path], salt: str = labels.DEFAULT_SALT,
                           test_fraction: float = labels.DEFAULT_TEST_FRACTION,
                           drop_donor_negatives: bool = False) -> Tuple[pa.Table, dict]:
@@ -285,11 +314,13 @@ def collect_training_rows(sweep_dirs: Sequence[Path], salt: str = labels.DEFAULT
     FileNotFoundError
         If a sweep has no completed hold-out or a hold-out has no pair features.
     ValueError
-        If pair features are stale (:func:`read_pair_features`) or two
-        hold-outs disagree on a feature key (the message lists the keys).
+        If pair features are stale (:func:`read_pair_features`), two
+        hold-outs disagree on a feature key (the message lists the keys) or
+        the sweeps disagree on the hold-out profile (:func:`training_profile`).
     """
     if not sweep_dirs:
         raise ValueError("no sweep directories given")
+    training_profile(sweep_dirs)
     parts = []
     feature_cfg: Optional[dict] = None
     feature_cfg_source: Optional[Path] = None
@@ -680,8 +711,10 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
         The saved manifest. The threshold is clipped into ``[1e-12, 1]``
         (the range ``learned_min_probability`` accepts); ``feature_config``
         holds the hold-outs' feature keys, ``feature_names`` and
-        ``monotonic_cst`` the resolved subset, ``feature_set`` the spec, and
-        ``hyperparameters`` records ``target_reached``.
+        ``monotonic_cst`` the resolved subset, ``feature_set`` the spec,
+        ``training_profile`` the sweeps' hold-out profile
+        (:func:`training_profile`), and ``hyperparameters`` records
+        ``target_reached``.
 
     Raises
     ------
@@ -748,7 +781,8 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
         n_positive_test=int(y_test.sum()), oof_metrics=oof_metrics, test_metrics=test_metrics,
         salt=salt, test_fraction=float(test_fraction), sweeps=tuple(str(s) for s in sweeps),
         created=datetime.now(timezone.utc).isoformat(timespec='seconds'), git_commit=git_commit(),
-        feature_config=dict(feature_cfg), feature_set=params.features)
+        feature_config=dict(feature_cfg), feature_set=params.features,
+        training_profile=training_profile(sweeps))
     save_scorer(LinkScorer(hgb, calibrator, manifest), out, force=force)
     _write_metrics_csv(csv_path, gap_fold, per_gap_metrics(gap_table, gap_p, threshold))
     print(f"[train] threshold {threshold:.6g}; OOF precision {oof_metrics['precision']:.4f} "

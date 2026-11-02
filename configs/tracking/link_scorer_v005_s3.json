@@ -1,6 +1,6 @@
 {
   "calibration": "sigmoid",
-  "created": "2026-11-01T23:39:33+00:00",
+  "created": "2026-11-02T00:04:04+00:00",
   "feature_config": {
     "appearance_cues": true,
     "claw_side_confidence": 0.9,
@@ -47,7 +47,7 @@
     "hand_cost"
   ],
   "feature_set": "no_length",
-  "git_commit": "bcd1da40657b54d8f55b645feeb58bd2815d8ffb",
+  "git_commit": "cda4e88e8d643f4fe0f7778a43e6bf232d3f6a3a",
   "hyperparameters": {
     "allow_degenerate_threshold": false,
     "calibration": "sigmoid",
@@ -124,5 +124,6 @@
     "threshold": 0.995442394821032
   },
   "threshold": 0.995442394821032,
-  "training_data_sha256": "ff38291d7e46954e3f7419f087ddff3450d93e84a2d2e15d1a171749dcce9e1c"
+  "training_data_sha256": "ff38291d7e46954e3f7419f087ddff3450d93e84a2d2e15d1a171749dcce9e1c",
+  "training_profile": "standard"
 }

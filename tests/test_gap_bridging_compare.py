@@ -28,6 +28,7 @@ from unittest import mock
 # ----- numerics -----
 from hypothesis import given, settings, strategies as st
 import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -263,6 +264,63 @@ class FoldScoreTests(unittest.TestCase):
             pq.write_table(shuffled.replace_schema_metadata({'x': 'y'}), path)
             compare.check_same_plants({'a': self.sweeps, 'b': [self.copies[0], changed]})
 
+    def _rewrite_truths(self, root: Path, transform) -> List[Path]:
+        """Copies of the sweeps under ``root`` with every truth table transformed."""
+        copies = []
+        for sweep in self.sweeps:
+            copy = root / sweep.name
+            shutil.copytree(sweep, copy)
+            for _, d in compare.holdout_dirs(copy):
+                truth = pq.read_table(d / holdout.TRUTH_NAME)
+                pq.write_table(transform(truth), d / holdout.TRUTH_NAME)
+            copies.append(copy)
+        return copies
+
+    def test_regression_v004_truth_matches_v005_standard(self):
+        # A v004-written truth (nine columns) used to differ from every v005 truth.
+        def v004(table: pa.Table) -> pa.Table:
+            return table.select(list(holdout.TRUTH_V004_NAMES))
+
+        def with_profile(name: str):
+            def transform(table: pa.Table) -> pa.Table:
+                i = table.schema.get_field_index('profile')
+                return table.set_column(i, 'profile', pa.array([name] * table.num_rows))
+            return transform
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old = self._rewrite_truths(Path(tmp) / 'v004', v004)
+            for _, d in compare.holdout_dirs(old[0]):
+                self.assertEqual(pq.read_table(d / holdout.TRUTH_NAME).schema.names,
+                                 list(holdout.TRUTH_V004_NAMES))
+            self.assertEqual(compare.check_same_plants({'a': old, 'b': self.sweeps}),
+                             list(HORIZONS))
+            self.assertEqual(compare.check_same_plants({'a': self.sweeps, 'b': old}),
+                             list(HORIZONS))
+            # A modified row still fails.
+            path = old[1] / 'holdout_10' / holdout.TRUTH_NAME
+            rows = pq.read_table(path).to_pylist()
+            rows[0]['deleted_last_frame'] += 1
+            pq.write_table(pa.Table.from_pylist(rows, schema=pq.read_schema(path)), path)
+            with self.assertRaisesRegex(ValueError, r"'b' sweep 1 .*horizon 10.*same plants"):
+                compare.check_same_plants({'a': self.sweeps, 'b': old})
+            # Another profile string fails, against a v005 and against a v004 truth.
+            short = self._rewrite_truths(Path(tmp) / 'short', with_profile('short'))
+            with self.assertRaisesRegex(ValueError, r"'b' sweep 0 .*horizon 5.*same plants"):
+                compare.check_same_plants({'a': self.sweeps, 'b': short})
+            with self.assertRaisesRegex(ValueError, 'same plants'):
+                compare.check_same_plants({'a': old[:1], 'b': short[:1]})
+            # Optional columns are compared when both tables have them.
+            moved = self._rewrite_truths(Path(tmp) / 'frames', lambda t: t.set_column(
+                t.schema.get_field_index('left_frames'), 'left_frames',
+                pc.add(t['left_frames'], 1)))
+            with self.assertRaisesRegex(ValueError, 'same plants'):
+                compare.check_same_plants({'a': self.sweeps, 'b': moved})
+            # A truth lacking a v004 column is refused with a ValueError.
+            broken = self._rewrite_truths(Path(tmp) / 'broken',
+                                          lambda t: t.drop_columns(['role']))
+            with self.assertRaisesRegex(ValueError, r"lacks the columns \['role'\]"):
+                compare.check_same_plants({'a': self.sweeps, 'b': broken})
+
     def test_markdown_rows_and_variants(self):
         result = compare.compare_variants({'cur': self.sweeps, 'new': self.copies},
                                           fold='all', through_gap=10)
@@ -428,6 +486,20 @@ class PromotionTests(unittest.TestCase):
 # ============================================================
 # REAL SWEEPS
 # ============================================================
+
+
+V004_SEED0 = ROOT / 'logs/gap_sweep_v004/current/seed_0'
+V005_STD_SEED0 = ROOT / 'logs/gap_sweep_v005/current_std/seed_0'
+
+
+@unittest.skipUnless(V004_SEED0.is_dir() and V005_STD_SEED0.is_dir(),
+                     'v004 and v005 standard sweeps not present')
+class RealV004V005PlantsTests(unittest.TestCase):
+    """The v005 standard sweep holds the v004 sweep's plants (v004 truth: nine columns)."""
+
+    def test_regression_v004_and_v005_standard_same_plants(self):
+        self.assertEqual(compare.check_same_plants({'a': [V004_SEED0], 'b': [V005_STD_SEED0]}),
+                         [5, 10, 15, 30, 45, 60])
 
 
 @unittest.skipUnless((LOGS / bridge_gaps.BY_GAP_NAME).is_file()

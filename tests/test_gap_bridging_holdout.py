@@ -20,6 +20,7 @@ import sys
 import tempfile
 from typing import Dict, List, Tuple
 import unittest
+from unittest import mock
 
 # ----- numerics -----
 from hypothesis import given, settings, strategies as st
@@ -1295,6 +1296,126 @@ class ShortProfileTests(unittest.TestCase):
         self.assertTrue(set(truth['category'].to_pylist()) <= set(holdout.CATEGORIES))
         self.assertEqual(check_halves(self, BASE, planted, truth),
                          BASE.num_rows - planted.num_rows)
+
+
+def sized_length_crabs(lengths: List[int]) -> List[Crab]:
+    """``length_crabs`` with every other crab 1.4 times larger (decoy cues differ)."""
+    crabs = length_crabs(lengths)
+    for crab in crabs:
+        if crab.crab_id % 2 == 0:
+            crab.offsets = DEFAULT_OFFSETS * 1.4
+    return crabs
+
+
+class ShortDecoyRetryTests(unittest.TestCase):
+    """Under ``trim_decoys`` a decoy category no tracklet can hold does not end the gap's
+    decoys; another attempt draws again (at most ``DECOY_ATTEMPTS * decoys`` attempts)."""
+
+    # Gap 1 on 20-frame tracklets: both_short needs 10 frames, both_long 21 (never fits).
+    PROFILE = holdout.HalfProfile('short', 10, probabilities=(0.7, 0.0, 0.0, 0.0, 0.3))
+
+    def plant(self, base: pa.Table, seed: int, profile: holdout.HalfProfile, decoys: int = 3):
+        """``plant_gaps`` at gap 1, also returning the drawn categories in order."""
+        drawn: List[str] = []
+        real = holdout.draw_half_lengths
+
+        def record(rng, prof):
+            out = real(rng, prof)
+            drawn.append(out[0])
+            return out
+
+        with mock.patch.object(holdout, 'draw_half_lengths', side_effect=record):
+            planted, truth = holdout.plant_gaps(base, (1,), per_gap=1, seed=seed, decoys=decoys,
+                                                profile=profile)
+        return planted, truth, drawn
+
+    def test_regression_unfit_category_does_not_end_decoys(self):
+        base = make_observations(sized_length_crabs([20] * 14))
+        planted, truth, drawn = self.plant(base, 0, self.PROFILE)
+        # The first decoy attempt draws both_long, which no tracklet can hold: the old loop
+        # stopped there with no decoy at all.
+        self.assertEqual(drawn[:2], ['both_short', 'both_long'])
+        targets = truth.filter(pc.equal(truth['role'], 'decoy_target'))
+        self.assertEqual(targets.num_rows, 3)
+        self.assertEqual(set(targets['category'].to_pylist()), {'both_short'})
+        self.assertEqual(assert_decoy_geometry(self, base, planted, truth), 3)
+        self.assertEqual(check_halves(self, base, planted, truth),
+                         base.num_rows - planted.num_rows)
+        n_checked = 0
+        for seed in range(1, 12):
+            try:
+                planted, truth, drawn = self.plant(base, seed, self.PROFILE)
+            except ValueError:            # the plant itself drew both_long: plants are mandatory
+                continue
+            n_checked += 1
+            targets = truth.filter(pc.equal(truth['role'], 'decoy_target'))
+            self.assertEqual(targets.num_rows, 3, seed)
+            self.assertEqual(set(targets['category'].to_pylist()), {'both_short'})
+            self.assertEqual(drawn.count('both_short'), 4, (seed, drawn))      # 1 plant + 3
+            self.assertEqual(planted, self.plant(base, seed, self.PROFILE)[0])  # deterministic
+        self.assertGreater(n_checked, 3)
+
+    def test_attempts_are_bounded(self):
+        # One 25-frame tracklet holds the both_long plant; no decoy target can ever fit.
+        base = make_observations(sized_length_crabs([25] + [20] * 9))
+        both_long = holdout.HalfProfile('short', 10, probabilities=(0.0, 0.0, 0.0, 0.0, 1.0))
+        _, truth, drawn = self.plant(base, 0, both_long, decoys=2)
+        self.assertEqual(truth['role'].to_pylist(), ['plant'])
+        self.assertEqual(len(drawn), 1 + holdout.DECOY_ATTEMPTS * 2)
+        # Without trim_decoys an empty target pool still ends the gap's decoys at once.
+        untrimmed = holdout.HalfProfile('short', 22, probabilities=(0.0, 0.0, 0.0, 0.0, 1.0),
+                                        trim_decoys=False)
+        _, truth, drawn = self.plant(base, 0, untrimmed, decoys=2)
+        self.assertEqual(truth['role'].to_pylist(), ['plant'])
+        self.assertEqual(len(drawn), 1)
+
+
+class ShortDecoyPropertyTests(unittest.TestCase):
+    """Short-profile decoys (targets trimmed per category, donors untrimmed) satisfy the
+    plant invariants and the decoy geometry for any seed."""
+
+    BASE = make_observations(size_crabs(20))
+
+    @settings(deadline=None, max_examples=25)
+    @given(seed=st.integers(0, 2**31))
+    def test_property_decoys_keep_plant_invariants(self, seed):
+        planted, truth = holdout.plant_gaps(self.BASE, (1, 3), per_gap=2, seed=seed, decoys=2,
+                                            flicker=1, profile='short')
+        roles = truth['role'].to_pylist()
+        self.assertEqual(roles.count('plant'), 4)
+        self.assertEqual(roles.count('decoy_target'), roles.count('decoy_donor'))
+        self.assertGreaterEqual(roles.count('decoy_target'), 1)
+        originals = truth['original_id'].to_pylist()
+        self.assertEqual(len(set(originals)), len(originals))
+        self.assertEqual(check_halves(self, self.BASE, planted, truth),
+                         self.BASE.num_rows - planted.num_rows)
+        self.assertEqual(assert_decoy_geometry(self, self.BASE, planted, truth),
+                         roles.count('decoy_target'))
+        for row in truth.to_pylist():
+            if row['role'] == 'decoy_target':
+                self.assertIn(row['category'], holdout.CATEGORIES)
+            elif row['role'] == 'decoy_donor':
+                self.assertIsNone(row['category'])
+
+
+class RunHoldoutMinLengthTests(unittest.TestCase):
+    """``holdout_<h>.json`` records the effective ``min_tracklet_len``."""
+
+    def test_regression_json_records_effective_min_tracklet_len(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write(BASE, Path(tmp))
+            for profile, expected in (('standard', 30), ('short', 10)):
+                summary = holdout.run_holdout(path, Path(tmp) / profile, BridgeConfig(max_gap=5),
+                                              (1, 3), per_gap=1, min_tracklet_len=30, seed=0,
+                                              profile=profile)
+                self.assertEqual(summary['min_tracklet_len'], expected, profile)
+                self.assertEqual(summary['profile'],
+                                 holdout.HalfProfile.from_name(profile).to_dict())
+                recorded = json.loads((Path(tmp) / profile / 'holdout_5.json').read_text())
+                self.assertEqual(recorded['min_tracklet_len'], expected)
+            summary = holdout.run_holdout(path, Path(tmp) / 'default', BridgeConfig(max_gap=5),
+                                          (1,), per_gap=1, seed=0)
+            self.assertEqual(summary['min_tracklet_len'], 40)
 
 
 class LinkMixTests(unittest.TestCase):

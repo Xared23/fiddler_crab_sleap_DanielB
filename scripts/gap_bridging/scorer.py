@@ -123,7 +123,10 @@ class ScorerManifest:
     manifest written before it was recorded). ``feature_set`` is the
     training ``--features`` spec (a :data:`gap_bridging.features.FEATURE_SETS`
     key or a comma-separated list; ``'all'`` for a manifest written before
-    v005); ``feature_names`` is what it resolved to.
+    v005); ``feature_names`` is what it resolved to. ``training_profile`` is
+    the hold-out profile of the training sweeps
+    (:data:`gap_bridging.holdout.PROFILES`; ``'standard'`` for a manifest
+    written before it was recorded).
     """
     sklearn_version: str
     feature_names: Tuple[str, ...]
@@ -145,6 +148,7 @@ class ScorerManifest:
     git_commit: str = ''         # '' if unknown
     feature_config: dict = field(default_factory=dict)
     feature_set: str = 'all'
+    training_profile: str = 'standard'
 
     def __post_init__(self) -> None:
         assert len(self.feature_names) == len(self.monotonic_cst), "one constraint per feature"
@@ -168,8 +172,8 @@ class ScorerManifest:
     def from_json(cls, d: dict) -> 'ScorerManifest':
         """Inverse of :meth:`to_json` (lists back to tuples, ``None`` metrics to NaN).
 
-        Optional fields (``git_commit``, ``feature_config``, ``feature_set``)
-        may be absent.
+        Optional fields (``git_commit``, ``feature_config``, ``feature_set``,
+        ``training_profile``) may be absent.
         """
         names = {f.name for f in fields(cls)}
         unknown = set(d) - names
@@ -409,7 +413,11 @@ def load_scorer(path: Path, cfg: Optional[BridgeConfig] = None) -> LinkScorer:
         If the installed scikit-learn differs from the manifest's.
     ValueError
         If the manifest's feature names are not an ordered subset of
-        ``features.FEATURE_NAMES`` (unknown, repeated or permuted names) or
+        ``features.FEATURE_NAMES`` (unknown, repeated or permuted names), a
+        ``feature_set`` naming a :data:`features.FEATURE_SETS` entry resolves
+        to other names, ``monotonic_cst`` differs from
+        ``features.monotonic_for(feature_names)``, the model's
+        ``n_features_in_`` differs from the number of feature names, or
         ``cfg``'s feature keys differ from the manifest's.
     """
     path = Path(path)
@@ -431,6 +439,16 @@ def load_scorer(path: Path, cfg: Optional[BridgeConfig] = None) -> LinkScorer:
     except ValueError as exc:
         raise ValueError(f"scorer {path}: its manifest's feature_names are not an ordered "
                          f"subset of features.FEATURE_NAMES ({exc}); retrain it") from exc
+    named = features.FEATURE_SETS.get(manifest.feature_set)
+    if named is not None and tuple(named) != tuple(manifest.feature_names):
+        raise ValueError(f"scorer {path}: feature_set {manifest.feature_set!r} resolves to "
+                         f"{list(named)} but the manifest's feature_names are "
+                         f"{list(manifest.feature_names)}; retrain it")
+    expected_cst = features.monotonic_for(manifest.feature_names)
+    if tuple(manifest.monotonic_cst) != expected_cst:
+        raise ValueError(f"scorer {path}: monotonic_cst {list(manifest.monotonic_cst)} differs "
+                         f"from features.monotonic_for(feature_names) {list(expected_cst)}; "
+                         f"retrain it")
     if cfg is not None:
         check_feature_config(manifest, cfg, path)
     import joblib
@@ -438,7 +456,9 @@ def load_scorer(path: Path, cfg: Optional[BridgeConfig] = None) -> LinkScorer:
     payload = joblib.load(path)
     assert set(payload) == {'hgb', 'calibrator'}, f"unexpected model payload keys {sorted(payload)}"
     n_in = getattr(payload['hgb'], 'n_features_in_', len(manifest.feature_names))
-    assert n_in == len(manifest.feature_names), "model and manifest disagree on the feature count"
+    if n_in != len(manifest.feature_names):
+        raise ValueError(f"scorer {path}: the model takes {n_in} features but the manifest "
+                         f"lists {len(manifest.feature_names)}; retrain it")
     return LinkScorer(payload['hgb'], payload['calibrator'], manifest)
 
 

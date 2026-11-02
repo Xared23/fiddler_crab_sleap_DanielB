@@ -71,6 +71,8 @@ POOLED_GAP_COLUMNS = (('max_gap', 'gap') + holdout.POOL_COUNTS
 POOLED_HORIZON_COLUMNS = (('max_gap',) + holdout.POOL_COUNTS
                           + ('links', 'recall', 'precision', 'precision_lower', 'n_gaps',
                              'min_gap_precision', 'rule_pass', 'failing_gaps'))
+PROFILE_COLUMN = 'profile'                       # truth column added in v005
+V005_TRUTH_COLUMNS = ('category', 'left_frames', 'right_frames')   # compared when both have them
 COMPARISON_GAP_NAME = 'comparison_by_gap.csv'
 COMPARISON_HORIZON_NAME = 'comparison_by_horizon.csv'
 PROMOTION_NAME = 'promotion.json'
@@ -220,6 +222,31 @@ def _sorted_truth(path: Path) -> pa.Table:
     return table.sort_by([(name, 'ascending') for name in table.schema.names])
 
 
+def _comparable_truths(a: pa.Table, b: pa.Table, where: str) -> tuple[pa.Table, pa.Table]:
+    """Two truth tables reduced to their shared columns, rows sorted.
+
+    Always the nine :data:`gap_bridging.holdout.TRUTH_V004_NAMES` and
+    ``profile`` (a table written before v005 has none and counts as
+    ``'standard'``); ``category``, ``left_frames`` and ``right_frames`` only
+    when both tables have them. So a v004 truth equals a v005 ``'standard'``
+    truth of the same plants, while a v004 truth never equals a ``'short'``
+    one. Raises ValueError (naming ``where``) when a v004 column is missing.
+    """
+    out = []
+    for table in (a, b):
+        missing = [n for n in holdout.TRUTH_V004_NAMES if n not in table.schema.names]
+        if missing:
+            raise ValueError(f"{where}: holdout truth lacks the columns {missing}")
+        if PROFILE_COLUMN not in table.schema.names:
+            table = table.append_column(PROFILE_COLUMN,
+                                        pa.array(['standard'] * table.num_rows, pa.string()))
+        out.append(table)
+    names = list(holdout.TRUTH_V004_NAMES) + [PROFILE_COLUMN] + [
+        n for n in V005_TRUTH_COLUMNS if all(n in t.schema.names for t in out)]
+    keys = [(n, 'ascending') for n in names]
+    return out[0].select(names).sort_by(keys), out[1].select(names).sort_by(keys)
+
+
 def check_same_plants(variants: Mapping[str, Sequence[Path]]) -> list[int]:
     """Check that every variant was scored on the same planted gaps.
 
@@ -242,10 +269,11 @@ def check_same_plants(variants: Mapping[str, Sequence[Path]]) -> list[int]:
     ValueError
         If the variants have different numbers of sweep directories, a sweep
         holds a different set of completed horizons than the reference's
-        first sweep, or a truth table (rows sorted, schema metadata ignored)
-        differs from the reference variant's at the same sweep index and
-        horizon. The message names the variant, the sweep index and the
-        horizon.
+        first sweep, or a truth table (rows sorted, schema metadata ignored,
+        compared on the shared columns of :func:`_comparable_truths`, so a
+        v004-written truth matches a v005 ``'standard'`` one) differs from
+        the reference variant's at the same sweep index and horizon. The
+        message names the variant, the sweep index and the horizon.
     """
     names = list(variants)
     reference = names[0]
@@ -265,7 +293,10 @@ def check_same_plants(variants: Mapping[str, Sequence[Path]]) -> list[int]:
             expected = _sorted_truth(runs[reference][index][horizon] / holdout.TRUTH_NAME)
             for name in names[1:]:
                 got = _sorted_truth(runs[name][index][horizon] / holdout.TRUTH_NAME)
-                if not got.equals(expected):
+                where = (f"variant {name!r} sweep {index} ({variants[name][index]}) "
+                         f"horizon {horizon}")
+                ref_cmp, got_cmp = _comparable_truths(expected, got, where)
+                if not got_cmp.equals(ref_cmp):
                     raise ValueError(
                         f"variant {name!r} sweep {index} ({variants[name][index]}) horizon "
                         f"{horizon}: holdout truth differs from variant {reference!r} "

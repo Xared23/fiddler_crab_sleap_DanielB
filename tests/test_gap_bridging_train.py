@@ -234,6 +234,16 @@ def make_sweep(root: Path, seed: int = 0, n_plants: int = 40, n_decoys: int = 4,
     return sweep
 
 
+def set_profile(sweep: Path, name: str, horizons: Sequence[int] = HORIZONS) -> Path:
+    """Record hold-out profile ``name`` in the ``holdout_<h>.json`` of ``horizons``."""
+    for h in horizons:
+        path = sweep / f'holdout_{h}' / f'holdout_{h}.json'
+        d = json.loads(path.read_text())
+        d['profile'] = holdout.HalfProfile.from_name(name).to_dict()
+        path.write_text(json.dumps(d) + '\n')
+    return sweep
+
+
 # ============================================================
 # TESTS: MODEL
 # ============================================================
@@ -480,6 +490,30 @@ class DataTests(Patched):
         _, cfg = train.collect_training_rows([b], 'salt', 0.4)
         self.assertEqual(cfg, features.feature_config(BridgeConfig(gap_penalty=0.2)))
 
+    def test_regression_training_profile_must_agree(self):
+        """Standard and short sweeps are not mixed silently (profile provenance)."""
+        a = make_sweep(self.tmp, seed=0)
+        b = set_profile(make_sweep(self.tmp, seed=1), 'short')
+        c = set_profile(make_sweep(self.tmp, seed=2), 'short')
+        self.assertEqual(train.training_profile([a]), 'standard')      # JSON without profile
+        self.assertEqual(train.training_profile([b, c]), 'short')
+        self.assertEqual(train.training_profile([self.tmp / 'empty', b]), 'short')
+        self.assertEqual(train.training_profile([self.tmp / 'empty']), 'standard')
+        with self.assertRaisesRegex(ValueError, 'disagree on the hold-out profile') as ctx:
+            train.training_profile([a, b])
+        self.assertIn(str(a), str(ctx.exception))
+        self.assertIn(str(b), str(ctx.exception))
+        with self.assertRaisesRegex(ValueError, 'hold-out profile'):
+            train.collect_training_rows([a, b], 'salt', 0.4)
+        table, _ = train.collect_training_rows([b, c], 'salt', 0.4)
+        self.assertEqual(table.num_rows, 2 * 124)
+        # Within one sweep: one horizon of another profile.
+        set_profile(a, 'short', HORIZONS[1:])
+        with self.assertRaisesRegex(ValueError, 'hold-out profile'):
+            train.training_profile([a])
+        with self.assertRaises(ValueError):
+            train.training_profile([])
+
     def test_groups_use_the_planted_side(self):
         table, _ = train.collect_training_rows([make_sweep(self.tmp)], 'salt', 0.4)
         u = table.filter(pc.equal(table['tracklet_a'], 'u001'))
@@ -539,6 +573,7 @@ class TrainCommandTests(Patched):
         self.assertEqual(m.calibration, 'sigmoid')
         self.assertLess(m.threshold, 1.0)
         self.assertEqual(m.feature_config, features.feature_config(BridgeConfig()))
+        self.assertEqual(m.training_profile, 'standard')
         loaded = scorer.load_scorer(out)
         self.assertEqual(loaded.manifest.to_json(), m.to_json())
         self.assertEqual(loaded.threshold, m.threshold)
@@ -629,6 +664,21 @@ class TrainCommandTests(Patched):
         with open(train.metrics_csv_path(out)) as fh:
             self.assertEqual({r['fold'] for r in csv.DictReader(fh)}, {'oof'})
         json.loads(scorer.manifest_path(out).read_text())
+
+    def test_manifest_records_training_profile(self):
+        for sweep in self.sweeps:
+            set_profile(sweep, 'short')
+        out = self.tmp / 'short.joblib'
+        m = train.train_command(self.sweeps, out, FAST, 'salt', 0.4, None, False)
+        self.assertEqual(m.training_profile, 'short')
+        self.assertEqual(json.loads(scorer.manifest_path(out).read_text())['training_profile'],
+                         'short')
+        self.assertEqual(scorer.load_scorer(out).manifest.training_profile, 'short')
+        set_profile(self.sweeps[0], 'standard')
+        with self.assertRaisesRegex(ValueError, 'hold-out profile'):
+            train.train_command(self.sweeps, self.tmp / 'mixed.joblib', FAST, 'salt', 0.4,
+                                None, False)
+        self.assertFalse((self.tmp / 'mixed.joblib').exists())
 
     def test_deterministic(self):
         a = train.train_command(self.sweeps, self.tmp / 'a.joblib', FAST, 'salt', 0.4, None, False)

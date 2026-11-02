@@ -1735,8 +1735,18 @@ trades short-gap burrow links for long-gap ones.
   link from a crab that genuinely returned (the trimmed rows are deleted).
 - S1/S2 pairwise test precision is 0.99, not 1.0: the out-of-fold threshold
   does not transfer perfectly to held-out short halves.
-- Mix probabilities are demo constants; re-measure with `link_mix` on the
-  full dataset before planting there.
+- Mix probabilities are demo constants, measured on the links the hand-cost
+  linker accepted at horizon 30 and pooled over all gaps, so they describe
+  the mix conditional on acceptance, not that of all true breaks, and they
+  are applied identically at every planted gap; re-measure with `link_mix`
+  on the full dataset before planting there.
+- Short halves are cut from tracklets drawn uniformly among those long
+  enough for the plant, i.e. mostly well-tracked crabs, and the rest of the
+  tracklet is deleted around them; a natural 1-frame fragment is usually a
+  poorly tracked crab with neighbours still present.
+- Decoy categories are conditional on a successful draw (a target whose cue
+  differs from a donor), which skews planted decoys towards categories whose
+  short left half still carries a usable cue.
 
 ### Commands (v005)
 

@@ -146,6 +146,15 @@ class ManifestTests(unittest.TestCase):
         del d['feature_set']                            # a manifest written before v005
         self.assertEqual(scorer.ScorerManifest.from_json(d).feature_set, 'all')
 
+    def test_training_profile_round_trip_and_old_manifest(self):
+        self.assertEqual(manifest().training_profile, 'standard')
+        m = manifest(training_profile='short')
+        d = json.loads(json.dumps(m.to_json()))
+        self.assertEqual(d['training_profile'], 'short')
+        self.assertEqual(scorer.ScorerManifest.from_json(d), m)
+        del d['training_profile']                       # a manifest written before the field
+        self.assertEqual(scorer.ScorerManifest.from_json(d).training_profile, 'standard')
+
     def test_unknown_key_rejected(self):
         d = manifest().to_json()
         d['bogus'] = 1
@@ -418,8 +427,36 @@ class FeatureSubsetTests(unittest.TestCase):
         d = json.loads(meta.read_text())
         d['feature_names'] = list(self.NAMES[:-1])
         d['monotonic_cst'] = list(features.monotonic_for(self.NAMES[:-1]))
+        d['feature_set'] = ','.join(self.NAMES[:-1])     # a list spec: only the width differs
         meta.write_text(json.dumps(d))
-        with self.assertRaises(AssertionError):
+        with self.assertRaisesRegex(ValueError, 'model takes 20 features') as ctx:
+            scorer.load_scorer(self.path)
+        self.assertIn('retrain', str(ctx.exception))
+
+    def test_regression_feature_set_must_resolve_to_feature_names(self):
+        # A named feature_set that resolves to other names than the manifest's is refused.
+        meta = scorer.manifest_path(self.path)
+        d = json.loads(meta.read_text())
+        d['feature_set'] = 'no_length_no_speed'
+        meta.write_text(json.dumps(d))
+        with self.assertRaisesRegex(ValueError, "feature_set 'no_length_no_speed' resolves"):
+            scorer.load_scorer(self.path)
+        d['feature_set'] = 'all'
+        meta.write_text(json.dumps(d))
+        with self.assertRaisesRegex(ValueError, "feature_set 'all' resolves"):
+            scorer.load_scorer(self.path)
+        d['feature_set'] = ','.join(reversed(self.NAMES))   # a list spec is not checked
+        meta.write_text(json.dumps(d))
+        self.assertEqual(scorer.load_scorer(self.path).feature_names, self.NAMES)
+
+    def test_regression_monotonic_cst_must_match_features(self):
+        meta = scorer.manifest_path(self.path)
+        d = json.loads(meta.read_text())
+        cst = list(features.monotonic_for(self.NAMES))
+        cst[cst.index(0)] = -1                           # constrain an unconstrained feature
+        d['monotonic_cst'] = cst
+        meta.write_text(json.dumps(d))
+        with self.assertRaisesRegex(ValueError, 'monotonic_cst'):
             scorer.load_scorer(self.path)
 
 
@@ -439,6 +476,23 @@ class CommittedManifestTests(unittest.TestCase):
         self.assertTrue(m.feature_config)
         self.assertEqual(features.check_feature_subset(m.feature_names), tuple(range(F)))
         self.assertEqual(m.monotonic_cst, features.monotonic_for(m.feature_names))
+        self.assertNotIn('training_profile', d)
+        self.assertEqual(m.training_profile, 'standard')
+
+    def test_committed_v005_manifests_parse_and_check(self):
+        expected = {'link_scorer_v005_s1': ('all', 'short'), 'link_scorer_v005_s2': ('no_length', 'short'),
+                    'link_scorer_v005_s3': ('no_length', 'standard')}
+        for stem, (feature_set, profile) in expected.items():
+            path = self.PATH.with_name(f'{stem}.json')
+            if not path.is_file():
+                self.skipTest(f'{path} not present')
+            d = json.loads(path.read_text())
+            m = scorer.ScorerManifest.from_json(d)
+            self.assertEqual((m.feature_set, m.training_profile), (feature_set, profile), stem)
+            self.assertTrue(all('current_short' in s for s in m.sweeps) if profile == 'short'
+                            else all('current_std' in s for s in m.sweeps), stem)
+            self.assertEqual(m.feature_names, features.FEATURE_SETS[m.feature_set])
+            self.assertEqual(m.monotonic_cst, features.monotonic_for(m.feature_names))
 
     @unittest.skipUnless(PATH.with_suffix('.joblib').is_file(), 'committed scorer model not present')
     def test_committed_scorer_loads(self):
