@@ -119,3 +119,13 @@
 - **Impact:** v004 sweeps could not have been compared by v005 code
 - **Regression test:** tests/test_gap_bridging_compare.py::TruthSchemaToleranceTests
 - **Fix:** select the intersection of the schema's names and the table's columns
+
+## D-013 — pair-level threshold rule charges the scorer for negatives the assignment removes
+- **Found:** 2026-11-02, assessing the v005 threshold recipe
+- **Status:** mitigated in v006 (`train --threshold-rule pipeline`); the pair-level rule stays the default
+- **Where:** scripts/gap_bridging/train.py `choose_threshold` (smallest OOF probability with pair precision at the target); scripts/gap_bridging/config.py `learned_unmatched_probability` (fixed 0.5 dummy)
+- **Symptom:** re-scoring the v005 short-profile hold-outs with S1, pair precision is flat near 0.97 from p = 0.5 down to 0.2 (train fold: 10 of 402 negatives above 0.5, 13 above 0.2, 19 above 0.1), so the rule lands at 0.989 and keeps 35% of the demo's 827 natural links, while the full linker at p >= 0.5 makes one false link in 600 plants: the one-to-one assignment and margin veto remove almost every negative the pair count charges to the scorer. Independently, the dummy diagonal −log(0.5) rejects every pair with p < 0.5 whatever `learned_min_probability` says, so thresholds below 0.5 were inert
+- **Repro:** `bridge_gaps.py train --sweeps logs/gap_sweep_v005/current_short/seed_{0..4}` (pair rule) vs `... --threshold-rule pipeline`; compare `threshold` and `pair_threshold` in the manifest and the demo link counts of the two overlays
+- **Impact:** v004/v005 learned scorers were judged at thresholds the pipeline never needed; S1 lost 11 demo links and one gap-2 plant (p = 0.49) for no precision gain
+- **Regression test:** tests/test_gap_bridging_threshold.py (choice rule, train-fold-only curve, dummy tied to the threshold), tests/test_gap_bridging_sweep.py::TrainCompareCliTests::test_train_pipeline_threshold_rule_end_to_end, tests/test_gap_bridging_train.py::TrainCommandTests::test_pair_oof_rule_unchanged_by_v006
+- **Fix:** v006 `gap_bridging.threshold`: the threshold is chosen after assignment on train-fold plants of the horizon-30 hold-outs, with `learned_unmatched_probability` tied to it in the written overlay

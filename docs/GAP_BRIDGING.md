@@ -1765,3 +1765,196 @@ for k in 0 1 2 3 4; do .venv/bin/python scripts/bridge_gaps.py sweep $COMMON --p
     --candidate logs/gap_sweep_v005/s1_p50/seed_0/max_gap_30 --observations $OBS \
     --out docs/figures/gap_bridging_v005_audit_s1_p50 --n 20
 ```
+
+## v006: pipeline-level threshold rule for learned scorers
+
+v006 (2026-11-02) addresses D-013: the v004 threshold recipe chooses the
+smallest out-of-fold probability at which every candidate **pair** above it is
+a planted positive. Re-scoring the v005 short-profile hold-outs with S1 shows
+that this metric, not its target, is the obstacle: pair precision is flat near
+0.97 from p = 0.5 down to 0.2 (train fold: 10 of 402 negatives above 0.5,
+13 above 0.2, 19 above 0.1 against 402 to 410 positives), so the rule lands at
+0.989 and refuses two thirds of the demo's natural links, while the full
+linker at p ≥ 0.5 makes one false link in 600 plants. The one-to-one
+assignment and the margin veto remove almost every negative the pair count
+charges to the scorer. A second coupling made any threshold below 0.5 inert:
+the dummy diagonal is −log(`learned_unmatched_probability`) with 0.5 fixed,
+so a pair with p < 0.5 lost to "unmatched" whatever `learned_min_probability`
+said. Every default is unchanged (the default and `linear` demo runs are
+byte-identical to v005, and the `pair_oof` rule remains the training default).
+
+### The pipeline rule (`train --threshold-rule pipeline`)
+
+`gap_bridging.threshold` chooses the threshold where the promotion rule is
+evaluated: after assignment, per planted gap, on the **train-fold** plants of
+each training sweep's `holdout_<curve_horizon>` run (default 30; the test
+fold stays reserved for `compare`).
+
+1. Candidates: the ascending unique out-of-fold probabilities of the
+   labelled train pairs inside (0, 1), thinned to at most `--max-candidates`
+   (200) by evenly spaced indices that keep both extremes.
+2. Scene: each run's `planted_observations.parquet`, its own hand-cost
+   config (from the run's JSON, `gate_model` must be `sqrt`) and its truth
+   table restricted to rows whose original tracklet is in the train fold
+   (`labels.truth_folds`; decoy donors and flicker rows of other folds drop
+   out with their rows, and a gap left with no plant is dropped rather than
+   failed).
+3. Curve: for every candidate `t`, `pipeline.link_videos` with
+   `cost_model: learned`, the fitted model as scorer and
+   `learned_min_probability = learned_unmatched_probability = t` (gates,
+   staging, margin and chain reachability unchanged), then
+   `holdout.score_links` per gap; pooled over the sweeps.
+4. Choice: a candidate **qualifies** when precision is exactly 1.0 at every
+   gap through `--through-gap` (30; `recovered > 0` and `false_link == 0`);
+   it is **clean** when it makes no false link there (recall may vanish).
+   The threshold is the smallest qualifying candidate above which every
+   candidate is clean, so a lucky clean dip below a false-linking candidate
+   cannot be chosen and vanishing recall at the top (where the highest
+   candidates recover nothing) does not block the choice. No such candidate
+   refuses the training with the offending candidate and gap named.
+5. Outputs: `<model>_threshold_curve.csv` (pooled per threshold and gap) and
+   `<model>_threshold_curve_runs.csv` (per run) beside the model; the
+   manifest records `threshold_rule`, the pair-level value as
+   `pair_threshold` and a `threshold_summary` (candidates, counts through
+   the rule's gap at the chosen and at the pair-level threshold); the overlay
+   written by `--write-config` sets both probabilities to the threshold. Old
+   manifests load as `pair_oof` with no pair threshold.
+
+Cost: 200 candidates × 5 scenes at about 0.3 s each, 3 minutes per scorer on
+a login node. Features are recomputed per candidate; caching them would not
+change the result.
+
+### Scorers (v006)
+
+Retrained on the five v005 short-profile hand-cost sweeps under the pipeline
+rule (same classifier, calibration and folds as v005):
+
+| scorer | features | rule threshold | pair-level threshold | train-fold plants through gap 30 at the threshold (recovered / false of 300) | first false link below | pairwise test precision / recall |
+|---|---|---:|---:|---:|---:|---:|
+| S1 (`link_scorer_v006_s1`) | all | 0.580 | 0.989 | 294 / 0 (pair threshold: 70 / 0) | 0.413 (one at gap 30) | 0.968 / 0.962 |
+| S2 (`link_scorer_v006_s2`) | no_length | 0.103 | 0.985 | 298 / 0 (pair threshold: 109 / 0) | 0.085 (one at gap 10) | 0.953 / 0.983 |
+
+An independent script (not using `gap_bridging.threshold`) rebuilt the five
+scenes from the files, re-linked at each chosen threshold and at the largest
+candidate below it, and reproduced the pooled curve rows and the verdicts
+exactly. The D-009 diagnostic on the demo's 827 natural links: S2 gives
+p ≥ 0.103 to 99.1% of links whose shorter side has 1 frame, 97.9% (2 frames),
+100% (3 and 4–9 frames) and 98.5% (10 or more); S1 gives p ≥ 0.580 to 97.1%,
+97.9%, 96.7%, 97.1% and 98.5%; the v005 S1 at 0.989 gave 48%, 27%, 16%, 16%
+and 19%.
+
+### Comparison on the short profile (v006)
+
+Baseline `current` = the hand cost on the short profile (v005 sweeps);
+`S1 p ≥ 0.5` is the v005 exploratory overlay. Test fold, horizon 30,
+`recovered / false` per planted gap (`docs/gap_bridging_v006_comparison.md`;
+all plants in `docs/gap_bridging_v006_comparison_all.md`):
+
+| planted gap | current | S1 p ≥ 0.5 | S1 (0.580) | S2 (0.103) |
+|---:|---:|---:|---:|---:|
+| 1 | 18 / 0 of 18 | 18 / 0 | 18 / 0 | 18 / 0 |
+| 2 | 27 / 0 of 27 | 26 / 0 | 26 / 0 | 27 / 0 |
+| 3 | 31 / 0 of 31 | 31 / 0 | 31 / 0 | 31 / 0 |
+| 5 | 22 / 0 of 22 | 22 / 0 | 22 / 0 | 22 / 0 |
+| 10 | 20 / 0 of 21 | 21 / 0 | 21 / 0 | 21 / 0 |
+| 15 | 20 / 0 of 20 | 20 / 0 | 20 / 0 | 20 / 0 |
+| 20 | 16 / 0 of 20 | 19 / 0 | 19 / 0 | 20 / 0 |
+| 30 | 18 / 0 of 21 | 21 / 0 | 20 / 0 | 21 / 0 |
+| all plants, horizon 30 (of 600) | 452 / 2 | 472 / 1 | 471 / 1 | 478 / 3 |
+| all plants, horizon 60 (of 600) | 497 / 2 | 582 / 1 | 581 / 1 | 592 / 3 |
+| demo links at horizon 30 (trajectories) | 827 (354) | 816 (365) | 813 (368) | 831 (350) |
+
+S2 recovers every test-fold plant through gap 30 with no false link and
+clears the demo floor. Its three false links over all plants are train-fold
+halves planted at gaps 45 and 60, beyond the rule's range: two gap-45 halves
+link to a wrong partner under horizons 30 and 60 (the hand cost makes
+neither; it makes its own at gap 30 and at gap 60), and the gap-60 one is the
+plant every linker gets wrong (v005). S1 under the pipeline rule behaves like
+S1 at p ≥ 0.5 (its threshold 0.58 sits just above 0.5): it still misses the
+gap-2 test plant at p = 0.49 and 14 demo links. The horizon rule itself is
+not satisfied by any variant on the short profile (the hand baseline fails
+precision 1.0 at planted gap 30 over all plants, as in v005), so the
+promotion check ran at the fallback horizon 30.
+
+### Visual audit (v006)
+
+`docs/figures/gap_bridging_v006_audit_s2_{gained,lost}_p*.png` (S2 vs
+current, horizon 30, seed-0 runs; CSV beside them): 13 gained (gaps 1 to 29,
+eleven with a 1 to 3 frame side) and 9 lost (gaps 1 to 30). On the video
+every gained link joins the same crab at the same burrow or on the same
+patch of mud (refused by the hand cost above `max_cost` at 1.04 to 2.82,
+accepted by S2 at p 0.08 to 0.98), and every lost link is just as plausible:
+a 59- and a 77-frame tracklet of one crab in its burrow 6 frames apart
+(hand cost 0.45, S2 p = 0.075), short burrow fragments at gaps 13 to 30
+(S2 p 0.02 to 0.09), and one gap-9 pair lost to a competing gap-10 link to
+an overlapping duplicate tracklet of the same crab. The audit shows no
+visibly wrong link on either side; it shows that the scorer's ordering of
+stationary burrow links differs from the hand cost's, and that the hold-out
+does not contain this kind of case. The S1 audit
+(`gap_bridging_v006_audit_s1_*`: 8 gained, 20 lost) reads like v005's.
+
+### Promotion decision (v006)
+
+- **S2 passes the agreed rule**: test-fold precision 1.0 and recall ≥ the
+  hand baseline at every planted gap through 30 (160 of 160 plants), 831
+  demo links against the floor of 827, audit reviewed. By the user's
+  decision for this version the defaults are **not switched**; the overlay
+  that would be adopted is `configs/tracking/gap_bridging_v006_s2.yaml`
+  (horizon re-derivation and golden re-pins are a separate step).
+- **Caveats for that decision.** S2 is the `no_length` ablation model,
+  chosen by the rule rather than by design; its threshold 0.103 is low, and
+  the first false link below it is one candidate away (0.085). Over all
+  plants it makes two gap-45 false links the hand cost does not, outside the
+  rule's gap range but inside the data. The demo gain is 4 links, and the
+  audit finds the lost and gained links equally plausible. S1 does not pass.
+- **What the rule changed.** The threshold moved from 0.99 to 0.58 (S1) and
+  0.10 (S2) with no false link through gap 30 on the train fold, recovering
+  294 and 298 of 300 train-fold plants instead of 70 and 109; the test fold
+  confirms it. The pair-level rule is kept as the default and recorded in
+  every manifest for comparison.
+
+### Runtime benchmark (v006)
+
+`scripts/bench_gap_bridging.py --tiles 1,16 --repeats 5` (full pipeline,
+`max_gap` 30, login node, median of 5; `logs/bench/gap_bridging_v006.csv`):
+
+| config | demo total (link stage) | links | 16 tiles total (link stage) | links |
+|---|---:|---:|---:|---:|
+| current (hand cost) | 1.19 s (0.08 s) | 827 | 20.8 s (2.45 s) | 13,232 |
+| S1 (0.580) | 1.28 s (0.15 s) | 813 | 21.0 s (3.55 s) | 13,008 |
+| S2 (0.103) | 1.29 s (0.14 s) | 831 | 21.5 s (3.54 s) | 13,296 |
+
+The learned cost adds 0.07 s to the link stage on the demo and 1.1 s on 16
+tiles (feature computation and scoring of all candidate pairs); the
+assembly stage dominates either way. The v004 learned bench row (0.39 s
+total) reflected its 26 links, not a faster linker.
+
+### Residual risks (v006)
+
+- The curve is chosen on about 300 train-fold plants of five seeds at one
+  horizon; thresholds near a false link (S2: 0.103 vs 0.085) have little
+  margin, and a new dataset should re-run the curve rather than reuse the
+  value.
+- Plants beyond the horizon (absences longer than `max_gap`) are not in the
+  rule; S2 links two of 120 such train-fold halves wrongly at gap 45.
+- Lowering the dummy with the threshold lets low-p pairs compete that were
+  previously absorbed by "unmatched"; the curve measures the consequence per
+  gap only where plants exist.
+- The v005 residual risks (planted halves are confident detections, demo
+  constants for the mix) apply unchanged.
+
+### Commands (v006)
+
+```bash
+SW=logs/gap_sweep_v005/current_short/seed_{0,1,2,3,4}
+.venv/bin/python scripts/bridge_gaps.py train --sweeps $SW --features all --threshold-rule pipeline \
+    --out configs/tracking/link_scorer_v006_s1.joblib --write-config configs/tracking/gap_bridging_v006_s1.yaml   # S2: --features no_length
+# sweeps: the v005 sweep line with --profile short --config configs/tracking/gap_bridging_v006_<s>.yaml -> logs/gap_sweep_v006/<s>/seed_k
+.venv/bin/python scripts/bridge_gaps.py compare --variant current=logs/gap_sweep_v005/current_short/seed_0,... \
+    --variant s1_p50=... --variant s1=logs/gap_sweep_v006/s1/seed_0,... --variant s2=... \
+    --fold test --through-gap 30 --demo-horizon 30 --out logs/gap_sweep_v006/compare_test --docs docs/gap_bridging_v006_comparison.md
+.venv/bin/python scripts/bridge_gaps.py audit --current logs/gap_sweep_v005/current_short/seed_0/max_gap_30 \
+    --candidate logs/gap_sweep_v006/s2/seed_0/max_gap_30 --observations $OBS --out docs/figures/gap_bridging_v006_audit_s2 --n 20
+.venv/bin/python scripts/bench_gap_bridging.py --tiles 1,16 --repeats 5 --configs current=configs/tracking/gap_bridging_v001.yaml \
+    s1=configs/tracking/gap_bridging_v006_s1.yaml s2=configs/tracking/gap_bridging_v006_s2.yaml --out logs/bench/gap_bridging_v006.csv
+```
