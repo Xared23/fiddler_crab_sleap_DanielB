@@ -155,6 +155,29 @@ class ManifestTests(unittest.TestCase):
         del d['training_profile']                       # a manifest written before the field
         self.assertEqual(scorer.ScorerManifest.from_json(d).training_profile, 'standard')
 
+    def test_threshold_rule_round_trip_and_old_manifest(self):
+        """v006: threshold_rule, pair_threshold and threshold_summary round-trip; old manifests
+        without them load as pair_oof with no pair threshold and an empty summary."""
+        self.assertEqual(manifest().threshold_rule, 'pair_oof')
+        self.assertIsNone(manifest().pair_threshold)
+        self.assertEqual(manifest().threshold_summary, {})
+        summary = {'n_candidates': 3, 'chosen': 0.25, 'through_gap': 30,
+                   'at_chosen': {'planted': 10, 'recovered': 9, 'false_link': 0, 'missed': 1},
+                   'at_pair_threshold': None}
+        m = manifest(threshold_rule='pipeline', pair_threshold=0.99, threshold_summary=summary)
+        d = json.loads(json.dumps(m.to_json()))
+        self.assertEqual((d['threshold_rule'], d['pair_threshold']), ('pipeline', 0.99))
+        self.assertEqual(d['threshold_summary'], summary)
+        self.assertEqual(scorer.ScorerManifest.from_json(d), m)
+        for key in ('threshold_rule', 'pair_threshold', 'threshold_summary'):
+            del d[key]                                  # a manifest written before v006
+        back = scorer.ScorerManifest.from_json(d)
+        self.assertEqual((back.threshold_rule, back.pair_threshold, back.threshold_summary),
+                         ('pair_oof', None, {}))
+        with self.assertRaises(AssertionError):
+            manifest(threshold_rule='bogus')
+        self.assertEqual(scorer.THRESHOLD_RULES, ('pair_oof', 'pipeline'))
+
     def test_unknown_key_rejected(self):
         d = manifest().to_json()
         d['bogus'] = 1
@@ -493,6 +516,8 @@ class CommittedManifestTests(unittest.TestCase):
                             else all('current_std' in s for s in m.sweeps), stem)
             self.assertEqual(m.feature_names, features.FEATURE_SETS[m.feature_set])
             self.assertEqual(m.monotonic_cst, features.monotonic_for(m.feature_names))
+            self.assertNotIn('threshold_rule', d)       # written before v006
+            self.assertEqual(m.threshold_rule, 'pair_oof')
 
     @unittest.skipUnless(PATH.with_suffix('.joblib').is_file(), 'committed scorer model not present')
     def test_committed_scorer_loads(self):

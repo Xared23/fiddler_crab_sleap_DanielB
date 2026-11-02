@@ -61,6 +61,9 @@ from gap_bridging.config import BridgeConfig
 #: Probability floor before ``-log`` so that costs stay finite.
 P_FLOOR = 1e-12
 CALIBRATIONS = ('isotonic', 'sigmoid')
+#: How a manifest's threshold was chosen (v006): pair-level OOF precision or the
+#: pipeline curve on train-fold plants (:mod:`gap_bridging.threshold`).
+THRESHOLD_RULES = ('pair_oof', 'pipeline')
 TRAIN_HINT = "run `bridge_gaps.py train` to fit one"
 #: Tuple-valued manifest fields (lists in JSON).
 _TUPLE_FIELDS = ('feature_names', 'monotonic_cst', 'sweeps')
@@ -126,7 +129,14 @@ class ScorerManifest:
     v005); ``feature_names`` is what it resolved to. ``training_profile`` is
     the hold-out profile of the training sweeps
     (:data:`gap_bridging.holdout.PROFILES`; ``'standard'`` for a manifest
-    written before it was recorded).
+    written before it was recorded). ``threshold_rule`` (v006) is how
+    ``threshold`` was chosen: ``'pair_oof'`` (pair-level out-of-fold
+    precision, :func:`gap_bridging.train.choose_threshold`; the value for a
+    manifest written before v006) or ``'pipeline'`` (after assignment on
+    train-fold plants, :mod:`gap_bridging.threshold`); ``pair_threshold`` is
+    the pair-level value in either case (``None`` before v006) and
+    ``threshold_summary`` the pipeline curve summary
+    (:func:`gap_bridging.threshold.summary`; ``{}`` under ``'pair_oof'``).
     """
     sklearn_version: str
     feature_names: Tuple[str, ...]
@@ -149,10 +159,15 @@ class ScorerManifest:
     feature_config: dict = field(default_factory=dict)
     feature_set: str = 'all'
     training_profile: str = 'standard'
+    threshold_rule: str = 'pair_oof'
+    pair_threshold: Optional[float] = None
+    threshold_summary: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         assert len(self.feature_names) == len(self.monotonic_cst), "one constraint per feature"
         assert self.calibration in CALIBRATIONS, f"calibration must be one of {CALIBRATIONS}"
+        assert self.threshold_rule in THRESHOLD_RULES, \
+            f"threshold_rule must be one of {THRESHOLD_RULES}"
 
     def to_json(self) -> dict:
         """JSON-ready dict: tuples as lists, non-finite metric values as ``None``."""
@@ -173,7 +188,8 @@ class ScorerManifest:
         """Inverse of :meth:`to_json` (lists back to tuples, ``None`` metrics to NaN).
 
         Optional fields (``git_commit``, ``feature_config``, ``feature_set``,
-        ``training_profile``) may be absent.
+        ``training_profile``, ``threshold_rule``, ``pair_threshold``,
+        ``threshold_summary``) may be absent.
         """
         names = {f.name for f in fields(cls)}
         unknown = set(d) - names

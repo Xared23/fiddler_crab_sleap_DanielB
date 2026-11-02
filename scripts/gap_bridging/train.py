@@ -89,8 +89,9 @@ import yaml
 
 # ----- local modules -----
 from gap_bridging import features, holdout, labels, tables
-from gap_bridging.scorer import (CALIBRATIONS, LinkScorer, ScorerManifest, SigmoidCalibrator,
-                                 calibrated_probability, manifest_path, save_scorer)
+from gap_bridging.scorer import (CALIBRATIONS, THRESHOLD_RULES, LinkScorer, ScorerManifest,
+                                 SigmoidCalibrator, calibrated_probability, manifest_path,
+                                 save_scorer)
 from pipeline_common import sha256
 
 # ============================================================
@@ -111,6 +112,13 @@ OOF_NOTE = ("calibration and threshold use train-fold out-of-fold predictions (s
 ROOT = Path(__file__).resolve().parents[2]
 LINKS_NAME = 'links.parquet'
 DEGENERATE_HINT = "use --calibration sigmoid or lower --target-precision"
+#: Pipeline threshold rule (v006): the hold-out horizon whose planted scenes feed the curve
+#: and the largest planted gap the rule must hold through (the promotion rule's gap).
+DEFAULT_CURVE_HORIZON = 30
+DEFAULT_THROUGH_GAP = 30
+DEFAULT_MAX_CANDIDATES = 200
+#: Truth roles that :func:`gap_bridging.holdout.score_links` counts as planted.
+PLANT_ROLES = ('plant', 'decoy_target')
 
 # ============================================================
 # PARAMETERS
@@ -129,6 +137,13 @@ class TrainParams:
     ``features`` is the feature-subset spec
     (:func:`gap_bridging.features.resolve_feature_set`), kept as given so
     that ``asdict`` stays JSON-ready; :attr:`feature_names` resolves it.
+    ``threshold_rule`` (v006) selects how the threshold is chosen:
+    ``'pair_oof'`` (:func:`choose_threshold` on the OOF pair predictions,
+    the v004 rule) or ``'pipeline'`` (:mod:`gap_bridging.threshold`: the
+    smallest candidate above which the full linker makes no false link on
+    the train-fold plants of each sweep's ``holdout_<curve_horizon>`` run at
+    every gap through ``through_gap``, with the dummy probability tied to the
+    threshold). ``max_candidates`` caps the curve's candidate thresholds.
     """
     seed: int = 0
     max_depth: int = 3
@@ -142,8 +157,20 @@ class TrainParams:
     drop_donor_negatives: bool = False
     allow_degenerate_threshold: bool = False
     features: str = 'all'                   # FEATURE_SETS key or comma-separated names
+    threshold_rule: str = 'pair_oof'        # or 'pipeline' (v006)
+    curve_horizon: int = DEFAULT_CURVE_HORIZON
+    through_gap: int = DEFAULT_THROUGH_GAP
+    max_candidates: int = DEFAULT_MAX_CANDIDATES
 
     def __post_init__(self) -> None:
+        if self.threshold_rule not in THRESHOLD_RULES:
+            raise ValueError(f"threshold_rule must be one of {THRESHOLD_RULES}")
+        if self.curve_horizon < 1 or self.through_gap < 1 or self.max_candidates < 2:
+            raise ValueError("curve_horizon and through_gap must be >= 1, max_candidates >= 2")
+        if self.through_gap > self.curve_horizon:
+            raise ValueError(f"through_gap {self.through_gap} exceeds curve_horizon "
+                             f"{self.curve_horizon}: the linker cannot bridge gaps above its "
+                             f"horizon, so the rule could never hold there")
         if not isinstance(self.features, str):
             raise ValueError(f"features must be a string spec, got {self.features!r}")
         features.resolve_feature_set(self.features)        # raises ValueError if invalid
@@ -657,12 +684,17 @@ def _write_metrics_csv(path: Path, fold: str, rows: List[dict]) -> None:
             writer.writerow({'fold': fold, **row})
 
 
-def write_overlay(config_path: Path, model_path: Path, threshold: float, created: str) -> None:
+def write_overlay(config_path: Path, model_path: Path, threshold: float, created: str,
+                  unmatched_probability: Optional[float] = None) -> None:
     """Create or update a config overlay to use the scorer at ``model_path``.
 
     Sets ``cost_model: learned``, ``scorer_path`` (relative to the YAML's
-    directory, POSIX) and ``learned_min_probability``; other keys are kept.
-    Comments of an existing file are replaced by one header line.
+    directory, POSIX) and ``learned_min_probability``, plus
+    ``learned_unmatched_probability`` when ``unmatched_probability`` is given
+    (the pipeline rule ties it to the threshold; ``None`` leaves the key
+    untouched, so a ``pair_oof`` overlay is written as before v006); other
+    keys are kept. Comments of an existing file are replaced by one header
+    line.
     """
     config_path = Path(config_path)
     values: dict = {}
@@ -673,10 +705,42 @@ def write_overlay(config_path: Path, model_path: Path, threshold: float, created
     rel = os.path.relpath(Path(model_path).resolve(), config_path.resolve().parent)
     values.update({'cost_model': 'learned', 'scorer_path': Path(rel).as_posix(),
                    'learned_min_probability': float(threshold)})
+    if unmatched_probability is not None:
+        values['learned_unmatched_probability'] = float(unmatched_probability)
     header = (f"# Written by `bridge_gaps.py train` on {created}: learned link scorer overlay; "
               f"scorer_path is relative to this file.\n")
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(header + yaml.safe_dump(values, sort_keys=False))
+
+
+# ============================================================
+# PIPELINE THRESHOLD RULE (v006)
+# ============================================================
+
+PIPELINE_NOTE = ("calibration uses train-fold out-of-fold predictions; the threshold is the "
+                 "pipeline rule's choice on train-fold plants (gap_bridging.threshold); "
+                 "promotion uses the test fold through the full pipeline")
+
+
+def _curve_run(sweep_dir: Path, horizon: int) -> Path:
+    """The completed ``holdout_<horizon>`` run of a sweep (FileNotFoundError naming the sweep)."""
+    run = Path(sweep_dir) / f'holdout_{horizon}'
+    if not (run / f'holdout_{horizon}.json').is_file():
+        raise FileNotFoundError(f"{sweep_dir} has no completed holdout_{horizon} run for the "
+                                f"pipeline threshold curve (--curve-horizon); {SWEEP_HINT}")
+    return run
+
+
+def _probe_manifest(names: Sequence[str], params: TrainParams, threshold: float
+                    ) -> ScorerManifest:
+    """A minimal in-memory manifest so the fitted model can score the threshold curve."""
+    return ScorerManifest(
+        sklearn_version='', feature_names=tuple(names),
+        monotonic_cst=features.monotonic_for(names), hyperparameters=asdict(params),
+        calibration=params.calibration, threshold=float(threshold), training_data_sha256='',
+        n_train=0, n_test=0, n_positive_train=0, n_positive_test=0, oof_metrics={},
+        test_metrics={}, salt='', test_fraction=0.0, sweeps=(), created='',
+        feature_set=params.features)
 
 
 # ============================================================
@@ -709,7 +773,14 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
     -------
     ScorerManifest
         The saved manifest. The threshold is clipped into ``[1e-12, 1]``
-        (the range ``learned_min_probability`` accepts); ``feature_config``
+        (the range ``learned_min_probability`` accepts). Under
+        ``params.threshold_rule == 'pipeline'`` it is the pipeline curve's
+        choice (:func:`gap_bridging.threshold.choose_pipeline_threshold`
+        over the train-fold plants of each sweep's
+        ``holdout_<curve_horizon>`` run), the pair-level value is kept as
+        ``pair_threshold``, the curve is written beside the model
+        (:func:`gap_bridging.threshold.write_curve`) and summarised in
+        ``threshold_summary``; ``feature_config``
         holds the hold-outs' feature keys, ``feature_names`` and
         ``monotonic_cst`` the resolved subset, ``feature_set`` the spec,
         ``training_profile`` the sweeps' hold-out profile
@@ -720,19 +791,30 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
     ------
     FileExistsError
         If an output exists and ``force`` is false.
+    FileNotFoundError
+        Under the pipeline rule, if a sweep has no completed
+        ``holdout_<curve_horizon>`` run.
     ValueError
         If the train fold is empty, the data are inconsistent
-        (:func:`collect_training_rows`), or, unless
-        ``params.allow_degenerate_threshold``, the clipped threshold is
-        ``>= 1`` (every accepted pair would cost 0) or the target precision
-        is not reached on the OOF predictions. Nothing is written then.
+        (:func:`collect_training_rows`), or, under the ``pair_oof`` rule and
+        unless ``params.allow_degenerate_threshold``, the clipped threshold
+        is ``>= 1`` (every accepted pair would cost 0) or the target
+        precision is not reached on the OOF predictions; under the
+        ``pipeline`` rule, if no candidate qualifies
+        (:func:`gap_bridging.threshold.choose_pipeline_threshold`). Nothing
+        is written then.
     """
     import sklearn
 
     out = Path(out)
     names = params.feature_names
     csv_path = metrics_csv_path(out)
-    existing = [str(p) for p in (out, manifest_path(out), csv_path) if p.exists()]
+    outputs = [out, manifest_path(out), csv_path]
+    pipeline_rule = params.threshold_rule == 'pipeline'
+    if pipeline_rule:
+        from gap_bridging import threshold as threshold_mod
+        outputs.extend(threshold_mod.curve_paths(out))
+    existing = [str(p) for p in outputs if p.exists()]
     if existing and not force:
         raise FileExistsError(f"training outputs already exist (use --force): {existing}")
     table, feature_cfg = collect_training_rows(sweeps, salt, test_fraction,
@@ -751,16 +833,40 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
     if threshold != raw_threshold:
         print(f"[train] threshold {raw_threshold!r} clipped to {threshold!r}", flush=True)
     reached = target_reached(p_oof, y_train, threshold, params.target_precision)
-    if threshold >= 1.0 and not params.allow_degenerate_threshold:
+    pair_threshold = threshold
+    refuse = not (params.allow_degenerate_threshold or pipeline_rule)
+    if threshold >= 1.0 and refuse:
         raise ValueError(f"degenerate threshold {threshold!r}: every accepted pair would cost 0; "
                          f"{DEGENERATE_HINT} (or --allow-degenerate-threshold)")
-    if not reached and not params.allow_degenerate_threshold:
+    if not reached and refuse:
         raise ValueError(f"target precision {params.target_precision} is unreachable on the "
                          f"out-of-fold predictions (threshold {threshold!r}); lower "
                          f"--target-precision (or --allow-degenerate-threshold)")
-    if not reached or threshold >= 1.0:
+    if (not reached or threshold >= 1.0) and not pipeline_rule:
         print(f"[train] WARNING: degenerate threshold {threshold!r} (target reached: {reached}) "
               f"kept by allow_degenerate_threshold", flush=True)
+    threshold_summary: dict = {}
+    curve = pooled = None
+    if pipeline_rule:
+        probe = LinkScorer(hgb, calibrator, _probe_manifest(names, params, pair_threshold))
+        scenes = [threshold_mod.load_scene(_curve_run(Path(sweep), params.curve_horizon),
+                                           salt, test_fraction) for sweep in sweeps]
+        candidates = threshold_mod.candidate_thresholds(p_oof, y_train, params.max_candidates)
+        n_plants = sum(int(pc.sum(pc.is_in(sc.truth_train['role'],
+                                           value_set=pa.array(PLANT_ROLES))).as_py() or 0)
+                       for sc in scenes)
+        print(f"[train] pipeline threshold curve: {candidates.size} candidates x "
+              f"{len(scenes)} scene(s) at horizon {params.curve_horizon}, train-fold plants "
+              f"{n_plants}", flush=True)
+        curve = threshold_mod.pipeline_curve(scenes, probe, candidates,
+                                             progress=lambda msg: print(msg, flush=True))
+        pooled = threshold_mod.pool_curve(curve)
+        threshold = threshold_mod.choose_pipeline_threshold(pooled, params.through_gap)
+        threshold_summary = threshold_mod.summary(pooled, threshold, params.through_gap,
+                                                  pair_threshold)
+        print(f"[train] pipeline rule chose threshold {threshold!r} (pair-level rule: "
+              f"{pair_threshold!r}); through gap {params.through_gap}: "
+              f"{threshold_summary['at_chosen']}", flush=True)
     oof_metrics = metrics(p_oof, y_train, threshold)
     if y_test.size:
         p_test = calibrated_probability(hgb, calibrator, X_test)
@@ -772,6 +878,8 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
     hyper = asdict(params)
     hyper.update({'n_splits_used': effective_splits(y_train, g_train, params.n_splits),
                   'target_reached': reached, 'note': OOF_NOTE})
+    if pipeline_rule:
+        hyper['note'] = PIPELINE_NOTE
     manifest = ScorerManifest(
         sklearn_version=sklearn.__version__, feature_names=tuple(names),
         monotonic_cst=features.monotonic_for(names),
@@ -782,14 +890,20 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
         salt=salt, test_fraction=float(test_fraction), sweeps=tuple(str(s) for s in sweeps),
         created=datetime.now(timezone.utc).isoformat(timespec='seconds'), git_commit=git_commit(),
         feature_config=dict(feature_cfg), feature_set=params.features,
-        training_profile=training_profile(sweeps))
+        training_profile=training_profile(sweeps), threshold_rule=params.threshold_rule,
+        pair_threshold=float(pair_threshold), threshold_summary=threshold_summary)
     save_scorer(LinkScorer(hgb, calibrator, manifest), out, force=force)
     _write_metrics_csv(csv_path, gap_fold, per_gap_metrics(gap_table, gap_p, threshold))
+    if pipeline_rule:
+        assert curve is not None and pooled is not None
+        written = threshold_mod.write_curve(curve, pooled, out)
+        print(f"[train] wrote threshold curve {', '.join(str(w) for w in written)}", flush=True)
     print(f"[train] threshold {threshold:.6g}; OOF precision {oof_metrics['precision']:.4f} "
           f"recall {oof_metrics['recall']:.4f}; test {test_metrics or 'none'}", flush=True)
     print(f"[train] wrote {out}, {manifest_path(out)}, {csv_path}", flush=True)
     if write_config is not None:
-        write_overlay(write_config, out, threshold, manifest.created)
+        write_overlay(write_config, out, threshold, manifest.created,
+                      unmatched_probability=threshold if pipeline_rule else None)
         print(f"[train] wrote config overlay {write_config}", flush=True)
     return manifest
 
@@ -827,6 +941,22 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--allow-degenerate-threshold', action='store_true',
                         help='save a model whose threshold is 1 or whose target precision is '
                              'unreachable on the out-of-fold predictions (refused otherwise)')
+    parser.add_argument('--threshold-rule', choices=THRESHOLD_RULES, default=d.threshold_rule,
+                        help=f'how the threshold is chosen (default {d.threshold_rule}): '
+                             'pair_oof = smallest OOF probability with pair precision at the '
+                             'target; pipeline = smallest candidate above which the full linker '
+                             'makes no false link on the train-fold plants of each sweep\'s '
+                             'holdout_<curve-horizon> run at every gap through --through-gap '
+                             '(dummy probability tied to the threshold)')
+    parser.add_argument('--curve-horizon', type=int, default=d.curve_horizon,
+                        help=f'hold-out horizon whose runs feed the pipeline curve '
+                             f'(default {d.curve_horizon})')
+    parser.add_argument('--through-gap', type=int, default=d.through_gap,
+                        help=f'largest planted gap the pipeline rule must hold through '
+                             f'(default {d.through_gap})')
+    parser.add_argument('--max-candidates', type=int, default=d.max_candidates,
+                        help=f'cap on candidate thresholds of the pipeline curve '
+                             f'(default {d.max_candidates})')
     parser.add_argument('--force', action='store_true', help='overwrite existing outputs')
 
 
@@ -839,6 +969,8 @@ def run_from_args(args: argparse.Namespace) -> ScorerManifest:
                      calibration=args.calibration, target_precision=args.target_precision,
                      drop_donor_negatives=args.drop_donor_negatives,
                      allow_degenerate_threshold=args.allow_degenerate_threshold,
-                     features=args.features)
+                     features=args.features, threshold_rule=args.threshold_rule,
+                     curve_horizon=args.curve_horizon, through_gap=args.through_gap,
+                     max_candidates=args.max_candidates)
     return train_command(args.sweeps, args.out, params, args.salt, args.test_fraction,
                          args.write_config, args.force)

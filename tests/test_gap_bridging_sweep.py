@@ -393,6 +393,58 @@ class TrainCompareCliTests(unittest.TestCase):
                          BridgeConfig().minimum_cost_margin_sqrt)
 
 
+    # ----- v006: pipeline threshold rule through the CLI -----
+
+    def test_train_pipeline_threshold_rule_end_to_end(self):
+        """`train --threshold-rule pipeline` scores the train-fold plants of each sweep's
+        holdout_<curve-horizon> run through the real linker, writes the curve beside the
+        model, records the pair-level value and ties the overlay's dummy probability."""
+        import csv
+        from gap_bridging import scorer as scorer_mod, threshold as threshold_mod
+        tmp = Path(self._tmp.name)
+        model = tmp / 'models' / 'pipeline.joblib'
+        overlay = tmp / 'models' / 'pipeline.yaml'
+        code = bridge_gaps.main(['train', '--sweeps', *map(str, self.sweeps), '--out',
+                                 str(model), '--write-config', str(overlay), '--n-splits', '2',
+                                 '--min-samples-leaf', '2', '--threshold-rule', 'pipeline',
+                                 '--curve-horizon', '5', '--through-gap', '3',
+                                 '--max-candidates', '12'])
+        self.assertEqual(code, 0)
+        manifest = scorer_mod.load_scorer(model).manifest
+        self.assertEqual(manifest.threshold_rule, 'pipeline')
+        self.assertIsNotNone(manifest.pair_threshold)
+        summary = manifest.threshold_summary
+        self.assertEqual(summary['chosen'], manifest.threshold)
+        self.assertEqual(summary['through_gap'], 3)
+        self.assertLessEqual(summary['n_candidates'], 12)
+        self.assertEqual(summary['at_chosen']['false_link'], 0)
+        self.assertGreater(summary['at_chosen']['recovered'], 0)
+        pooled_path, runs_path = threshold_mod.curve_paths(model)
+        self.assertTrue(nonempty(pooled_path) and nonempty(runs_path))
+        with open(pooled_path) as fh:
+            pooled = list(csv.DictReader(fh))
+        thresholds = sorted({float(r['threshold']) for r in pooled})
+        self.assertIn(manifest.threshold, thresholds)
+        self.assertEqual(len(thresholds), summary['n_candidates'])
+        # prefix-closed: no false link at any gap <= 3 for the chosen and every larger candidate
+        for r in pooled:
+            if float(r['threshold']) >= manifest.threshold and int(r['gap_frames']) <= 3:
+                self.assertEqual(int(r['false_link']), 0, r)
+                self.assertGreater(int(r['recovered']), 0, r)
+        with open(runs_path) as fh:
+            runs = {r['run'] for r in csv.DictReader(fh)}
+        self.assertEqual(runs, {str(s / 'holdout_5') for s in self.sweeps})
+        cfg = load_config(overlay)
+        self.assertEqual(cfg.cost_model, 'learned')
+        self.assertEqual(cfg.learned_min_probability, manifest.threshold)
+        self.assertEqual(cfg.learned_unmatched_probability, manifest.threshold)
+        out = tmp / 'learned_pipeline_run'
+        self.assertEqual(bridge_gaps.main(['run', '--observations', str(self.path), '--out',
+                                           str(out), '--config', str(overlay)]), 0)
+        marker = json.loads((out / 'GAP_BRIDGING_COMPLETE.json').read_text())
+        self.assertEqual(marker['config']['learned_unmatched_probability'], manifest.threshold)
+
+
 # --------------------------------------------------------------------------- #
 # v004 fix wave: feature export only under the sqrt gate model
 # --------------------------------------------------------------------------- #

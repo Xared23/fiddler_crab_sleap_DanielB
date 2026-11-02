@@ -596,6 +596,156 @@ class TrainCommandTests(Patched):
             train.train_command(self.sweeps, out, FAST, 'salt', 0.4, None, force=False)
         train.train_command(self.sweeps, out, FAST, 'salt', 0.4, None, force=True)
 
+    # ----- v006: pipeline threshold rule (threshold module mocked; see
+    # tests/test_gap_bridging_threshold.py for the module and test_gap_bridging_sweep.py
+    # for the real end-to-end chain) -----
+
+    def _fake_threshold_module(self, chosen: float = 0.3, candidates=(0.1, 0.3, 0.9)):
+        """Patch every ``gap_bridging.threshold`` function ``train_command`` uses; records calls."""
+        from gap_bridging import threshold as threshold_mod
+        calls: Dict[str, list] = {k: [] for k in ('load_scene', 'candidate_thresholds',
+                                                  'pipeline_curve', 'choose', 'summary',
+                                                  'write_curve')}
+        curve = pa.table({'threshold': [0.1], 'run': ['r'], 'gap_frames': [2], 'planted': [1],
+                          'recovered': [1], 'false_link': [0], 'missed': [0]})
+        pooled = curve.drop(['run'])
+
+        def load_scene(run_dir, salt, test_fraction):
+            calls['load_scene'].append((Path(run_dir), salt, test_fraction))
+            return mock.Mock(run_dir=Path(run_dir),
+                             truth_train=pa.table({'role': ['plant', 'decoy_donor']}))
+
+        def candidate_thresholds(p, y, max_candidates):
+            calls['candidate_thresholds'].append((np.asarray(p).shape, np.asarray(y).shape,
+                                                  max_candidates))
+            return np.asarray(candidates, dtype=float)
+
+        def pipeline_curve(scenes, probe, thresholds, progress=None):
+            calls['pipeline_curve'].append((len(scenes), tuple(probe.feature_names),
+                                            tuple(float(t) for t in thresholds)))
+            self.assertTrue(callable(probe.predict_proba))
+            if progress:
+                progress('curve 1/1')
+            return curve
+
+        def choose(pooled_in, through_gap):
+            calls['choose'].append(through_gap)
+            return chosen
+
+        def summary(pooled_in, chosen_in, through_gap, pair_threshold=None):
+            calls['summary'].append((chosen_in, through_gap, pair_threshold))
+            return {'n_candidates': len(candidates), 'chosen': chosen_in,
+                    'through_gap': through_gap,
+                    'at_chosen': {'planted': 1, 'recovered': 1, 'false_link': 0, 'missed': 0},
+                    'at_pair_threshold': None}
+
+        def curve_paths(model_path):
+            model_path = Path(model_path)
+            return (model_path.with_name(model_path.stem + '_threshold_curve.csv'),
+                    model_path.with_name(model_path.stem + '_threshold_curve_runs.csv'))
+
+        def write_curve(curve_in, pooled_in, model_path):
+            paths = curve_paths(model_path)
+            for path in paths:
+                path.write_text('threshold\n')
+            calls['write_curve'].append(paths)
+            return paths
+
+        patcher = mock.patch.multiple(threshold_mod, load_scene=load_scene,
+                                      candidate_thresholds=candidate_thresholds,
+                                      pipeline_curve=pipeline_curve,
+                                      pool_curve=lambda c: pooled,
+                                      choose_pipeline_threshold=choose, summary=summary,
+                                      curve_paths=curve_paths, write_curve=write_curve)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return calls
+
+    def test_pipeline_rule_plumbing(self):
+        """v006: the pipeline rule loads one holdout_<curve_horizon> scene per sweep, runs
+        the curve with the fitted model, records the pair-level value, writes the curve
+        beside the model and ties the overlay's dummy probability to the threshold."""
+        calls = self._fake_threshold_module(chosen=0.3)
+        params = replace(FAST, threshold_rule='pipeline', curve_horizon=10, through_gap=8,
+                         max_candidates=50)
+        out = self.tmp / 'models' / 'p.joblib'
+        overlay = self.tmp / 'cfg' / 'p.yaml'
+        m = train.train_command(self.sweeps, out, params, 'salt', 0.4, overlay)
+        self.assertEqual(m.threshold_rule, 'pipeline')
+        self.assertEqual(m.threshold, 0.3)
+        self.assertIsNotNone(m.pair_threshold)
+        self.assertTrue(0 < m.pair_threshold <= 1)
+        self.assertEqual(m.threshold_summary['chosen'], 0.3)
+        self.assertEqual(m.hyperparameters['threshold_rule'], 'pipeline')
+        self.assertIn('pipeline rule', m.hyperparameters['note'])
+        self.assertEqual([c[0] for c in calls['load_scene']],
+                         [Path(s) / 'holdout_10' for s in self.sweeps])
+        self.assertEqual(calls['load_scene'][0][1:], ('salt', 0.4))
+        self.assertEqual(calls['candidate_thresholds'], [((m.n_train,), (m.n_train,), 50)])
+        self.assertEqual(calls['pipeline_curve'], [(2, NAMES, (0.1, 0.3, 0.9))])
+        self.assertEqual(calls['choose'], [8])
+        self.assertEqual(calls['summary'], [(0.3, 8, m.pair_threshold)])
+        self.assertEqual(len(calls['write_curve']), 1)
+        for path in calls['write_curve'][0]:
+            self.assertTrue(path.is_file())
+            self.assertEqual(path.parent, out.parent)
+        cfg = load_config(overlay)
+        self.assertEqual((cfg.learned_min_probability, cfg.learned_unmatched_probability),
+                         (0.3, 0.3))
+        loaded = scorer.load_scorer(out)
+        self.assertEqual(loaded.manifest.to_json(), m.to_json())
+        # metrics and the per-gap CSV are reported at the chosen threshold
+        table, _ = train.collect_training_rows(self.sweeps, 'salt', 0.4)
+        X_test, y_test, _ = train.split_folds(table)['test']
+        p_test = train.calibrated_probability(loaded.hgb, loaded.calibrator, X_test)
+        self.assertEqual(m.test_metrics, train.metrics(p_test, y_test, 0.3))
+        # existing curve files are outputs too: refused without --force, replaced with it
+        with self.assertRaises(FileExistsError) as ctx:
+            train.train_command(self.sweeps, out, params, 'salt', 0.4, None)
+        self.assertIn('threshold_curve', str(ctx.exception))
+        train.train_command(self.sweeps, out, params, 'salt', 0.4, None, force=True)
+
+    def test_pipeline_rule_ignores_pair_level_refusals(self):
+        """Under the pipeline rule an unreachable pair-level target is recorded, not refused."""
+        self._fake_threshold_module(chosen=0.2)
+        params = replace(FAST, threshold_rule='pipeline', target_precision=1.0, curve_horizon=10,
+                         through_gap=8)
+        out = self.tmp / 'models' / 'q.joblib'
+        with mock.patch.object(train, 'target_reached', return_value=False):
+            m = train.train_command(self.sweeps, out, params, 'salt', 0.4, None)
+        self.assertFalse(m.hyperparameters['target_reached'])
+        self.assertEqual(m.threshold, 0.2)
+        with self.assertRaises(ValueError):
+            with mock.patch.object(train, 'target_reached', return_value=False):
+                train.train_command(self.sweeps, self.tmp / 'models' / 'r.joblib', FAST,
+                                    'salt', 0.4, None)
+
+    def test_pipeline_rule_needs_the_curve_horizon_run(self):
+        self._fake_threshold_module()
+        params = replace(FAST, threshold_rule='pipeline', curve_horizon=30, through_gap=30)
+        with self.assertRaises(FileNotFoundError) as ctx:
+            train.train_command(self.sweeps, self.tmp / 'models' / 's.joblib', params,
+                                'salt', 0.4, None)
+        self.assertIn('holdout_30', str(ctx.exception))
+        self.assertIn(str(self.sweeps[0]), str(ctx.exception))
+        self.assertFalse((self.tmp / 'models' / 's.joblib').exists())
+
+    def test_pair_oof_rule_unchanged_by_v006(self):
+        """Golden: the default rule writes the same overlay keys as before v006 and records
+        pair_threshold == threshold, no summary, and never touches the threshold module."""
+        from gap_bridging import threshold as threshold_mod
+        out = self.tmp / 'models' / 'g.joblib'
+        overlay = self.tmp / 'cfg' / 'g.yaml'
+        with mock.patch.object(threshold_mod, 'load_scene',
+                               side_effect=AssertionError('pair_oof must not load scenes')):
+            m = train.train_command(self.sweeps, out, FAST, 'salt', 0.4, overlay)
+        self.assertEqual((m.threshold_rule, m.pair_threshold, m.threshold_summary),
+                         ('pair_oof', m.threshold, {}))
+        self.assertIn('out-of-fold', m.hyperparameters['note'])
+        self.assertEqual(set(yaml.safe_load(overlay.read_text())),
+                         {'cost_model', 'scorer_path', 'learned_min_probability'})
+        self.assertFalse(any(p.exists() for p in threshold_mod.curve_paths(out)))
+
     def test_regression_defaults_are_sigmoid(self):
         """Review finding 3: isotonic puts the threshold at p = 1 (D-010); sigmoid is the default."""
         self.assertEqual(train.TrainParams().calibration, 'sigmoid')
@@ -696,6 +846,53 @@ class TrainCommandTests(Patched):
 # ============================================================
 
 NO_LENGTH = features.FEATURE_SETS['no_length']
+
+
+class ThresholdRuleParamsTests(unittest.TestCase):
+    """v006: TrainParams threshold-rule fields and the overlay's dummy probability."""
+
+    def test_defaults_and_validation(self):
+        d = train.TrainParams()
+        self.assertEqual((d.threshold_rule, d.curve_horizon, d.through_gap, d.max_candidates),
+                         ('pair_oof', 30, 30, 200))
+        replace(d, threshold_rule='pipeline', curve_horizon=45, through_gap=30)
+        for bad in (dict(threshold_rule='bogus'), dict(curve_horizon=0), dict(through_gap=0),
+                    dict(max_candidates=1), dict(curve_horizon=10, through_gap=11)):
+            with self.assertRaises(ValueError, msg=bad):
+                replace(d, **bad)
+
+    def test_cli_flags(self):
+        parser = argparse.ArgumentParser()
+        train.add_arguments(parser)
+        args = parser.parse_args(['--sweeps', 'a', '--out', 'm.joblib', '--threshold-rule',
+                                  'pipeline', '--curve-horizon', '45', '--through-gap', '30',
+                                  '--max-candidates', '50'])
+        with mock.patch.object(train, 'train_command') as cmd:
+            train.run_from_args(args)
+        params = cmd.call_args.args[2]
+        self.assertEqual((params.threshold_rule, params.curve_horizon, params.through_gap,
+                          params.max_candidates), ('pipeline', 45, 30, 50))
+        with self.assertRaises(SystemExit):
+            parser.parse_args(['--sweeps', 'a', '--out', 'm', '--threshold-rule', 'bogus'])
+        default = parser.parse_args(['--sweeps', 'a', '--out', 'm'])
+        self.assertEqual(default.threshold_rule, 'pair_oof')
+
+    def test_overlay_dummy_probability(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            overlay = Path(tmp) / 'o.yaml'
+            model = Path(tmp) / 'm.joblib'
+            train.write_overlay(overlay, model, 0.25, 'now')
+            self.assertEqual(set(yaml.safe_load(overlay.read_text())),
+                             {'cost_model', 'scorer_path', 'learned_min_probability'})
+            before = overlay.read_text()
+            train.write_overlay(overlay, model, 0.25, 'now', unmatched_probability=None)
+            self.assertEqual(overlay.read_text(), before)
+            train.write_overlay(overlay, model, 0.25, 'now', unmatched_probability=0.25)
+            values = yaml.safe_load(overlay.read_text())
+            self.assertEqual((values['learned_min_probability'],
+                              values['learned_unmatched_probability']), (0.25, 0.25))
+            cfg = load_config(overlay)
+            self.assertEqual(cfg.learned_unmatched_probability, 0.25)
 
 
 class FeatureSubsetParamsTests(unittest.TestCase):
