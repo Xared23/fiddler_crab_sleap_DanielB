@@ -148,7 +148,7 @@ def verify_inputs(cfg):
     assert (cfg['start_frame'], cfg['stop_frame_exclusive']) == (0, 1000)
     assert cfg['video_id'] == 'Crab_Cam_2_2' and cfg['batch_size'] == 1
     assert cfg['max_instances'] is None and not cfg['persist_frame_chunks']
-    assert project_path(cfg['output_root']) == ROOT/'predictions/test runs'
+    assert project_path(cfg['output_root']) == ROOT/'predictions/test_runs'
     baseline = read_json(project_path(cfg['baseline_config']))
     old = read_json(project_path(cfg['baseline_manifest']))
     assert old['config'] == baseline

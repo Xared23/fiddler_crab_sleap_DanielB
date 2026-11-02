@@ -1,5 +1,4 @@
 """Known-answer controls for the bounded, no-chunk threshold experiment."""
-import copy
 from pathlib import Path
 import os
 import sys
@@ -13,7 +12,7 @@ import yaml
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
-from threshold_prediction_tests import (frame_arrays, measurement_snapshot, assert_same_measurements,
+from threshold_prediction_tests import (measurement_snapshot, assert_same_measurements,
     attach_existing_tracker, save_final, spatial_matches, inference, NODES)
 from pipeline_common import validate_labels
 

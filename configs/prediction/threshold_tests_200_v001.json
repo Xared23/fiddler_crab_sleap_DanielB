@@ -1,6 +1,6 @@
 {
   "experiment": "centroid_threshold_tests_200_v001",
-  "output_root": "predictions/test runs",
+  "output_root": "predictions/test_runs",
   "video_id": "Crab_Cam_2_2",
   "video": "crab_vids/Crab_Cam_2_2.mp4",
   "start_frame": 0,

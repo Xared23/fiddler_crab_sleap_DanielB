@@ -15,5 +15,5 @@ set -euo pipefail
 ROOT=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap
 export PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
-export MPLCONFIGDIR="$ROOT/predictions/test runs/mpl_grace_${SLURM_JOB_ID}"
+export MPLCONFIGDIR="$ROOT/predictions/test_runs/mpl_grace_${SLURM_JOB_ID}"
 "$ROOT/.venv/bin/python" "$ROOT/scripts/grace_prediction_tests.py"

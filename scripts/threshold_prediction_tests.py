@@ -8,7 +8,6 @@ import copy
 from datetime import datetime, timezone
 import gc
 import importlib.metadata
-import json
 import os
 from pathlib import Path
 import shutil
@@ -149,7 +148,7 @@ def verify_inputs(cfg):
     assert (cfg['start_frame'],cfg['stop_frame_exclusive']) == (0,200)
     assert cfg['max_instances'] is None and cfg['persist_frame_chunks'] is False
     assert cfg['video_id'] == 'Crab_Cam_2_2' and baseline['videos'][cfg['video_id']] == cfg['video']
-    assert project_path(cfg['output_root']) == ROOT/'predictions'/'test runs'
+    assert project_path(cfg['output_root']) == ROOT/'predictions'/'test_runs'
     pins = {}
     names=[cfg['baseline_config'],baseline['tracker_config'],'scripts/body_first_tracklets.py',
            'scripts/legacy_dataset/tracklets.py']

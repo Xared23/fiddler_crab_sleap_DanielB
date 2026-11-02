@@ -18,6 +18,7 @@ train = [
 dev = [
     "pytest>=8,<10",
     "hypothesis>=6.100,<7",
+    "flake8>=7,<8",
 ]
 
 [tool.uv]
@@ -36,3 +37,20 @@ torch = [
 torchvision = [
     { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
 ]
+
+# Near-mirror of .flake8 for anyone who prefers ruff (E112/E113 are preview-only there).
+[tool.ruff]
+line-length = 120
+extend-exclude = ["logs", "predictions", "**/source/**"]
+
+[tool.ruff.lint]
+select = ["F", "E9", "E101"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/body_first_tracklets.py" = ["F401"]
+"scripts/prediction_run.py" = ["F841"]
+"scripts/milestone_checkpoints.py" = ["F401"]
+"tests/test_prediction_run.py" = ["F401"]
+"scripts/legacy_dataset/publish.py" = ["F401"]
+"scripts/publish_existing_crab_demo.py" = ["F401"]
+"analyses/**" = ["F401", "F811"]

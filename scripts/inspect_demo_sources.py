@@ -3,7 +3,6 @@ import importlib.metadata
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import h5py
 import pyarrow.parquet as pq

@@ -576,7 +576,7 @@ class DecoyPropertyTests(unittest.TestCase):
                                               per_gap=1, seed=seed, decoys=1)
                 scores[cues] = summary['scores'][-1]
                 self.assertEqual(summary['decoys'], 1)
-        on, off = scores[True], scores[False]
+        on = scores[True]
         self.assertEqual(on['decoy_planted'], 3)
         self.assertEqual(on['decoy_false_link'], 0)
         precision = {k: v['precision'] for k, v in scores.items()}

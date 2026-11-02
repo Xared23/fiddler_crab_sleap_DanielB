@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-import sys
 import yaml
 from pipeline_common import atomic_json, sha256
 
@@ -43,7 +42,7 @@ def git_state():
 
 def active_state():
     paths = [ROOT / 'models/v007_19f', ROOT / 'predictions/v007_best_body_first_v001',
-             ROOT / 'predictions/test runs', ROOT / 'datasets/v007_best_body_first_dataframe_v001',
+             ROOT / 'predictions/test_runs', ROOT / 'datasets/v007_best_body_first_dataframe_v001',
              ROOT / 'crab_vids', ROOT / 'clip_cam2_8k.mp4', ROOT / 'danlabels.v007.slp',
              ROOT / 'data/labels/v007_19f', ROOT / 'configs/v007_19f']
     return {str(p.relative_to(ROOT)): state(p) for base in paths for p in all_files(base)}

@@ -1,5 +1,9 @@
 # Bounded prediction test runs
 
+This directory was `predictions/test runs` until 2026-11-02; job-written
+receipts (`COMPLETE.json`, `RUN_MANIFEST.json`, `*/source/`) keep the old
+spelling because they are byte-exact records of what ran.
+
 Canonical configuration, methods, test status and result links:
 [threshold comparison notes](../../docs/prediction_threshold_tests.md).
 

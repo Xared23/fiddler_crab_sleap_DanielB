@@ -405,9 +405,9 @@ def main():
                     print(f'  {number + 1} chunks checked', flush=True)
             merged = directory / f'{video_id}.predictions.slp'
             if merged.exists():
-                mrec, mdig, mcount = inspect_file(merged, video, width, height)
+                mrec, mdig, _ = inspect_file(merged, video, width, height)
             else:
-                mrec, mdig, mcount = {'path': str(merged.relative_to(ROOT)), 'readable_and_structurally_valid': False, 'issues': ['Missing']}, {}, {}
+                mrec, mdig = {'path': str(merged.relative_to(ROOT)), 'readable_and_structurally_valid': False, 'issues': ['Missing']}, {}
             mismatches = sorted(i for i in set(digests) & set(mdig) if digests[i] != mdig[i])
             unknown = sorted(set(range(n)) - set(digests))
             bad = [r['path'] for r in inventory if not r['readable_and_structurally_valid'] or r['issues'] or r['frames_outside_declared_range']]

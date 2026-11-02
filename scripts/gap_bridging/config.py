@@ -4,8 +4,12 @@ from __future__ import annotations
 from dataclasses import dataclass, fields, replace
 import math
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
+
+if TYPE_CHECKING:  # numpy is imported lazily at run time; this is for the annotation only
+    import numpy as np
 
 DEFAULT_RECOVERABLE = ('low_body_score', 'missing_position', 'outside_image',
                        'invisible', 'duplicate_candidate')

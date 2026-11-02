@@ -22,7 +22,7 @@ PY="$ROOT/.venv/bin/python"
 for script in jobs/train_v007_centroid.sh jobs/train_v007_centered.sh scripts/train_versioned_chain.sh; do
   bash -n "$script"
 done
-"$PY" -m unittest discover -s tests -p 'test_training_workflow.py' -v
+CRAB_REQUIRE_V007_INPUTS=1 "$PY" -m unittest discover -s tests -p 'test_training_workflow.py' -v
 for role in centroid centered; do
   set +e
   "$PY" scripts/train_versioned.py --config configs/v007_19f/run.yaml --role "$role" --smoke --stop-after-steps 1

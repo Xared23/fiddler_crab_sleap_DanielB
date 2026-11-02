@@ -75,6 +75,22 @@ prepend that archive prefix for moved artifacts. The original legacy dataset
 location now retains only a notice and shared-configuration compatibility link,
 not observations. v007 artifacts and raw videos were not moved or modified.
 
+## Tests and lint
+
+- Lint is defect-class only (`.flake8`: pyflakes F-codes, syntax and
+  meaning-changing indentation errors; layout codes are not enforced).
+  Provenance snapshots under `*/source/` are frozen and excluded.
+  Run `python -m flake8 --count .` from the project root; it must print `0`.
+- The full suite is `pytest tests`. On a login node a single process is
+  killed after about 25 CPU-minutes, so either submit `mkdir -p logs/tests &&
+  sbatch jobs/run_tests.slurm` or run it as two processes with
+  `OMP_NUM_THREADS=1`: `tests/test_gap_bridging_*.py` (about 2 min) and the
+  remaining files (about 1 min).
+- Tests that need inputs present only in the original owner's tree
+  (`danlabels.v007.slp`, `clip_cam2_8k.mp4`, the legacy tracklets config)
+  skip themselves when those files are absent; the v007 preflight job sets
+  `CRAB_REQUIRE_V007_INPUTS=1` so its gate still fails hard.
+
 ## Organization convention
 
 Put future project notes here, with topic/dataset subdirectories as needed.

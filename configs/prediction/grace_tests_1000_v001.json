@@ -10,7 +10,7 @@
   "batch_size": 1,
   "max_instances": null,
   "persist_frame_chunks": false,
-  "output_root": "predictions/test runs",
+  "output_root": "predictions/test_runs",
   "baseline_config": "configs/prediction/v007_best_body_first_v001.json",
   "baseline_manifest": "predictions/v007_best_body_first_v001/RUN_MANIFEST.json",
   "raw_candidates": "One shared whole-selection NPZ; all centroid slots and raw pose arrays, including excluded/empty poses",

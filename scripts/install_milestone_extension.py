@@ -13,7 +13,6 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
-import time
 
 from pipeline_common import (ROOT, atomic_json, dataset_manifest, fingerprint,
     load_run, read_json, sha256)

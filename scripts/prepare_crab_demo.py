@@ -13,7 +13,6 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import tempfile
 
 import cv2
 import h5py

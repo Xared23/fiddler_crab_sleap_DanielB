@@ -420,7 +420,6 @@ class FoldPropertyTests(unittest.TestCase):
     @given(st.lists(st.integers(0, 9), min_size=1, max_size=40), st.text(max_size=8),
            st.floats(0.0, 1.0))
     def test_property_truth_folds_constant_per_original(self, originals, salt, fraction):
-        n = len(originals)
         truth = truth_table([{'left_id': f"l{k}", 'right_id': f"r{k}", 'original_id': f"o{o}"}
                              for k, o in enumerate(originals)])
         out = truth_folds(truth, salt, fraction)

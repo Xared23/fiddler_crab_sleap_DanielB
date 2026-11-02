@@ -11,7 +11,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE = Path(__file__).resolve().parent
-SOURCE = ROOT / 'predictions/test runs/threshold_261015_2000_15641165'
+SOURCE = ROOT / 'predictions/test_runs/threshold_261015_2000_15641165'
 
 
 def sha(path):

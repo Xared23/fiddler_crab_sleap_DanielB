@@ -1,5 +1,4 @@
 """Bounded synthetic regression controls for index-only demo extraction."""
-import json
 from pathlib import Path
 import sys
 import tempfile

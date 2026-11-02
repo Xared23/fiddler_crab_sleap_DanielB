@@ -20,7 +20,13 @@ from export import (Parts, SingleFile, OBS_SCHEMA, TRACK_SCHEMA, table_from_colu
                     rows_for_frame, validate_saved_video)
 
 CONFIG_PATH = ROOT / 'datasets/legacy_native_tracklets_v001/config/tracklets.yaml'
-CONFIG = yaml.safe_load(CONFIG_PATH.read_text())
+
+
+def config():
+    """The published tracker config; tests that need it skip in checkouts without the dataset."""
+    if not CONFIG_PATH.exists():
+        raise unittest.SkipTest(f'legacy dataset config not present in this checkout: {CONFIG_PATH}')
+    return yaml.safe_load(CONFIG_PATH.read_text())
 
 
 def frame(index, xs=(100,), ys=None, scores=None, shoulder=True):
@@ -36,7 +42,7 @@ def frame(index, xs=(100,), ys=None, scores=None, shoulder=True):
 
 
 def tracker(video='test_video'):
-    return Tracker(video, 1000, 500, dict(CONFIG))
+    return Tracker(video, 1000, 500, dict(config()))
 
 
 class TrackletTests(unittest.TestCase):
@@ -220,7 +226,7 @@ class TrackletTests(unittest.TestCase):
             tw.close()
             obs.close()
             rej.close()
-            summary = validate_saved_video(work, 'test_video', tr.next_id - 1, np.array([len(f) for f in source]), CONFIG)
+            summary = validate_saved_video(work, 'test_video', tr.next_id - 1, np.array([len(f) for f in source]), config())
             self.assertEqual(summary['source_observations'], 10)
             self.assertEqual(summary['accepted_observations'], 7)
             self.assertEqual(summary['rejected_observations'], 3)

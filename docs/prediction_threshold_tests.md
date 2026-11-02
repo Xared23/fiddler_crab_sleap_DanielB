@@ -7,7 +7,7 @@
 The user reports excellent visible male predictions but many missed males, and
 requested ~200-frame tests at thresholds 0.1 and 0.05 against existing 0.2
 predictions, with no retraining, no saved frame chunks, timestamped outputs under
-`predictions/test runs/`, and tracking that permits varying animal counts.
+`predictions/test_runs/`, and tracking that permits varying animal counts.
 
 This first comparison uses **Crab_Cam_2_2, original frames 0–199 inclusive**,
 exactly 200 frames per condition (~6.67 s at 30000/1001 fps). Only two new
@@ -63,7 +63,7 @@ no automatic requeue/retry). Config:
 `configs/prediction/threshold_tests_200_v001.json`.
 Implementation: `scripts/threshold_prediction_tests.py`.
 
-Run directory: `predictions/test runs/threshold_YYMMDD_HHMM_<job-id>/` (UTC).
+Run directory: `predictions/test_runs/threshold_YYMMDD_HHMM_<job-id>/` (UTC).
 Each condition saves **one final SLP covering all 200 selected frames**, named
 `Crab_Cam_2_2_YYMMDD_HHMM_c{200,100,050}.predictions.slp`. All pose measurements
 are retained and IDs are optional metadata in that same file; there is no
@@ -96,7 +96,7 @@ inference). Two SLP roundtrip tests exposed a fixture problem: `sio.Skeleton`
 converts its input node-name list in place, mutating the shared expected names.
 The fixture now passes a copy and asserts that shared names remain strings.
 The failed test receipt is retained under
-`predictions/test runs/threshold_261015_1957_15640861/`.
+`predictions/test_runs/threshold_261015_1957_15640861/`.
 
 Corrected job **15641165 COMPLETED**, exit 0:0, in **5m19s**, on one GPU with
 4 allocated CPUs. Peak host RSS was 4,047,792 KiB (~3.86 GiB; not GPU memory).
@@ -106,20 +106,20 @@ effective stage-threshold/no-cap checks, and full final-SLP readback. Exactly
 baseline frames were extracted. No other video, threshold or full-video run
 was launched. No job remains running for this request.
 
-**[Completed output directory](../predictions/test%20runs/threshold_261015_2000_15641165/)**
+**[Completed output directory](../predictions/test_runs/threshold_261015_2000_15641165/)**
 (timestamp `261015_2000` is UTC; each filename also includes it).
 
 | Centroid threshold | Mean raw detections/frame | Mean assigned/frame | Final SLP |
 | --- | ---: | ---: | --- |
-| 0.2, existing baseline | 128.230 | 128.095 | [c200](../predictions/test%20runs/threshold_261015_2000_15641165/Crab_Cam_2_2_261015_2000_c200.predictions.slp) |
-| 0.1, new inference | 135.065 | 134.770 | [c100](../predictions/test%20runs/threshold_261015_2000_15641165/Crab_Cam_2_2_261015_2000_c100.predictions.slp) |
-| 0.05, new inference | 140.105 | 139.515 | [c050](../predictions/test%20runs/threshold_261015_2000_15641165/Crab_Cam_2_2_261015_2000_c050.predictions.slp) |
+| 0.2, existing baseline | 128.230 | 128.095 | [c200](../predictions/test_runs/threshold_261015_2000_15641165/Crab_Cam_2_2_261015_2000_c200.predictions.slp) |
+| 0.1, new inference | 135.065 | 134.770 | [c100](../predictions/test_runs/threshold_261015_2000_15641165/Crab_Cam_2_2_261015_2000_c100.predictions.slp) |
+| 0.05, new inference | 140.105 | 139.515 | [c050](../predictions/test_runs/threshold_261015_2000_15641165/Crab_Cam_2_2_261015_2000_c050.predictions.slp) |
 
-- [Count/spatial-match comparison plot](../predictions/test%20runs/threshold_261015_2000_15641165/threshold_comparison.png)
-- [Summary JSON](../predictions/test%20runs/threshold_261015_2000_15641165/summary.json)
-- [Frame 0 side-by-side](../predictions/test%20runs/threshold_261015_2000_15641165/review_frame_000000.png)
-- [Frame 100 side-by-side](../predictions/test%20runs/threshold_261015_2000_15641165/review_frame_000100.png)
-- [Frame 199 side-by-side](../predictions/test%20runs/threshold_261015_2000_15641165/review_frame_000199.png)
+- [Count/spatial-match comparison plot](../predictions/test_runs/threshold_261015_2000_15641165/threshold_comparison.png)
+- [Summary JSON](../predictions/test_runs/threshold_261015_2000_15641165/summary.json)
+- [Frame 0 side-by-side](../predictions/test_runs/threshold_261015_2000_15641165/review_frame_000000.png)
+- [Frame 100 side-by-side](../predictions/test_runs/threshold_261015_2000_15641165/review_frame_000100.png)
+- [Frame 199 side-by-side](../predictions/test_runs/threshold_261015_2000_15641165/review_frame_000199.png)
 
 The raw count increases are approximately **5.3%** and **9.3%** relative to the
 existing baseline. All baseline finite in-image Shell positions found a

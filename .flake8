@@ -1,0 +1,28 @@
+# Defect-class lint only: pyflakes F-codes, syntax errors (E9) and the
+# indentation errors that change meaning (E101, E112, E113).
+# Layout codes are deliberately not enforced: the scripts use a compact,
+# one-statement-per-line-optional style. Provenance snapshots under */source/
+# are frozen copies of the code that produced a run and are never edited.
+[flake8]
+select = F,E9,E101,E112,E113
+max-line-length = 120
+exclude =
+    .git,
+    .venv,
+    __pycache__,
+    logs,
+    */source/*,
+    predictions
+# These files are sha256-pinned by run manifests and re-verified at run time
+# (prediction hops and the v007 CODE list, milestone-extension install, the
+# threshold and grace prediction tests), so their bytes must not change for lint.
+per-file-ignores =
+    scripts/body_first_tracklets.py:F401
+    scripts/prediction_run.py:F841
+    scripts/milestone_checkpoints.py:F401
+    tests/test_prediction_run.py:F401
+    scripts/legacy_dataset/publish.py:F401
+    scripts/publish_existing_crab_demo.py:F401
+# Analysis scripts are recorded by sha256 in their run receipts (COMPLETE.json),
+# so unused-import cleanups there would detach the receipts from the code.
+    analyses/*:F401,F811

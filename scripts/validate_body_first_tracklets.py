@@ -71,7 +71,7 @@ def select_reviews(captures, stop, config):
     for index, capture in captures.items():
         if index + horizon > stop:
             continue
-        result, base, frame = capture['new'], capture['baseline'], capture['frame']
+        result, base = capture['new'], capture['baseline']
         for j, detail in result['link_details'].items():
             entry = (index, int(result['ids'][j]), j)
             if base['predecessor_index'][j] < 0:

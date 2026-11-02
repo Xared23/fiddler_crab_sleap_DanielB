@@ -50,7 +50,7 @@ The original adjacent-frame tracker and its published predictions are unchanged.
 
 ## Outputs
 
-Run directory: `predictions/test runs/grace_YYMMDD_HHMM_<job-id>/` (UTC).
+Run directory: `predictions/test_runs/grace_YYMMDD_HHMM_<job-id>/` (UTC).
 
 Exactly two final whole-selection prediction SLPs are written:
 

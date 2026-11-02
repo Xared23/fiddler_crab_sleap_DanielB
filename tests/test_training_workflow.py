@@ -4,7 +4,6 @@ import os
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -12,8 +11,8 @@ import numpy as np
 import sleap_io as sio
 import torch
 from omegaconf import OmegaConf
-from pipeline_common import (atomic_json, dataset_manifest, exclusive_lock, fingerprint,
-    hop_progress, hop_start, load_run, pin_manifest, read_json, save_slp_atomic, sha256)
+from pipeline_common import (dataset_manifest, exclusive_lock,
+    hop_progress, hop_start, load_run, pin_manifest, save_slp_atomic, sha256)
 from prepare_v007 import signature, split_indices
 from train_versioned import select_checkpoint
 
@@ -100,6 +99,11 @@ class WorkflowChecks(unittest.TestCase):
 
     def test_actual_prepared_dataset_and_no_regional_changes(self):
         run = load_run("configs/v007_19f/run.yaml")
+        # jobs/preflight_v007_19f.sh sets CRAB_REQUIRE_V007_INPUTS so the gate still
+        # fails hard there; other checkouts lack the prepared inputs and skip.
+        for name in ("danlabels.v007.slp", "clip_cam2_8k.mp4"):
+            if not (ROOT / name).exists() and not os.environ.get("CRAB_REQUIRE_V007_INPUTS"):
+                self.skipTest(f"prepared v007 dataset input not present in this checkout: {name}")
         bundle = dataset_manifest(run)
         manifest = bundle["manifest"]
         self.assertEqual(manifest["splits"]["train"]["n_frames"], 17)
