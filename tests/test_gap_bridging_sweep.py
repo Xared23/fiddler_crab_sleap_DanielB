@@ -426,14 +426,19 @@ class TrainCompareCliTests(unittest.TestCase):
         thresholds = sorted({float(r['threshold']) for r in pooled})
         self.assertIn(manifest.threshold, thresholds)
         self.assertEqual(len(thresholds), summary['n_candidates'])
-        # prefix-closed: no false link at any gap <= 3 for the chosen and every larger candidate
+        # prefix-closed: no false link at any gap <= 3 for the chosen and every larger candidate;
+        # precision 1.0 (recovered > 0) at the chosen one
         for r in pooled:
             if float(r['threshold']) >= manifest.threshold and int(r['gap_frames']) <= 3:
                 self.assertEqual(int(r['false_link']), 0, r)
+            if float(r['threshold']) == manifest.threshold and int(r['gap_frames']) <= 3:
                 self.assertGreater(int(r['recovered']), 0, r)
         with open(runs_path) as fh:
             runs = {r['run'] for r in csv.DictReader(fh)}
-        self.assertEqual(runs, {str(s / 'holdout_5') for s in self.sweeps})
+        # cross-fitted: one run per (sweep, CV fold) holding train-fold plants
+        self.assertTrue(all('#fold' in r for r in runs), runs)
+        self.assertEqual({r.split('#fold')[0] for r in runs},
+                         {str(s / 'holdout_5') for s in self.sweeps})
         cfg = load_config(overlay)
         self.assertEqual(cfg.cost_model, 'learned')
         self.assertEqual(cfg.learned_min_probability, manifest.threshold)

@@ -220,6 +220,10 @@ def scene_config(cfg: BridgeConfig, threshold: float) -> BridgeConfig:
     t = float(threshold)
     if not 0.0 < t < 1.0:
         raise ValueError(f"threshold must be strictly inside (0, 1), got {threshold!r}")
+    if cfg.unmatched_cost_mode != 'fixed':
+        raise ValueError(f"the pipeline threshold rule ties the dummy probability to the "
+                         f"threshold, which needs unmatched_cost_mode 'fixed', not "
+                         f"{cfg.unmatched_cost_mode!r}")
     out = replace(cfg, cost_model='learned', scorer_path=None, learned_min_probability=t,
                   learned_unmatched_probability=t)
     assert out.learned_min_probability == out.learned_unmatched_probability == t
@@ -267,6 +271,49 @@ def curve_point(scene: HoldoutScene, scorer: Any, threshold: float) -> List[dict
     return rows
 
 
+def crossfit_scenes(scene: HoldoutScene, fold_of_original: Dict[str, int], n_folds: int
+                    ) -> List[HoldoutScene]:
+    """Split a scene's train-fold truth by cross-validation fold (one scene per fold).
+
+    Parameters
+    ----------
+    scene : HoldoutScene
+        Output of :func:`load_scene`.
+    fold_of_original : dict
+        ``original_id -> fold index`` of the training cross-validation
+        (:func:`gap_bridging.train.fit_fold_models`): the fold whose model did
+        NOT see the original's pairs. An original absent from the mapping
+        contributed no labelled pair, so no fold model saw it; it goes to
+        fold 0.
+    n_folds : int
+        Number of folds (``>= 1``).
+
+    Returns
+    -------
+    list of HoldoutScene
+        One scene per fold that holds at least one truth row, in fold order,
+        sharing the endpoints and config; ``run_dir`` is
+        ``<run_dir>#fold<k>`` so the curve's ``run`` column names the fold.
+        Linking the whole scene with fold ``k``'s model and scoring only
+        these rows gives an out-of-sample curve (review finding 1 of v006).
+    """
+    if n_folds < 1:
+        raise ValueError("n_folds must be >= 1")
+    originals = scene.truth_train['original_id'].to_pylist()
+    folds = [int(fold_of_original.get(o, 0)) for o in originals]
+    if folds and not 0 <= max(folds) < n_folds:
+        raise ValueError(f"fold index {max(folds)} outside 0..{n_folds - 1}")
+    out: List[HoldoutScene] = []
+    for k in range(n_folds):
+        mask = pa.array([f == k for f in folds], type=pa.bool_())
+        truth = scene.truth_train.filter(mask) if folds else scene.truth_train.slice(0, 0)
+        if truth.num_rows == 0:
+            continue
+        out.append(replace(scene, run_dir=Path(f"{scene.run_dir}#fold{k}"), truth_train=truth))
+    assert sum(sc.truth_train.num_rows for sc in out) == scene.truth_train.num_rows
+    return out
+
+
 def pipeline_curve(scenes: Sequence[HoldoutScene], scorer: Any, thresholds: Sequence[float],
                    progress: Optional[Callable[[str], None]] = None) -> pa.Table:
     """Per-run curve over thresholds (:data:`CURVE_SCHEMA`).
@@ -275,8 +322,9 @@ def pipeline_curve(scenes: Sequence[HoldoutScene], scorer: Any, thresholds: Sequ
     ----------
     scenes : sequence of HoldoutScene
         Hold-out runs, in output order.
-    scorer : gap_bridging.scorer.Scorer
-        The learned scorer.
+    scorer : gap_bridging.scorer.Scorer or sequence of them
+        The learned scorer, or one scorer per scene (cross-fitting:
+        :func:`crossfit_scenes` scenes paired with their fold models).
     thresholds : sequence of float
         Candidate thresholds; evaluated in ascending order (duplicates once).
     progress : callable, optional
@@ -297,10 +345,16 @@ def pipeline_curve(scenes: Sequence[HoldoutScene], scorer: Any, thresholds: Sequ
     ts = sorted(set(float(t) for t in thresholds))
     if not scenes or not ts:
         raise ValueError("pipeline_curve needs at least one scene and one threshold")
+    if isinstance(scorer, (list, tuple)):
+        scorers = list(scorer)
+        if len(scorers) != len(scenes):
+            raise ValueError(f"{len(scorers)} scorers for {len(scenes)} scenes")
+    else:
+        scorers = [scorer] * len(scenes)
     rows: List[dict] = []
     for i, t in enumerate(ts):
         at_t = [{'threshold': t, 'run': str(scene.run_dir), **row}
-                for scene in scenes for row in curve_point(scene, scorer, t)]
+                for scene, sc in zip(scenes, scorers) for row in curve_point(scene, sc, t)]
         rows.extend(at_t)
         if progress is not None:
             totals = {k: sum(r[k] for r in at_t) for k in COUNT_KEYS}

@@ -310,6 +310,42 @@ class FitScorerTests(unittest.TestCase):
 # ============================================================
 
 
+class FoldModelTests(unittest.TestCase):
+    """v006 review finding 1: the cross-fit models reproduce fit_scorer's splits exactly."""
+
+    def test_fold_models_reproduce_oof_predictions(self):
+        X, y, groups = separable(600, seed=3)
+        params = replace(FAST, n_splits=3)
+        hgb, calibrator, p_oof = train.fit_scorer(X, y, groups, params)
+        models, fold_of_group = train.fit_fold_models(X, y, groups, params)
+        self.assertEqual(len(models), train.effective_splits(y, groups, 3))
+        self.assertEqual(set(fold_of_group), set(map(str, groups)))
+        self.assertEqual(set(fold_of_group.values()), set(range(len(models))))
+        p_raw = np.full(y.shape[0], np.nan)
+        for i, g in enumerate(groups):
+            model = models[fold_of_group[str(g)]]
+            p_raw[i] = model.predict_proba(X[i:i + 1])[:, 1][0]
+        p_cross = np.clip(np.asarray(calibrator.predict(p_raw), dtype=float), 0.0, 1.0)
+        np.testing.assert_allclose(p_cross, p_oof, rtol=0, atol=1e-12)
+        # the full model differs from every fold model on at least some rows
+        p_full = train.calibrated_probability(hgb, calibrator, X)
+        self.assertGreater(np.max(np.abs(p_full - p_oof)), 1e-6)
+        # a group never appears in the fit rows of its own fold model
+        for fit_idx, oof_idx in train._cv_splits(X, y, groups, params):
+            self.assertFalse(set(groups[fit_idx]) & set(groups[oof_idx]))
+
+    def test_degenerate_split_gives_none(self):
+        X, y, groups = separable(60, seed=1)
+        y = y.copy()
+        y[:] = 1
+        y[:5] = 0
+        groups = np.asarray([f'g{i % 2}' for i in range(y.size)], dtype=object)
+        with mock.patch.object(train, 'effective_splits', return_value=2):
+            models, fold_of_group = train.fit_fold_models(X, y, groups, replace(FAST, n_splits=2))
+        self.assertEqual(len(models), 2)
+        self.assertEqual(set(fold_of_group.values()), {0, 1})
+
+
 class ThresholdTests(unittest.TestCase):
 
     @settings(deadline=None, max_examples=80)
@@ -605,7 +641,7 @@ class TrainCommandTests(Patched):
         from gap_bridging import threshold as threshold_mod
         calls: Dict[str, list] = {k: [] for k in ('load_scene', 'candidate_thresholds',
                                                   'pipeline_curve', 'choose', 'summary',
-                                                  'write_curve')}
+                                                  'write_curve', 'crossfit')}
         curve = pa.table({'threshold': [0.1], 'run': ['r'], 'gap_frames': [2], 'planted': [1],
                           'recovered': [1], 'false_link': [0], 'missed': [0]})
         pooled = curve.drop(['run'])
@@ -615,15 +651,25 @@ class TrainCommandTests(Patched):
             return mock.Mock(run_dir=Path(run_dir),
                              truth_train=pa.table({'role': ['plant', 'decoy_donor']}))
 
+        def crossfit_scenes(scene, fold_of_original, n_folds):
+            calls['crossfit'].append((scene.run_dir, dict(fold_of_original), n_folds))
+            return [mock.Mock(run_dir=Path(f'{scene.run_dir}#fold{k}'),
+                              truth_train=scene.truth_train) for k in range(n_folds)]
+
         def candidate_thresholds(p, y, max_candidates):
             calls['candidate_thresholds'].append((np.asarray(p).shape, np.asarray(y).shape,
                                                   max_candidates))
             return np.asarray(candidates, dtype=float)
 
-        def pipeline_curve(scenes, probe, thresholds, progress=None):
-            calls['pipeline_curve'].append((len(scenes), tuple(probe.feature_names),
+        def pipeline_curve(scenes, probes, thresholds, progress=None):
+            self.assertIsInstance(probes, list)
+            self.assertEqual(len(probes), len(scenes))
+            for scene, probe in zip(scenes, probes):
+                self.assertTrue(callable(probe.predict_proba))
+                self.assertTrue(str(scene.run_dir).endswith(
+                    f"#fold{probes.index(probe)}"))      # fold k scene gets fold k model
+            calls['pipeline_curve'].append((len(scenes), tuple(probes[0].feature_names),
                                             tuple(float(t) for t in thresholds)))
-            self.assertTrue(callable(probe.predict_proba))
             if progress:
                 progress('curve 1/1')
             return curve
@@ -652,6 +698,7 @@ class TrainCommandTests(Patched):
             return paths
 
         patcher = mock.patch.multiple(threshold_mod, load_scene=load_scene,
+                                      crossfit_scenes=crossfit_scenes,
                                       candidate_thresholds=candidate_thresholds,
                                       pipeline_curve=pipeline_curve,
                                       pool_curve=lambda c: pooled,
@@ -682,7 +729,11 @@ class TrainCommandTests(Patched):
                          [Path(s) / 'holdout_10' for s in self.sweeps])
         self.assertEqual(calls['load_scene'][0][1:], ('salt', 0.4))
         self.assertEqual(calls['candidate_thresholds'], [((m.n_train,), (m.n_train,), 50)])
-        self.assertEqual(calls['pipeline_curve'], [(2, NAMES, (0.1, 0.3, 0.9))])
+        n_folds = m.hyperparameters['n_splits_used']
+        self.assertEqual(calls['pipeline_curve'], [(2 * n_folds, NAMES, (0.1, 0.3, 0.9))])
+        self.assertEqual([c[2] for c in calls['crossfit']], [n_folds, n_folds])
+        self.assertEqual(set(calls['crossfit'][0][1].values()), set(range(n_folds)))
+        self.assertEqual(m.hyperparameters['pair_target_reached'], m.hyperparameters['target_reached'])
         self.assertEqual(calls['choose'], [8])
         self.assertEqual(calls['summary'], [(0.3, 8, m.pair_threshold)])
         self.assertEqual(len(calls['write_curve']), 1)
@@ -745,6 +796,20 @@ class TrainCommandTests(Patched):
         self.assertEqual(set(yaml.safe_load(overlay.read_text())),
                          {'cost_model', 'scorer_path', 'learned_min_probability'})
         self.assertFalse(any(p.exists() for p in threshold_mod.curve_paths(out)))
+        # review items 3 and 6: a pair_oof retrain over a pipeline model removes the stale
+        # dummy key from the overlay and the stale curve files beside the model
+        self._fake_threshold_module(chosen=0.3)
+        train.train_command(self.sweeps, out, replace(FAST, threshold_rule='pipeline',
+                                                       curve_horizon=10, through_gap=8),
+                            'salt', 0.4, overlay, force=True)
+        self.assertTrue(all(p.exists() for p in threshold_mod.curve_paths(out)))
+        self.assertIn('learned_unmatched_probability', yaml.safe_load(overlay.read_text()))
+        with self.assertRaises(FileExistsError):
+            train.train_command(self.sweeps, out, FAST, 'salt', 0.4, overlay)
+        self.assertTrue(all(p.exists() for p in threshold_mod.curve_paths(out)))
+        train.train_command(self.sweeps, out, FAST, 'salt', 0.4, overlay, force=True)
+        self.assertFalse(any(p.exists() for p in threshold_mod.curve_paths(out)))
+        self.assertNotIn('learned_unmatched_probability', yaml.safe_load(overlay.read_text()))
 
     def test_regression_defaults_are_sigmoid(self):
         """Review finding 3: isotonic puts the threshold at p = 1 (D-010); sigmoid is the default."""
@@ -893,6 +958,8 @@ class ThresholdRuleParamsTests(unittest.TestCase):
                               values['learned_unmatched_probability']), (0.25, 0.25))
             cfg = load_config(overlay)
             self.assertEqual(cfg.learned_unmatched_probability, 0.25)
+            train.write_overlay(overlay, model, 0.9, 'now')       # pair rule: key removed
+            self.assertEqual(overlay.read_text(), before.replace('0.25', '0.9'))
 
 
 class FeatureSubsetParamsTests(unittest.TestCase):

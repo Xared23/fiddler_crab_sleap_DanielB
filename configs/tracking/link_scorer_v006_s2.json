@@ -1,6 +1,6 @@
 {
   "calibration": "sigmoid",
-  "created": "2026-11-02T15:36:20+00:00",
+  "created": "2026-11-02T17:29:04+00:00",
   "feature_config": {
     "appearance_cues": true,
     "claw_side_confidence": 0.9,
@@ -47,7 +47,7 @@
     "hand_cost"
   ],
   "feature_set": "no_length",
-  "git_commit": "52e1d2a29a2464c6a0b948b565dd488583d888d4",
+  "git_commit": "177bf14f452edc769fd7dddce50b0add6d8b1efd",
   "hyperparameters": {
     "allow_degenerate_threshold": false,
     "calibration": "sigmoid",
@@ -62,7 +62,8 @@
     "min_samples_leaf": 20,
     "n_splits": 5,
     "n_splits_used": 5,
-    "note": "calibration uses train-fold out-of-fold predictions; the threshold is the pipeline rule's choice on train-fold plants (gap_bridging.threshold); promotion uses the test fold through the full pipeline",
+    "note": "calibration uses train-fold out-of-fold predictions; the threshold is the pipeline rule's choice on train-fold plants, each linked by the CV fold model that never saw it (gap_bridging.threshold); target_reached describes the pair-level rule; promotion uses the test fold through the full pipeline",
+    "pair_target_reached": true,
     "seed": 0,
     "target_precision": 1.0,
     "target_reached": true,
@@ -97,14 +98,14 @@
   "n_train": 1368,
   "oof_metrics": {
     "brier": 0.02696167322707875,
-    "f1": 0.9405099150141643,
+    "f1": 0.96,
     "log_loss": 0.11487903936778464,
     "n": 1368,
     "n_pos": 510,
-    "precision": 0.907103825136612,
-    "recall": 0.9764705882352941,
+    "precision": 0.9553398058252427,
+    "recall": 0.9647058823529412,
     "roc_auc": 0.984761643585173,
-    "threshold": 0.10304695184373103
+    "threshold": 0.4777979172011935
   },
   "pair_threshold": 0.9851378084176468,
   "salt": "gap_bridging_v004",
@@ -119,31 +120,31 @@
   "test_fraction": 0.4,
   "test_metrics": {
     "brier": 0.031684028790101786,
-    "f1": 0.967409948542024,
+    "f1": 0.9651567944250871,
     "log_loss": 0.13104807423803624,
     "n": 537,
     "n_pos": 287,
-    "precision": 0.9527027027027027,
-    "recall": 0.9825783972125436,
+    "precision": 0.9651567944250871,
+    "recall": 0.9651567944250871,
     "roc_auc": 0.9832752613240419,
-    "threshold": 0.10304695184373103
+    "threshold": 0.4777979172011935
   },
-  "threshold": 0.10304695184373103,
+  "threshold": 0.4777979172011935,
   "threshold_rule": "pipeline",
   "threshold_summary": {
     "at_chosen": {
       "false_link": 0,
-      "missed": 2,
+      "missed": 11,
       "planted": 300,
-      "recovered": 298
+      "recovered": 289
     },
     "at_pair_threshold": {
       "false_link": 0,
-      "missed": 191,
+      "missed": 188,
       "planted": 300,
-      "recovered": 109
+      "recovered": 112
     },
-    "chosen": 0.10304695184373103,
+    "chosen": 0.4777979172011935,
     "n_candidates": 200,
     "through_gap": 30
   },

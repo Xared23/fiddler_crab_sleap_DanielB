@@ -462,6 +462,50 @@ def _classifier(params: TrainParams, names: Sequence[str] = features.FEATURE_NAM
         early_stopping=False, random_state=params.seed)
 
 
+def _cv_splits(X: np.ndarray, y: np.ndarray, groups: np.ndarray, params: TrainParams
+               ) -> List[Tuple[np.ndarray, np.ndarray]]:
+    """The ``(fit_idx, oof_idx)`` splits of :func:`fit_scorer` (deterministic in ``params``)."""
+    from sklearn.model_selection import StratifiedGroupKFold
+
+    k = effective_splits(y, groups, params.n_splits)
+    cv = StratifiedGroupKFold(n_splits=k, shuffle=True, random_state=params.seed)
+    return [(fit_idx, oof_idx) for fit_idx, oof_idx in cv.split(X, y, groups)]
+
+
+def fit_fold_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, params: TrainParams,
+                    names: Sequence[str] = features.FEATURE_NAMES
+                    ) -> Tuple[List[Any], Dict[str, int]]:
+    """The cross-validation fold models of :func:`fit_scorer` and each group's held-out fold.
+
+    Refits one classifier per split on the same ``(fit_idx, oof_idx)`` splits
+    as :func:`fit_scorer` (same seed, same fold count). A degenerate split
+    (one class in the fit rows, where ``fit_scorer`` uses the constant prior)
+    gets ``None``; the caller substitutes the full model.
+
+    Returns
+    -------
+    models : list
+        One fitted classifier (or ``None``) per split, in split order.
+    fold_of_group : dict
+        ``group -> split index`` whose model did not see the group.
+    """
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y).astype(np.int64)
+    groups = np.asarray(groups)
+    names = tuple(names)
+    models: List[Any] = []
+    fold_of_group: Dict[str, int] = {}
+    for k, (fit_idx, oof_idx) in enumerate(_cv_splits(X, y, groups, params)):
+        if np.unique(y[fit_idx]).size < 2:
+            models.append(None)
+        else:
+            models.append(_classifier(params, names).fit(X[fit_idx], y[fit_idx]))
+        for g in np.unique(groups[oof_idx]).tolist():
+            assert g not in fold_of_group, "a group is held out in exactly one split"
+            fold_of_group[str(g)] = k
+    return models, fold_of_group
+
+
 def fit_scorer(X: np.ndarray, y: np.ndarray, groups: np.ndarray, params: TrainParams,
                names: Sequence[str] = features.FEATURE_NAMES) -> Tuple[Any, Any, np.ndarray]:
     """Fit classifier and calibrator; return ``(hgb, calibrator, p_oof_calibrated)``.
@@ -490,8 +534,6 @@ def fit_scorer(X: np.ndarray, y: np.ndarray, groups: np.ndarray, params: TrainPa
         ``(n,)`` calibrated OOF probabilities.
     """
     from sklearn.isotonic import IsotonicRegression
-    from sklearn.model_selection import StratifiedGroupKFold
-
     X = np.asarray(X, dtype=float)
     y = np.asarray(y).astype(np.int64)
     groups = np.asarray(groups)
@@ -500,10 +542,8 @@ def fit_scorer(X: np.ndarray, y: np.ndarray, groups: np.ndarray, params: TrainPa
     assert X.ndim == 2 and X.shape[1] == len(names), f"bad X shape {X.shape} for {len(names)} names"
     assert X.shape[0] == y.shape[0] == groups.shape[0], "X, y, groups lengths differ"
     assert set(np.unique(y).tolist()) <= {0, 1}, "labels must be 0/1"
-    k = effective_splits(y, groups, params.n_splits)
-    cv = StratifiedGroupKFold(n_splits=k, shuffle=True, random_state=params.seed)
     p_raw = np.full(y.shape[0], np.nan)
-    for fit_idx, oof_idx in cv.split(X, y, groups):
+    for fit_idx, oof_idx in _cv_splits(X, y, groups, params):
         if np.unique(y[fit_idx]).size < 2:          # degenerate fold: constant prior
             p_raw[oof_idx] = float(np.mean(y[fit_idx]))
             continue
@@ -691,10 +731,11 @@ def write_overlay(config_path: Path, model_path: Path, threshold: float, created
     Sets ``cost_model: learned``, ``scorer_path`` (relative to the YAML's
     directory, POSIX) and ``learned_min_probability``, plus
     ``learned_unmatched_probability`` when ``unmatched_probability`` is given
-    (the pipeline rule ties it to the threshold; ``None`` leaves the key
-    untouched, so a ``pair_oof`` overlay is written as before v006); other
-    keys are kept. Comments of an existing file are replaced by one header
-    line.
+    (the pipeline rule ties it to the threshold); with ``None`` the key is
+    removed if present (a value left by an earlier pipeline-rule write would
+    silently change the pair-rule model's dummy), so a ``pair_oof`` overlay
+    is written as before v006. Other keys are kept. Comments of an existing
+    file are replaced by one header line.
     """
     config_path = Path(config_path)
     values: dict = {}
@@ -707,6 +748,8 @@ def write_overlay(config_path: Path, model_path: Path, threshold: float, created
                    'learned_min_probability': float(threshold)})
     if unmatched_probability is not None:
         values['learned_unmatched_probability'] = float(unmatched_probability)
+    else:
+        values.pop('learned_unmatched_probability', None)
     header = (f"# Written by `bridge_gaps.py train` on {created}: learned link scorer overlay; "
               f"scorer_path is relative to this file.\n")
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -718,8 +761,9 @@ def write_overlay(config_path: Path, model_path: Path, threshold: float, created
 # ============================================================
 
 PIPELINE_NOTE = ("calibration uses train-fold out-of-fold predictions; the threshold is the "
-                 "pipeline rule's choice on train-fold plants (gap_bridging.threshold); "
-                 "promotion uses the test fold through the full pipeline")
+                 "pipeline rule's choice on train-fold plants, each linked by the CV fold model "
+                 "that never saw it (gap_bridging.threshold); target_reached describes the "
+                 "pair-level rule; promotion uses the test fold through the full pipeline")
 
 
 def _curve_run(sweep_dir: Path, horizon: int) -> Path:
@@ -729,6 +773,13 @@ def _curve_run(sweep_dir: Path, horizon: int) -> Path:
         raise FileNotFoundError(f"{sweep_dir} has no completed holdout_{horizon} run for the "
                                 f"pipeline threshold curve (--curve-horizon); {SWEEP_HINT}")
     return run
+
+
+def _n_plants(truth: pa.Table) -> int:
+    """Rows :func:`gap_bridging.holdout.score_links` counts as planted (all rows without ``role``)."""
+    if 'role' not in truth.schema.names:
+        return int(truth.num_rows)
+    return int(pc.sum(pc.is_in(truth['role'], value_set=pa.array(PLANT_ROLES))).as_py() or 0)
 
 
 def _probe_manifest(names: Sequence[str], params: TrainParams, threshold: float
@@ -811,12 +862,18 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
     csv_path = metrics_csv_path(out)
     outputs = [out, manifest_path(out), csv_path]
     pipeline_rule = params.threshold_rule == 'pipeline'
+    from gap_bridging import threshold as threshold_mod
+    stale_curves = [p for p in threshold_mod.curve_paths(out) if p.exists()]
     if pipeline_rule:
-        from gap_bridging import threshold as threshold_mod
         outputs.extend(threshold_mod.curve_paths(out))
     existing = [str(p) for p in outputs if p.exists()]
     if existing and not force:
         raise FileExistsError(f"training outputs already exist (use --force): {existing}")
+    if not pipeline_rule and stale_curves and force:
+        for path in stale_curves:                   # curves of a former pipeline-rule model
+            path.unlink()
+        print(f"[train] removed stale threshold curve(s) {[str(p) for p in stale_curves]}",
+              flush=True)
     table, feature_cfg = collect_training_rows(sweeps, salt, test_fraction,
                                                params.drop_donor_negatives)
     folds = split_folds(table, names)
@@ -848,17 +905,26 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
     threshold_summary: dict = {}
     curve = pooled = None
     if pipeline_rule:
-        probe = LinkScorer(hgb, calibrator, _probe_manifest(names, params, pair_threshold))
-        scenes = [threshold_mod.load_scene(_curve_run(Path(sweep), params.curve_horizon),
-                                           salt, test_fraction) for sweep in sweeps]
+        # Cross-fitted curve (v006 review finding 1): every train-fold plant is linked by the
+        # CV fold model that never saw its pairs, through the OOF-fitted calibrator.
+        probe_manifest = _probe_manifest(names, params, pair_threshold)
+        fold_models, fold_of_group = fit_fold_models(X_train, y_train, g_train, params, names)
+        probes = [LinkScorer(m if m is not None else hgb, calibrator, probe_manifest)
+                  for m in fold_models]
+        scenes, probe_per_scene = [], []
+        for sweep in sweeps:
+            scene = threshold_mod.load_scene(_curve_run(Path(sweep), params.curve_horizon),
+                                             salt, test_fraction)
+            for part in threshold_mod.crossfit_scenes(scene, fold_of_group, len(probes)):
+                scenes.append(part)
+                probe_per_scene.append(probes[int(str(part.run_dir).rsplit('#fold', 1)[1])])
         candidates = threshold_mod.candidate_thresholds(p_oof, y_train, params.max_candidates)
-        n_plants = sum(int(pc.sum(pc.is_in(sc.truth_train['role'],
-                                           value_set=pa.array(PLANT_ROLES))).as_py() or 0)
-                       for sc in scenes)
+        n_plants = sum(_n_plants(sc.truth_train) for sc in scenes)
         print(f"[train] pipeline threshold curve: {candidates.size} candidates x "
-              f"{len(scenes)} scene(s) at horizon {params.curve_horizon}, train-fold plants "
+              f"{len(scenes)} fold scene(s) of {len(sweeps)} sweep(s) at horizon "
+              f"{params.curve_horizon} ({len(probes)} fold models), train-fold plants "
               f"{n_plants}", flush=True)
-        curve = threshold_mod.pipeline_curve(scenes, probe, candidates,
+        curve = threshold_mod.pipeline_curve(scenes, probe_per_scene, candidates,
                                              progress=lambda msg: print(msg, flush=True))
         pooled = threshold_mod.pool_curve(curve)
         threshold = threshold_mod.choose_pipeline_threshold(pooled, params.through_gap)
@@ -880,6 +946,7 @@ def train_command(sweeps: Sequence[Path], out: Path, params: TrainParams = Train
                   'target_reached': reached, 'note': OOF_NOTE})
     if pipeline_rule:
         hyper['note'] = PIPELINE_NOTE
+        hyper['pair_target_reached'] = reached      # 'target_reached' describes the pair rule
     manifest = ScorerManifest(
         sklearn_version=sklearn.__version__, feature_names=tuple(names),
         monotonic_cst=features.monotonic_for(names),

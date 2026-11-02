@@ -503,6 +503,50 @@ class TestScenes(unittest.TestCase):
         self.assertTrue(all(r['planted'] > 0 for r in point))
         self.assertEqual(point, threshold.curve_point(self.scene, self.scorer, 0.5))
 
+    def test_crossfit_scenes_partition_and_scorer_list(self) -> None:
+        """v006 review finding 1: fold scenes partition the train-fold truth, keep endpoints
+        and config, name the fold in run_dir, and pipeline_curve pairs each with its scorer;
+        the pooled curve of the parts equals the whole scene's when every part uses the same
+        scorer."""
+        originals = sorted(set(self.scene.truth_train['original_id'].to_pylist()))
+        fold_of = {o: i % 2 for i, o in enumerate(originals)}
+        parts = threshold.crossfit_scenes(self.scene, fold_of, 2)
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(sum(p.truth_train.num_rows for p in parts),
+                         self.scene.truth_train.num_rows)
+        for k, part in enumerate(parts):
+            self.assertEqual(str(part.run_dir), f'{self.scene.run_dir}#fold{k}')
+            self.assertIs(part.endpoints, self.scene.endpoints)
+            self.assertEqual(part.cfg, self.scene.cfg)
+            self.assertTrue(all(fold_of[o] == k for o in part.truth_train['original_id'].to_pylist()))
+        whole = threshold.pool_curve(threshold.pipeline_curve([self.scene], self.scorer, GRID))
+        split = threshold.pool_curve(threshold.pipeline_curve(parts, [self.scorer] * 2, GRID))
+        self.assertEqual(counts_only(whole.to_pylist()), counts_only(split.to_pylist()))
+        # unknown originals go to fold 0; an empty fold is skipped; bad inputs refused
+        only = threshold.crossfit_scenes(self.scene, {}, 3)
+        self.assertEqual([str(p.run_dir)[-5:] for p in only], ['fold0'])
+        with self.assertRaises(ValueError):
+            threshold.crossfit_scenes(self.scene, {originals[0]: 5}, 2)
+        with self.assertRaises(ValueError):
+            threshold.crossfit_scenes(self.scene, fold_of, 0)
+        with self.assertRaises(ValueError):
+            threshold.pipeline_curve(parts, [self.scorer], GRID)   # one scorer for two scenes
+        # a different scorer per fold changes only that fold's rows
+        strict = FakeScorer(c=0.0)                       # links nothing
+        mixed = threshold.pipeline_curve(parts, [self.scorer, strict], GRID)
+        same = threshold.pipeline_curve(parts, [self.scorer, self.scorer], GRID)
+
+        def fold(t: pa.Table, k: int) -> List[dict]:
+            return [r for r in t.to_pylist() if r['run'].endswith(f'fold{k}')]
+        self.assertEqual(fold(mixed, 0), fold(same, 0))
+        self.assertNotEqual(fold(mixed, 1), fold(same, 1))
+        self.assertTrue(all(r['recovered'] == 0 for r in fold(mixed, 1)))
+
+    def test_scene_config_refuses_adaptive_dummy(self) -> None:
+        cfg = dataclasses.replace(self.scene.cfg, unmatched_cost_mode='adaptive')
+        with self.assertRaisesRegex(ValueError, 'adaptive'):
+            threshold.scene_config(cfg, 0.5)
+
     def test_pipeline_curve_rows(self) -> None:
         scenes = [self.scene, threshold.load_scene(self.poisoned_dir)]
         messages: List[str] = []
