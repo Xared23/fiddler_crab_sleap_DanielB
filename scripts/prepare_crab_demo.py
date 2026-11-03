@@ -39,6 +39,24 @@ DATASET = ROOT / 'datasets/v007_best_body_first_dataframe_v001'
 PREDICTIONS = ROOT / 'predictions/v007_best_body_first_v001' / VIDEO_ID
 VIDEO = ROOT / 'crab_vids/Crab_Cam_2_2.mp4'
 NODES = ['shell','shoulder','elbow','claw','arm']
+MAXRATE = '60M'
+README_TEMPLATE = ROOT/'docs/demo/README.template.md'
+SOURCE_FILES = ['scripts/prepare_crab_demo.py','tests/test_crab_demo.py','jobs/prepare_crab_demo.sh',
+                'docs/demo/README.template.md']
+
+
+def configure_demo_2000():
+    """Explicit new-demo profile; importing this module retains historical defaults."""
+    global START, COUNT, STOP, NAME, FINAL, MAXRATE, README_TEMPLATE, SOURCE_FILES
+    START, COUNT = 13400, 2000
+    STOP = START + COUNT
+    NAME = f'{VIDEO_ID}.frames_{START:06d}_{STOP-1:06d}'
+    FINAL = ROOT/'demo/crab_cam2_2_middle_2000'
+    MAXRATE = '10M'
+    README_TEMPLATE = ROOT/'docs/demo/README_2000.template.md'
+    SOURCE_FILES = ['scripts/prepare_crab_demo.py', 'scripts/replace_crab_demo_2000.py',
+                    'tests/test_crab_demo.py', 'tests/test_crab_demo_2000.py',
+                    'jobs/replace_crab_demo_2000.sh', 'docs/demo/README_2000.template.md']
 
 
 def normalize_tables(frames, instances, points, start, count):
@@ -70,7 +88,9 @@ def normalize_tables(frames, instances, points, start, count):
     return frames, instances, points
 
 
-def slice_slp(source, target, clip_name, start=START, count=COUNT):
+def slice_slp(source, target, clip_name, start=None, count=None):
+    start = START if start is None else start
+    count = COUNT if count is None else count
     with h5py.File(source, 'r') as src:
         assert set(src.keys()) == {'frames','instances','metadata','points','pred_points',
                                   'provenance_json','sessions_json','suggestions_json','tracks_json','videos_json'}
@@ -150,7 +170,7 @@ def make_video(stage):
     ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
     command = [ffmpeg, '-hide_banner', '-loglevel','warning', '-nostdin', '-n',
                '-f','rawvideo','-pix_fmt','bgr24','-s',f'{WIDTH}x{HEIGHT}', '-r','30000/1001', '-i','pipe:0',
-               '-an','-c:v','libx264','-preset','veryfast','-crf','18','-maxrate','60M','-bufsize','60M',
+               '-an','-c:v','libx264','-preset','veryfast','-crf','18','-maxrate',MAXRATE,'-bufsize',MAXRATE,
                '-pix_fmt','yuv420p','-threads','4','-frames:v',str(COUNT),'-movflags','+faststart',str(clip)]
     cap = cv2.VideoCapture(str(VIDEO), cv2.CAP_FFMPEG, [cv2.CAP_PROP_N_THREADS, 2])
     assert cap.isOpened() and int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) == TOTAL
@@ -208,7 +228,7 @@ def make_video(stage):
     cap.release()
     assert decoded == COUNT
     return {'command': command, 'decoded_frames': decoded, 'sampled_bgr_mean_absolute_errors': mae,
-            'encoding': 'H.264 CRF 18, VBV maxrate/bufsize 60 Mbit; native 7680x4320; lossy video only, no coordinate changes'}
+            'encoding': f'H.264 CRF 18, VBV maxrate/bufsize {MAXRATE}; native 7680x4320; lossy video only, no coordinate changes'}
 
 
 def build():
@@ -296,8 +316,8 @@ def build():
             labels.videos[0].close()
         finally:
             os.chdir(old_cwd)
-    (stage/'README.md').write_text((ROOT/'docs/demo/README.template.md').read_text())
-    source_files = ['scripts/prepare_crab_demo.py','scripts/archive_v004.py','tests/test_crab_demo.py','jobs/prepare_crab_demo.sh']
+    (stage/'README.md').write_text(README_TEMPLATE.read_text())
+    source_files = SOURCE_FILES
     receipt = {'status':'validated_complete','job_id':os.environ['SLURM_JOB_ID'], 'source_video_id':VIDEO_ID,
                'source_frame_start':START,'source_frame_stop_exclusive':STOP,'demo_frame_start':0,'frames':COUNT,
                'width':WIDTH,'height':HEIGHT,'fps_numerator':30000,'fps_denominator':1001,
@@ -307,7 +327,7 @@ def build():
                'source_table_parts':[{'path':str(p.relative_to(ROOT)),'sha256':artifacts[str(p.relative_to(DATASET))]['sha256']} for p,_ in selected],
                'video':video_info,'versions':{p:importlib.metadata.version(p) for p in ['sleap-io','numpy','h5py','pandas','pyarrow','opencv-python','imageio-ffmpeg']},
                'code_sha256':{p:sha256(ROOT/p) for p in source_files},
-               'validation':{'all_300_video_frames_decoded':True,'raw_and_tracked_points_identical_to_source':True,
+               'validation':{'all_selected_video_frames_decoded':True,'raw_and_tracked_points_identical_to_source':True,
                              'dataframe_source_columns_copied_exactly':True,'dataframe_matches_every_slp_detection_and_track':True,
                              'portable_slp_video_loading_from_relocated_copy':True,'no_git_commands_executed':True,
                              'neural_inference_or_tracking_rerun':False},

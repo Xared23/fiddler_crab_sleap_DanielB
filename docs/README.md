@@ -7,12 +7,12 @@ agent/tool configuration are deliberately excluded from this reorganization.
 
 ## Active data, archive, and collaborator demo
 
-- **[Current data inventory, v004 archive, 300-frame demo and Git diagnosis](demo/PREPARATION.md)**
-  — v004 payloads archived with unchanged hashes; v007 remains active. The
-  native-resolution Cam 2_2 sample uses original frames 14250–14549. Narrow
-  demo ignore exceptions are authorized/applied; no staging, commits, pushes
-  or branch/remote changes have been made.
-- [Demo bundle instructions](../demo/crab_cam2_2_middle_300/README.md)
+- **[2,000-frame collaborator demo replacement](demo/REPLACEMENT_2000.md)**
+- [Data inventory, v004 archive and historical 300-frame demo/Git diagnosis](demo/PREPARATION.md)
+  — v004 payloads archived with unchanged hashes; v007 remains active.
+  Records the earlier 300-frame preparation and Git diagnosis. The current
+  replacement covers frames 13400–15399; its validation and push have separate receipts.
+- [Demo bundle instructions](../demo/crab_cam2_2_middle_2000/README.md)
   — require the bundle's `DEMO_COMPLETE.json` before using generated payloads.
 
 ## Current training and available models

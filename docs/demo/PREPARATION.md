@@ -1,5 +1,11 @@
 # v004 archive, v007 demo preparation, and Git diagnosis
 
+> **Historical 300-frame preparation record.** The user subsequently requested
+> replacing this demo on GitHub with a 2,000-frame bundle. See
+> [replacement workflow and validation](REPLACEMENT_2000.md). The no-commit/push
+> statements below describe the earlier work, not the newly authorized replacement.
+> The former bundle is retained locally in `archive/demo/` after the new one validates.
+
 All paths are project-relative. **No Git commands, staging, commits, pushes or
 branch/remotes changes were performed.** The user subsequently authorized
 `.gitignore` changes: narrow demo-payload exceptions and exclusions for the
@@ -18,7 +24,7 @@ and existing historical push receipts was sufficient for the initial diagnosis.
 | Current full-video raw/tracked SLPs | `predictions/v007_best_body_first_v001/<video>/{raw,tracklets}/` |
 | Original finalizer tables | `predictions/v007_best_body_first_v001/<video>/tracklets/*.parquet` |
 | Recommended standardized dataframe | `datasets/v007_best_body_first_dataframe_v001/` |
-| Collaboration demo | `demo/crab_cam2_2_middle_300/` (require `DEMO_COMPLETE.json`) |
+| Collaboration demo replacement | `demo/crab_cam2_2_middle_2000/` (require `DEMO_COMPLETE.json`; see replacement notes) |
 | v004 payload archive | `archive/v004_legacy/` (require `ARCHIVE_COMPLETE.json`) |
 
 Centroid training remains paused; the archive/demo does not resume training,

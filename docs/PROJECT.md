@@ -147,11 +147,14 @@ for v007's pinned shared water-region provenance. Do not use it as an active
 dataframe. Historical scripts/configs remain for provenance, not as active
 entry points.
 
-A bounded collaborator demo is prepared under
-`demo/crab_cam2_2_middle_300/` (require its completion marker): original Cam 2_2
-frames 14250–14549, matching v007 SLPs and dataframe rows. The user authorized
-narrow `.gitignore` demo exceptions, now applied; no staging, commits, pushes
-or branch/remote changes have been made. See [archive/demo and Git preparation notes](demo/PREPARATION.md).
+The collaborator demo replacement is
+`demo/crab_cam2_2_middle_2000/` (require its completion marker): 2,000 original
+Cam 2_2 frames 13400–15399, matching v007 SLPs and dataframe rows. It supersedes
+the 300-frame bundle, preserved locally under `archive/demo/` after successful
+validation. Narrow `.gitignore` exceptions include only this demo's payloads.
+The user authorized replacement on GitHub; local completion and successful push
+have separate receipts. See [2,000-frame replacement notes](demo/REPLACEMENT_2000.md)
+and [historical archive/demo preparation](demo/PREPARATION.md).
 
 ## Original-prediction dataset organization: separate agent task
 
