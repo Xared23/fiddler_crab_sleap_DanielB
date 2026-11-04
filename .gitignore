@@ -27,8 +27,10 @@ models/**/*.ckpt
 /demo/.build_*/
 
 # Narrow exception: the bounded, self-contained collaborator demo.
-!/demo/crab_cam2_2_middle_2000/Crab_Cam_2_2.frames_013400_015399.mp4
-!/demo/crab_cam2_2_middle_2000/Crab_Cam_2_2.frames_013400_015399.predictions.slp
-!/demo/crab_cam2_2_middle_2000/Crab_Cam_2_2.frames_013400_015399.tracked.slp
+!/demo/crab_cam2_2_middle_2000/chunk_*/Crab_Cam_2_2.frames_*.mp4
+!/demo/crab_cam2_2_middle_2000/chunk_*/Crab_Cam_2_2.frames_*.predictions.slp
+!/demo/crab_cam2_2_middle_2000/chunk_*/Crab_Cam_2_2.frames_*.tracked.slp
+!/demo/crab_cam2_2_middle_2000/chunk_*/observations.parquet
+!/demo/crab_cam2_2_middle_2000/chunk_*/frames.parquet
 !/demo/crab_cam2_2_middle_2000/observations.parquet
 !/demo/crab_cam2_2_middle_2000/frames.parquet

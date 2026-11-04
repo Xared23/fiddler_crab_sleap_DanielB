@@ -149,7 +149,8 @@ entry points.
 
 The collaborator demo replacement is
 `demo/crab_cam2_2_middle_2000/` (require its completion marker): 2,000 original
-Cam 2_2 frames 13400–15399, matching v007 SLPs and dataframe rows. It supersedes
+Cam 2_2 frames 13410–15409 in losslessly copied video chunks, with matching v007
+SLPs and dataframe rows for each chunk. It supersedes
 the 300-frame bundle, preserved locally under `archive/demo/` after successful
 validation. Narrow `.gitignore` exceptions include only this demo's payloads.
 The user authorized replacement on GitHub; local completion and successful push

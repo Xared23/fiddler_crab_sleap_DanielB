@@ -146,13 +146,14 @@ def add_demo_indices(table):
         'demo_time_s', pa.array((frame-START)/FPS, type=pa.float64()))
 
 
-def check_observations(table, slp):
+def check_observations(table, slp, start=None, frame_column='demo_frame'):
+    start = START if start is None else start
     assert table.num_rows == slp['observations']
     np.testing.assert_array_equal(table['source_instance_row'].to_numpy(),
                                   np.arange(slp['source_instance_start'], slp['source_instance_stop']))
     np.testing.assert_array_equal(table['raw_instance_id'].to_numpy(), table['source_instance_row'].to_numpy())
-    np.testing.assert_array_equal(table['frame'].to_numpy(), slp['instances']['frame_id']+START)
-    np.testing.assert_array_equal(table['demo_frame'].to_numpy(), slp['instances']['frame_id'])
+    np.testing.assert_array_equal(table['frame'].to_numpy(), slp['instances']['frame_id']+start)
+    np.testing.assert_array_equal(table[frame_column].to_numpy(), slp['instances']['frame_id'])
     points = slp['points'].reshape(-1, 5)
     for n, node in enumerate(NODES):
         for field in ['x','y','score','visible']:

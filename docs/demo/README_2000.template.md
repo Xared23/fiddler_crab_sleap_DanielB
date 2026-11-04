@@ -1,65 +1,70 @@
-# Male fiddler-crab demo: 2,000 middle frames, v007 predictions
+# Male fiddler-crab demo: 2,000 consecutive frames, lossless video chunks
 
-This self-contained sample contains **Crab_Cam_2_2 original frames 13400–15399
-inclusive** (zero-based), centered in the 28,800-frame source video. It lasts
-**66.733 seconds at 30000/1001 fps**. It replaces the former 300-frame demo.
-No models or full original videos are needed to explore this folder.
+This bundle contains **Crab_Cam_2_2 original frames @START@–@LAST@ inclusive**
+(zero-based), about **66.733 seconds at 30000/1001 fps**, in **@CHUNKS@ numbered
+chunks**. It replaces the former 300-frame demo. The first frame is a source
+keyframe nearest the middle-excerpt start, so every chunk is independently
+playable without re-encoding.
 
-## Files
+**The video is copied, not re-encoded.** Original HEVC/H.265 compressed packets,
+native 7680×4320 resolution, color metadata and decoded pixel values are retained.
+There is no added compression, resize, crop, interpolation, smoothing, inference
+or tracking. Each payload is below GitHub's ordinary 100-MiB limit; no Git LFS or
+full-video/model download is needed. Playback needs HEVC support.
 
-| File | Purpose |
-|---|---|
-| `Crab_Cam_2_2.frames_013400_015399.mp4` | Exactly 2,000 consecutive frames; native 7680 × 4320; H.264 demo copy |
-| `Crab_Cam_2_2.frames_013400_015399.predictions.slp` | Every v007 pose in those frames, without identities |
-| `Crab_Cam_2_2.frames_013400_015399.tracked.slp` | Identical poses plus the existing optional experimental tracklet IDs |
-| `observations.parquet` | Exact selected published dataframe rows, plus demo-index columns |
-| `frames.parquet` | All 2,000 frame-summary rows, plus demo-index columns |
-| `frame_map.csv` | Local/original frame/time mapping and hashes of decoded original BGR frames |
-| `DEMO_COMPLETE.json` | Counts, source/output hashes, encoding settings and validation receipt |
-| `encoding.log` | Encoder diagnostics |
+## Layout
 
-**Video pixels are lossy re-encoded**, using H.264 CRF 18 constrained by a
-10-Mbit/s VBV ceiling/buffer. This is stronger compression than the old short
-demo, to keep the longer MP4 below ordinary GitHub's 100-MiB per-file limit.
-There is no resize, crop, stabilization, rotation, overlay, dropped frame or
-interpolation. Prediction coordinates and scores are unchanged. This is a
-viewing/demo copy, not a pixel-identical scientific archive; small details may
-lose fidelity. Each payload's size is checked before publication.
+Each `chunk_001/`, `chunk_002/`, … contains:
 
-## Frame and identity conventions
+- `Crab_Cam_2_2.frames_<first>_<last>.mp4`: the original encoded video packets for
+  that interval, in a new MP4 container.
+- Same basename with `.predictions.slp`: every original v007 pose, without IDs.
+- Same basename with `.tracked.slp`: identical poses and existing experimental IDs.
+- `observations.parquet` and `frames.parquet`: matching dataframe rows.
 
-- The movie and **both SLPs use local frames 0–1999**.
-- `original frame = demo_frame + 13400`.
-- Dataframe source columns (`frame`, `time_s`, detection/tracklet IDs,
-  coordinates, acceptance flags, nullable values and provenance) are unchanged.
-  Added `demo_frame` and `demo_time_s` align rows to the clip.
-- `demo_instance_row` is the zero-based instance row within either demo SLP.
-  Original `raw_instance_id` / `source_instance_row` reference the **full source
-  SLP**; `instance_index` is still the within-frame ordinal.
+Bundle-level files:
+
+- `chunks.json`: chunk order, exact original/global frame ranges, paths and counts.
+- `observations.parquet`: all selected observations, including their chunk IDs.
+- `frames.parquet`: all 2,000 frame-summary rows in order.
+- `frame_map.csv`: exact original/global/chunk-local frame mapping and decoded
+  pixel/source packet hashes for every frame.
+- `DEMO_COMPLETE.json`: source provenance, artifact hashes and validation receipt.
+
+There are **exactly 2,000 frames total**, with no gaps or duplicates across chunks.
+Chunk lengths can differ because cuts use keyframes and actual encoded sizes.
+
+## Indices and unchanged research data
+
+- Each MP4 and its two SLPs use **chunk-local** frame numbers starting at zero.
+- `chunk_frame` indexes the chunk's movie and SLPs.
+- `demo_frame` runs from 0 to 1999 across the whole selection.
+- Original `frame`, `time_s`, coordinates, scores, detection/tracklet IDs,
+  nullable values, acceptance flags and provenance columns are unchanged.
+- `chunk_instance_row` indexes the instance row in that chunk's SLP.
+  `demo_instance_row` indexes the combined selected observation table.
+  Original `source_instance_row` / `raw_instance_id` still refer to the full source.
+- `original frame = demo_frame + @START@`. See `chunks.json` for each chunk's start.
 - All detections are retained, including water-region and unassigned poses.
-  Unassigned observations retain null tracklet IDs.
-- Original full-video tracklet names are retained. Only the internal SLP track
-  catalog indices are compacted; no tracking or inference is rerun. Tracks can
-  extend beyond this excerpt. Tracklets are not validated unique animal IDs.
-- Original `source_*path` columns are provenance, not files included here.
-  Use the local MP4/SLPs and `demo_frame` / `demo_instance_row` for this sample.
-- Coordinates are native-image pixels, x right and y down. `centroid_source`
-  is `shell_proxy`, not a retained centroid-detector output. `water` is fixed-ROI
-  analysis metadata, not dynamic segmentation.
+- Full-video track names are unchanged, including across chunk boundaries;
+  only internal per-SLP track-catalog indices are compacted.
+- IDs are experimental, not validated unique animals. Chunk/selection boundaries
+  do not indicate track birth/death. No new tracking is performed here.
+- Coordinates are original image pixels, x right/y down. `centroid_source` is
+  `shell_proxy`; `water` is fixed-ROI analysis metadata, not segmentation.
 
-The source is the frozen-best **v007_best_body_first_v001** prediction run and
-**v007_best_body_first_dataframe_v001** dataframe. This is not archived v004,
-nor the later threshold/grace experiments. Identities are experimental;
-false/missed/duplicate detections remain possible.
+Sources: frozen-best `v007_best_body_first_v001` predictions and the published
+`v007_best_body_first_dataframe_v001` dataframe. These are not the later
+threshold/grace experiments or archived v004 outputs. Full-source paths in the
+dataframe are provenance, not files included in this bundle.
 
-## Open locally
+## Open a chunk locally
 
-Keep the MP4 and SLPs side by side. Open either SLP in a compatible SLEAP desktop
-GUI; its video reference is the local MP4 basename, not a Della absolute path.
-If prompted, relink to the MP4 in this folder. Start with `.predictions.slp`
-for a view without track identities.
-
-For pandas, use pandas and pyarrow in your local environment:
+Keep each chunk's MP4 and SLPs together. Open an SLP in a compatible SLEAP GUI;
+it references the MP4 basename in its own folder. If asked to relink, choose
+that chunk's MP4—not another chunk or the full original movie. Start with the
+untracked `.predictions.slp` for a simpler pose view. The GUI/video backend must
+support HEVC/H.265; the original codec has deliberately not been converted.
 
 ```python
 from pathlib import Path
@@ -68,28 +73,25 @@ import pandas as pd
 root = Path('demo/crab_cam2_2_middle_2000')
 df = pd.read_parquet(root / 'observations.parquet', dtype_backend='numpy_nullable')
 frames = pd.read_parquet(root / 'frames.parquet', dtype_backend='numpy_nullable')
-local_frame = 1000  # original frame 14400
-poses = df.loc[df['demo_frame'].eq(local_frame)]
-print(poses[['frame', 'demo_frame', 'tracklet_id', 'centroid_x', 'centroid_y', 'water']])
+poses = df.loc[df['demo_frame'].eq(1000)]
+print(poses[['frame', 'demo_frame', 'chunk_id', 'chunk_frame', 'tracklet_id']])
+# Open the SLP under poses['chunk_id'].iloc[0], at its chunk_frame value.
 ```
 
-On Della, computation/playback still requires a Slurm allocation. The finite
-replacement entry point is `jobs/replace_crab_demo_2000.sh`. Controls precede
-extraction; validation decodes all 2,000 output frames, compares every pose/ID
-and dataframe value with the source, and opens relocated SLP/video copies.
-Desktop-GUI playback has not been tested by the build job.
+On Della, computation/playback still requires Slurm. The build verifies every
+copied packet hash, every decoded frame pixel-for-pixel, every pose/score/ID,
+all source dataframe columns, SLP frame coverage, and relocated video links.
+A desktop GUI is not claimed tested.
 
-## Repository replacement
+## Publication
 
-The old 300-frame bundle is preserved locally under the ignored
-`archive/demo/crab_cam2_2_middle_300/`, not kept as a second active demo.
-Only the new demo's MP4, two SLPs and two Parquet files are exempted from the
-repository's payload ignores. Original videos, models and full datasets remain
-excluded. The old bundle remains in Git history; history is not rewritten.
+The old 300-frame demo is preserved locally under ignored
+`archive/demo/crab_cam2_2_middle_300/`, rather than as a second active demo.
+Original research files are never changed. Git history is not rewritten.
 
-A successful local `DEMO_COMPLETE.json` verifies the data bundle, **not a GitHub
-push**. The replacement job records its separate commit/push result under
-`logs/demo_preparation/replace_<job-id>/`. It only attempts a normal push to
-`origin/my-code`, refuses unrelated staged changes or divergent remote history,
-and never force-pushes or changes branches/remotes/credentials.
-See `docs/demo/REPLACEMENT_2000.md` for the repository workflow.
+`DEMO_COMPLETE.json` means validated local data, not a GitHub upload. The build
+job separately verifies that every payload is committed to `my-code`, then
+attempts one normal push. If compute-node networking blocks GitHub, the local
+commit is still ready for a normal `git push origin my-code` from the user's
+network-enabled terminal. Receipts: `logs/demo_preparation/replace_<job-id>/`.
+See `docs/demo/REPLACEMENT_2000.md` for the workflow and prior failure explanation.
