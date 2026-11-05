@@ -129,3 +129,23 @@
 - **Impact:** v004/v005 learned scorers were judged at thresholds the pipeline never needed; S1 lost 11 demo links and one gap-2 plant (p = 0.49) for no precision gain
 - **Regression test:** tests/test_gap_bridging_threshold.py (choice rule, train-fold-only curve, dummy tied to the threshold), tests/test_gap_bridging_sweep.py::TrainCompareCliTests::test_train_pipeline_threshold_rule_end_to_end, tests/test_gap_bridging_train.py::TrainCommandTests::test_pair_oof_rule_unchanged_by_v006
 - **Fix:** v006 `gap_bridging.threshold`: the threshold is chosen after assignment on train-fold plants of the horizon-30 hold-outs, cross-fitted (each plant linked by the CV fold model that never saw its pairs; the first draft scored them in-sample and would have promoted S2 at 0.103, the cross-fitted choice is 0.478), with `learned_unmatched_probability` tied to it in the written overlay
+
+## D-014 — the 2000-frame demo's template test checks the abandoned re-encode profile
+- **Found:** 2026-11-05, copying the 2,000-frame demo from `my-code` (8edb144) onto `sam`
+- **Status:** wontfix on `sam` (test skipped with its reason); the source lives on `my-code`
+- **Where:** tests/test_crab_demo_2000.py `test_template_matches_profile`; docs/demo/README_2000.template.md; scripts/prepare_crab_demo.py `configure_demo_2000`
+- **Symptom:** the test asserts the template names `Crab_Cam_2_2.frames_013400_015399`, `13400`, `15399` and `10-Mbit/s` (the superseded H.264 re-encode profile set by `configure_demo_2000`), but the template was rewritten for the lossless-chunk workflow that starts at keyframe 13410, so the test fails on `my-code` as committed. The module also imported `prepare_crab_demo` without putting `scripts/` on `sys.path`, so it failed to import when run alone
+- **Repro:** `pytest tests/test_crab_demo.py tests/test_crab_demo_2000.py -k template` at 8edb144 → `AssertionError: 'Crab_Cam_2_2.frames_013400_015399' not found in ...`
+- **Impact:** none on data: the bundle's receipt and all 55 payload hashes verify; the stale test only guards the abandoned profile
+- **Regression test:** none (a stale test of dead code; the skip states why)
+- **Fix:** on `sam`, `@unittest.skip` with the reason and a `sys.path` insert (fad9f87); on `my-code`, either delete the test with `configure_demo_2000` or point it at the chunk template
+
+## D-015 — gap_scaling `_seed_dirs` picked up the sweep log files
+- **Found:** 2026-11-05, first finalize run of the v007 scaling study (job 16912503)
+- **Status:** fixed
+- **Where:** scripts/gap_scaling.py `_seed_dirs`
+- **Symptom:** `natural` failed with `NotADirectoryError: .../w300/current/seed_0.log/sweep_summary.csv`: the glob `seed_*` matches the `seed_<k>.log` files the Slurm job writes beside each seed folder
+- **Repro:** a variant folder holding `seed_0/` and `seed_0.log` → `_seed_dirs` returned both
+- **Impact:** the finalize job stopped after compare; no wrong numbers were written
+- **Regression test:** tests/test_gap_scaling.py::test_regression_D015_seed_dirs_skip_logs
+- **Fix:** keep only directories whose suffix after `seed_` is an integer

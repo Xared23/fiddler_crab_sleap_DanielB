@@ -1984,3 +1984,197 @@ SW=logs/gap_sweep_v005/current_short/seed_{0,1,2,3,4}
 .venv/bin/python scripts/bench_gap_bridging.py --tiles 1,16 --repeats 5 --configs current=configs/tracking/gap_bridging_v001.yaml \
     s1=configs/tracking/gap_bridging_v006_s1.yaml s2=configs/tracking/gap_bridging_v006_s2.yaml --out logs/bench/gap_bridging_v006.csv
 ```
+
+## v007: scaling to the 2,000-frame demo
+
+v007 (2026-11-05) runs the three strongest linkers on the 2,000-frame demo
+(`demo/crab_cam2_2_middle_2000/`, original Cam 2_2 frames 13410–15409, copied
+from `my-code` beside the 300-frame demo) and measures how their accuracy,
+natural links and cost change with the amount of data. The linkers are the
+v003 hand cost (the default), v006 S1 at its pipeline threshold (0.413) and
+v005 S1 at p ≥ 0.5 with the dummy tied (the v005 exploratory overlay). Each
+learned scorer is run twice: frozen (the committed model, trained on the
+300-frame demo) and retrained on the window's own hand-cost sweeps
+(`train --threshold-rule pipeline --features all`; the p ≥ 0.5 variant is the
+same refit at 0.5, since the threshold rule does not change the fit). No code
+path of the pipeline changed and no default moved; the study adds
+`scripts/gap_scaling.py` (windows, overlays, natural links, timing, report),
+`scripts/gap_scaling_report.py` and the Slurm chain
+`jobs/gap_scaling_v007{.slurm,_submit.sh}`. Generated tables:
+[gap_bridging_v007_scaling.md](gap_bridging_v007_scaling.md).
+
+### Design
+
+- **Nested windows** of 300, 600, 1000 and 2000 frames, centred on the
+  300-frame demo (14250–14549) and shifted to stay inside the bundle. The
+  300-frame window is row-identical to `demo/crab_cam2_2_middle_300` on every
+  source column, so it reproduces earlier results exactly: all 15 frozen and
+  hand-cost sweeps (5 seeds each) are byte-identical to the committed v005 /
+  v006 sweeps, and the retrained S1 on that window chooses 0.412646, the
+  committed v006 threshold.
+- **Hold-out sweeps** with the v005 short profile, horizons 5–60, 5 seeds.
+  Constant plant density (8 plants per gap length per 300 frames) is
+  infeasible beyond 300 frames: each plant needs its own unused tracklet with
+  enough consecutive accepted frames (56 for gap 45), and long tracklets grow
+  more slowly than the window. `gap_scaling.py windows` probes the largest
+  count that plants for every seed: **8, 15, 19, 34** plants per gap length
+  (targets 8, 16, 27, 53), decoys and flicker at the recipe's 1/2 and 1/4
+  (rounded down). Over 5 seeds this gives 600, 1074, 1385 and 2485 scored
+  plants (decoy targets included) and 223, 403, 550 and 1002 on the test fold.
+- **Promotion rule** as in v005/v006, applied at **horizon 30 on every
+  window**: test-fold precision 1.0 and recall ≥ the hand cost at every
+  planted gap through 30, and natural links at horizon 30 ≥ the hand cost's
+  on that window. `compare` itself checks at the baseline's chosen horizon,
+  which drifts (30 fallback, 10, 30 fallback, 5 on the four test folds), so its verdicts
+  are not comparable across windows; both are tabulated.
+- **Plants only.** The scored plants include decoy targets: a donor right half
+  placed 3 px from the true right half. When both true halves are 1 frame
+  long no cue separates them, and every linker takes the decoy; this is the
+  one gap-30 false link the hand cost makes on the 300-frame demo over all
+  plants. The report therefore also scores plants only (`gap_scaling.py
+  natural`, `role_scores`; with decoy targets included it reproduces
+  `compare`'s counts exactly).
+- **Runtime and memory**: `bridge_gaps.py run` at max_gap 30 under
+  `/usr/bin/time -v`, 3 repeats per window and linker, one Slurm node.
+
+### Results
+
+Test fold, horizon 30, gaps 1–60 pooled (recovered / false links of planted;
+decoy targets included):
+
+| frames | hand cost | v006 S1 frozen | v005 S1 p ≥ 0.5 frozen | v006 S1 retrained | v005 S1 p ≥ 0.5 retrained |
+|---:|---|---|---|---|---|
+| 300 | 172 / 1 of 223 | 179 / 1 | 178 / 1 | 179 / 1 | 178 / 1 |
+| 600 | 312 / 2 of 403 | 317 / 1 | 317 / 1 | 317 / 1 | 319 / 1 |
+| 1000 | 399 / 3 of 550 | 422 / 0 | 418 / 0 | 217 / 0 | 426 / 0 |
+| 2000 | 734 / 9 of 1002 | 774 / 5 | 770 / 5 | 434 / 0 | 781 / 8 |
+| natural links, 2000 frames (h = 30) | 5095 | 5095 | 5066 | 3484 | 5114 |
+
+- **The hand cost loses its precision guarantee with more data.** At
+  horizon 30 it fails precision 1.0 on the test fold at 600 (gaps 5, 30),
+  1000 (gaps 3, 30) and 2000 frames (gaps 10–30). On plants only (no decoys)
+  it makes 0, 0, 4 and 4 false links over all plants through gap 30 on the
+  four windows (1360 plants at 2000 frames), and its own horizon rule picks 5
+  frames on the 2000-frame test fold. The 300-frame demo was the easiest
+  window it has been judged on.
+- **Frozen learned scorers keep their recall advantage.** Trained on the
+  300-frame demo, v006 S1 and v005 S1 p ≥ 0.5 keep it on 6.7 times more data
+  (77.2% and 76.8% test recall at 2000 frames vs 73.3%; at gap 30 they
+  recover 88 and 87 of 99 test plants vs 61) with fewer false links than the
+  hand cost on the test fold (5 vs 9) but more over all plants through gap 30
+  without decoys (7 and 6 vs 4 of 1360). The natural links match the hand
+  cost's count (5095 for S1, Jaccard 0.95; 127 gained, 127 lost) and the
+  trajectory lengths closely match the hand cost's (median 16 vs 15 frames,
+  89% of trajectory frames in trajectories of 150 frames or more for both;
+  figure `gap_bridging_v007_scaling_lengths.png`; no formal test). Their
+  advantage is in recall only: on plants only they make more false links,
+  and the larger windows contain the 300 frames they were trained on (see
+  residual risks). They fail the rule at
+  2000 frames on precision (gaps 10–20) and on one plant of recall at gaps
+  1, 2 and 10.
+- **Retraining improves the model but the pipeline threshold rule breaks.**
+  The retrained thresholds are 0.413, 0.706, 0.990 and 0.990: the rule asks
+  for zero false links on every train-fold plant through gap 30, and with
+  more plants one confident false link appears and pins the threshold near 1.
+  On the 1000-frame window it is a short_mid plant at gap 30 (seed 3, frames
+  14749–14778 deleted, halves of 4 and 1 frames): a separate natural 1-frame
+  detection inside the deleted interval, 6 px from the plant at the same
+  burrow (frame 14759), is linked to the right half (p 0.94 for the final
+  refit, ≥ 0.989 for the fold-0 model) while the true left half is refused.
+  The truth table calls this false; it is most likely the same crab, i.e. a
+  labelling artefact of planting a gap over a fragmented track rather than a
+  scorer error. The retrained v006 S1 then recovers 43% of the
+  test plants and loses a third of the natural links (3484 of 5095 at 2000
+  frames). The same refit at p ≥ 0.5 has the highest recall on every window
+  above 300 frames: 77.9% test recall at 2000 frames (781 vs 770 frozen and
+  734 hand), 95.8% over all plants at horizon 60 (vs 80.9% hand), and,
+  with the frozen v006 S1, at or above the natural-link floor on the 600,
+  1000 and 2000-frame windows (1708, 2756, 5114 links; frozen S1 1699, 2748,
+  5095). The gain is small on 600 frames (319 vs 317 of 403) and costs false
+  links on 2000 frames: 8 on the test fold (5 for each frozen variant, 9 for
+  the hand cost) and 11 over all plants (9 frozen p ≥ 0.5, 14 hand); 5 of
+  1360 plants-only, against 4 for the hand cost.
+- **No variant passes the rule on any window above 300 frames**, the hand
+  cost included. On the 1000-frame window both p ≥ 0.5 variants and the
+  frozen S1 pass precision and fail recall at one gap: the frozen variants by
+  two plants at gap 2 (58 vs 60), the retrained p ≥ 0.5 variant by one at
+  gap 5 (47 vs 48); the frozen p ≥ 0.5 variant also misses the natural-link
+  floor (2733 vs 2748).
+- **Cost grows roughly linearly or slower** (four windows, 300 to 2000
+  frames). Pipeline time grows as frames^0.88–0.96 (wall time as
+  frames^0.69–0.73, with a fixed start-up cost)
+  (link stage frames^0.90–0.99) and peak memory as frames^0.6: 12.6 s and
+  1.1 GiB for the hand cost on 2000 frames, 13.1 and 13.9 s for the learned
+  scorers (their link stage costs 1.7 times the hand cost's, 1.2 vs 0.7 s,
+  but assembly dominates). Retraining under the pipeline rule took 19, 37,
+  51 and 100 min (peak 0.34 to 0.66 GiB) on the four windows.
+
+### Visual audit (v007)
+
+`bridge_gaps.py audit` on the 2000-frame window (seed-0 runs at horizon 30,
+hand cost as current, video stitched losslessly from the 10 chunks; all 2000
+decoded frames match the bundle's `decoded_bgr_sha256`), 20 links rendered per
+side. Frozen v006 S1 gains 127 and loses 127 natural links (pages 1–4 of each
+reviewed): every gained link joins the same crab at the same burrow or claw
+position across 1 to 30 frames, refused by the hand cost above `max_cost`
+(0.97 to 4.4) and accepted at cost 0.02 to 0.83 (p 0.44 to 0.98); every lost
+link (1 to 30 frames, hand cost 0.09 to 0.96) is just as plausible. Frozen
+v005 S1 p ≥ 0.5 (117 gained, 146 lost) has the same character. As on the
+300-frame demo, the audit shows no visibly wrong link on either side; the
+linkers order stationary burrow links differently. The retrained v006 S1 at
+0.990 gains 1 link and loses 1612: the lost links are plainly correct 1 to
+5-frame continuations of one crab that it scores at p ≈ 0.9 and refuses at
+the threshold, which is the collapse seen in the hold-out. Committed pages:
+`docs/figures/gap_bridging_v007_audit_w2000_s1_{gained_p4,lost_p1}.png`,
+`..._s1_retrained_lost_p1.png` and the three audit CSVs beside them (all
+pages in `logs/gap_scaling_v007/audit/`).
+
+### Verdict (v007)
+
+- **Defaults unchanged.** No linker meets the promotion rule beyond 300
+  frames, so by the agreed rule nothing is promoted.
+- **What the scaling shows.** The rule's precision-1.0 requirement is a
+  zero-error requirement on a sample that grows with the data, and on larger
+  windows it also meets labelling artefacts (decoys with 1-frame halves,
+  plants over fragmented tracks); on 2000 frames the hand cost fails it and
+  the three learned variants that keep a moderate threshold fail it by a
+  comparable margin, while recovering 3.5–4.6 points more test plants at
+  horizon 30 and 12–15 points more of all plants at horizon 60. Retraining on
+  more data raises the model's recall (the p ≥ 0.5 refit recovers more than
+  the frozen one on every window above 300 frames, at a few more false links
+  on 2000 frames), but the
+  pipeline threshold rule, which chose well on 300 plants, collapses to 0.99
+  on more. Any promotion on the larger data set needs a rule decision first:
+  a precision target below 1.0 (or a false-link rate per plant), decoy
+  targets judged separately, or a recall floor pooled over gaps instead of
+  per gap.
+- **Recommended candidate if the rule is relaxed:** v005 S1 at p ≥ 0.5
+  retrained on the 2000-frame sweeps
+  (`logs/gap_scaling_v007/models/w2000/gap_bridging_s1p50.yaml`, git-ignored;
+  re-create with the commands below).
+
+### Residual risks (v007)
+
+- Windows are nested, not independent: the 300-frame demo is inside every
+  window, and the frozen scorers were trained on its plants, so their
+  results on larger windows are partly in-sample (the share falls from 100%
+  to 15% of frames).
+- Plant density falls with window length (8 per 300 frames to 34 per 2000),
+  and plants require long, cleanly tracked tracklets, so the hold-out
+  over-represents easy crabs more on larger windows; the natural-link
+  agreement (Jaccard 0.95) is the check that does not depend on plants.
+- The short-profile half-length mix (1/2/3 frames at 0.58/0.27/0.15) was
+  measured on the 300-frame demo and is not re-measured per window.
+- The audit is one seed and 20 links per side on the 2000-frame window.
+
+### Commands (v007)
+
+```bash
+.venv/bin/python scripts/gap_scaling.py windows --source demo/crab_cam2_2_middle_2000/observations.parquet \
+    --out logs/gap_scaling_v007/windows --sizes 300,600,1000,2000        # probes the feasible plant counts
+.venv/bin/python scripts/gap_scaling.py overlay --scorer configs/tracking/link_scorer_v005_s1.joblib \
+    --probability 0.5 --out logs/gap_scaling_v007/configs/s1p50_frozen.yaml
+bash jobs/gap_scaling_v007_submit.sh          # sweeps, retraining, timing, compare, natural links, audit (Slurm)
+.venv/bin/python scripts/gap_scaling.py report --root logs/gap_scaling_v007 --sizes 300,600,1000,2000 \
+    --docs docs/gap_bridging_v007_scaling.md --figures docs/figures
+```
