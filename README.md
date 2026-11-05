@@ -3,7 +3,8 @@
 Project notes are centralized in **[docs/README.md](docs/README.md)**.
 
 - [Project overview](docs/PROJECT.md)
-- [300-frame v007 collaborator demo](demo/crab_cam2_2_middle_300/README.md)
+- [2,000-frame v007 collaborator demo](demo/crab_cam2_2_middle_2000/README.md)
+- [300-frame v007 collaborator demo](demo/crab_cam2_2_middle_300/README.md) (gap-bridging reference set)
 - [Paused training, saved models, and how to resume](docs/RESUME_V007_TRAINING.md)
 - [Original-model dataset notes](docs/datasets/legacy_native_tracklets_v001/README.md)
 

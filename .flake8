@@ -23,6 +23,10 @@ per-file-ignores =
     tests/test_prediction_run.py:F401
     scripts/legacy_dataset/publish.py:F401
     scripts/publish_existing_crab_demo.py:F401
+# Pinned by demo/crab_cam2_2_middle_2000/DEMO_COMPLETE.json (code_sha256).
+    scripts/prepare_crab_demo.py:F401
+    scripts/replace_crab_demo_2000.py:F401
+    tests/test_crab_demo.py:F401
 # Analysis scripts are recorded by sha256 in their run receipts (COMPLETE.json),
 # so unused-import cleanups there would detach the receipts from the code.
     analyses/*:F401,F811

@@ -153,6 +153,12 @@ frames 14250–14549, matching v007 SLPs and dataframe rows. The user authorized
 narrow `.gitignore` demo exceptions, now applied; no staging, commits, pushes
 or branch/remote changes have been made. See [archive/demo and Git preparation notes](demo/PREPARATION.md).
 
+A 2,000-frame demo, `demo/crab_cam2_2_middle_2000/` (original frames 13410–15409
+in losslessly copied video chunks, matching v007 SLPs and dataframe rows per
+chunk; require its `DEMO_COMPLETE.json`), was prepared on `my-code` and copied
+onto `sam` beside the 300-frame demo, which `sam` keeps as the gap-bridging
+reference set. See [2,000-frame demo notes](demo/REPLACEMENT_2000.md).
+
 ## Original-prediction dataset organization: separate agent task
 
 Before integrating new-model outputs, the user requested an audit of whether the

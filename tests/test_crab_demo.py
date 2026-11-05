@@ -1,4 +1,5 @@
 """Bounded synthetic regression controls for index-only demo extraction."""
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -10,7 +11,7 @@ import sleap_io as sio
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'scripts'))
-from prepare_crab_demo import normalize_tables, slice_slp, add_demo_indices, START, STOP
+from prepare_crab_demo import normalize_tables, slice_slp, add_demo_indices, START, STOP, COUNT
 
 FDT = np.dtype([('frame_id','<u8'),('video','<u4'),('frame_idx','<u8'),('instance_id_start','<u8'),('instance_id_end','<u8')])
 IDT = np.dtype([('instance_id','<i8'),('instance_type','u1'),('frame_id','<u8'),('skeleton','<u4'),('track','<i4'),('from_predicted','<i8'),('score','<f4'),('point_id_start','<u8'),('point_id_end','<u8'),('tracking_score','<f4')])
@@ -61,7 +62,7 @@ class DemoTests(unittest.TestCase):
         table=pa.table({'frame':[START,STOP-1],'tracklet_id':[None,'original_id'],'value':[None,1.25]})
         out=add_demo_indices(table)
         self.assertTrue(out.select(table.column_names).equals(table))
-        self.assertEqual(out['demo_frame'].to_pylist(),[0,299])
+        self.assertEqual(out['demo_frame'].to_pylist(),[0,COUNT-1])
 
     def test_out_of_range_dataframe_rejected(self):
         with self.assertRaises(AssertionError): add_demo_indices(pa.table({'frame':[STOP]}))

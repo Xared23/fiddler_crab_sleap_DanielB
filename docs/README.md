@@ -14,6 +14,11 @@ agent/tool configuration are deliberately excluded from this reorganization.
   or branch/remote changes have been made.
 - [Demo bundle instructions](../demo/crab_cam2_2_middle_300/README.md)
   — require the bundle's `DEMO_COMPLETE.json` before using generated payloads.
+- **[2,000-frame collaborator demo](demo/REPLACEMENT_2000.md)** — original frames
+  13410–15409 in lossless video chunks ([bundle instructions](../demo/crab_cam2_2_middle_2000/README.md)).
+  On `sam` it is added beside the 300-frame demo, which stays the gap-bridging
+  reference set (golden tests, hold-out sweeps); its frames 14250–14549 are
+  row-identical to the 300-frame demo.
 
 ## Current training and available models
 
