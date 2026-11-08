@@ -257,13 +257,13 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             rows, md = self.run_main(Path(tmp), '--link-only')
         self.assertEqual([(r['config'], r['tile'], r['stage']) for r in rows],
-                         [('current', '1', bench.LINK_STAGE), ('current', '2', bench.LINK_STAGE)])
+                         [('default', '1', bench.LINK_STAGE), ('default', '2', bench.LINK_STAGE)])
         self.assertEqual(int(rows[1]['n_rows']), 2 * int(rows[0]['n_rows']))
         self.assertEqual(int(rows[1]['n_links']), 2 * int(rows[0]['n_links']))
         self.assertEqual(int(rows[1]['n_tracklets']), 2 * int(rows[0]['n_tracklets']))
         self.assertTrue(all(r['repeats'] == '1' and r['host'] and r['numpy'] for r in rows))
         self.assertIn('| config | tile |', md)
-        self.assertEqual(sum(line.startswith('| current |') for line in md.splitlines()), 2)
+        self.assertEqual(sum(line.startswith('| default |') for line in md.splitlines()), 2)
 
     def test_full_mode_with_two_configs(self):
         yaml = ROOT / 'configs/tracking/gap_bridging_v001.yaml'

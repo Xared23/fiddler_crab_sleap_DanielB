@@ -149,3 +149,13 @@
 - **Impact:** the finalize job stopped after compare; no wrong numbers were written
 - **Regression test:** tests/test_gap_scaling.py::test_regression_D015_seed_dirs_skip_logs
 - **Fix:** keep only directories whose suffix after `seed_` is an integer
+
+## D-016 — the precision-1.0 promotion rule cannot be met on larger data
+- **Found:** 2026-11-05, v007 scaling study (`docs/gap_bridging_v007_scaling.md`)
+- **Status:** wontfix as a rule; superseded for the default by user decision (2026-11-08): the learned S1 at p >= 0.5 retrained on the 2,000-frame demo was promoted to the default without passing it
+- **Where:** promotion rule (docs/GAP_BRIDGING.md, v005/v006 "Promotion decision"); scripts/gap_bridging/compare.py `promotion_check`, `compare_variants` (checks at the baseline's chosen horizon)
+- **Symptom:** the rule asks for test-fold precision exactly 1.0 at every planted gap through 30. On nested windows of 600, 1000 and 2000 frames every linker fails it at horizon 30, the v003 hand cost included (2000 frames: 9 false links in 1002 test plants). Part of the false links are labelling artefacts that no linker can avoid: decoy targets whose true halves are 1 frame long (the donor half sits 3 px away), and plants over already fragmented tracks, where a separate same-crab fragment inside the deleted interval links to the plant (the one false link that pins the retrained v006 S1 threshold at 0.99 on 1000 frames). `compare` also checks at the baseline's own chosen horizon, which moved from 30 to 10, 30 and 5 across the windows, so its verdicts were not comparable between data sets
+- **Repro:** `scripts/gap_scaling.py report` on `logs/gap_scaling_v007` (table "Promotion rule per window"); `role_scores(..., ('plant',))` for plants-only counts
+- **Impact:** a zero-error rule on a hold-out that grows with the data rejects every candidate, and the pipeline threshold rule built on it (v006) drives the learned threshold to 0.99 on large data (43% test recall)
+- **Regression test:** tests/test_gap_scaling.py::test_role_scores_matches_compare_on_committed_sweeps (plants-only scoring reproduces compare); no rule change was coded
+- **Fix:** none to the rule; the v007 default was chosen on recall at comparable false links (docs/GAP_BRIDGING.md, 'v007 default'). Open: a precision target below 1.0 or a false-link rate per plant, decoy targets scored separately, and a fixed check horizon

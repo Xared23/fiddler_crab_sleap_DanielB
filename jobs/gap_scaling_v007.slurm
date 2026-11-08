@@ -4,7 +4,7 @@
 # stages, array sizes and dependencies are set there. Windows and overlays
 # must exist (scripts/gap_scaling.py windows / overlay) before submission.
 #
-#   sweep_current  array 0-19: window x seed, hand cost (v003)
+#   sweep_current  array 0-19: window x seed, hand cost (v003, explicit gap_bridging_v001.yaml)
 #   sweep_frozen   array 0-39: window x seed x {s1_frozen, s1p50_frozen}
 #   train          array 0-3:  retrain S1 per window (pipeline rule) + p50 overlay
 #   sweep_rt       array 0-39: window x seed x {s1_rt, s1p50_rt}
@@ -44,7 +44,7 @@ sweep() {  # sweep <size> <seed> <variant> <config or ''>
 
 case "$STAGE" in
 sweep_current)
-    sweep "${SIZES[$((I / 5))]}" $((I % 5)) current '' ;;
+    sweep "${SIZES[$((I / 5))]}" $((I % 5)) current configs/tracking/gap_bridging_v001.yaml ;;
 sweep_frozen)
     V=(s1_frozen s1p50_frozen); C=(configs/tracking/gap_bridging_v006_s1.yaml $R/configs/s1p50_frozen.yaml)
     sweep "${SIZES[$((I / 10))]}" $((I % 5)) "${V[$((I / 5 % 2))]}" "${C[$((I / 5 % 2))]}" ;;
@@ -65,7 +65,7 @@ measure)
     hostname > $R/measure/host.txt
     for W in "${SIZES[@]}"; do
         for S in current s1 s1p50; do
-            case $S in current) C='';; s1) C=configs/tracking/gap_bridging_v006_s1.yaml;;
+            case $S in current) C=configs/tracking/gap_bridging_v001.yaml;; s1) C=configs/tracking/gap_bridging_v006_s1.yaml;;
                        s1p50) C=$R/configs/s1p50_frozen.yaml;; esac
             $PY scripts/gap_scaling.py measure --observations $R/windows/w$W/observations.parquet \
                 ${C:+--config "$C"} --label "w$W:$S" --repeats 3 --out $R/measure/w${W}_$S.csv

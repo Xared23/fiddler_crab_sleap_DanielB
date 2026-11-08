@@ -5,11 +5,12 @@ Bridge short gaps between body-first tracklets (command-line entry point).
 
 Subcommands (``run`` is the default, so the v001 invocation still works)::
 
-    # bridge once
+    # bridge once with the default (v007: learned S1 scorer at p >= 0.5,
+    # configs/tracking/gap_bridging_v007.yaml); add
+    # --config configs/tracking/gap_bridging_v001.yaml for the v003 hand cost
     .venv/bin/python scripts/bridge_gaps.py \\
         --observations demo/crab_cam2_2_middle_300/observations.parquet \\
-        --out outputs/gap_bridging/demo_v001 \\
-        --config configs/tracking/gap_bridging_v001.yaml
+        --out outputs/gap_bridging/demo_v007
 
     # fit the sqrt gate radius r0 + k sqrt(dt) to measured displacements
     .venv/bin/python scripts/bridge_gaps.py fit \\
@@ -79,6 +80,12 @@ from gap_bridging.types import DECISIONS  # noqa: E402
 # ============================================================
 
 COMMANDS = ('run', 'fit', 'sweep', 'pool', 'export', 'train', 'compare', 'audit')
+# v007 default (2026-11-08): learned S1 at p >= 0.5 retrained on the 2,000-frame demo. Used by
+# `run` and `sweep` when --config is omitted; the v003 hand cost is HAND_CONFIG (the built-in
+# BridgeConfig defaults, which stay the hand cost for library callers and overlays).
+CONFIG_DIR = Path(__file__).resolve().parents[1] / 'configs' / 'tracking'
+DEFAULT_CONFIG = CONFIG_DIR / 'gap_bridging_v007.yaml'
+HAND_CONFIG = CONFIG_DIR / 'gap_bridging_v001.yaml'
 DEFAULT_MAX_GAPS = (5, 10, 15, 30, 45, 60)
 DEFAULT_HOLDOUT_GAPS = (1, 2, 3, 5, 10, 15, 20, 30, 45, 60)
 SUMMARY_NAME = 'sweep_summary.csv'
@@ -432,7 +439,9 @@ def build_parser() -> argparse.ArgumentParser:
                      help='observation parquet file, or a directory of parquet parts')
     run.add_argument('--out', type=Path, required=True, help='output directory')
     run.add_argument('--config', type=Path, default=None,
-                     help='YAML config (default: built-in defaults = gap_bridging_v001.yaml)')
+                     help='YAML config (default: configs/tracking/gap_bridging_v007.yaml, the '
+                          'learned S1 scorer at p >= 0.5; gap_bridging_v001.yaml is the v003 '
+                          'hand cost)')
     run.add_argument('--max-gap', type=int, default=None,
                      help='maximum number of missing frames to bridge (0 disables linking)')
     run.add_argument('--margin', type=float, default=None,
@@ -457,7 +466,9 @@ def build_parser() -> argparse.ArgumentParser:
     sw.add_argument('--out', type=Path, required=True, help='sweep output directory')
     sw.add_argument('--max-gaps', type=int_list, default=list(DEFAULT_MAX_GAPS),
                     help='comma-separated horizons (default 5,10,15,30,45,60)')
-    sw.add_argument('--config', type=Path, default=None, help='base YAML config')
+    sw.add_argument('--config', type=Path, default=None,
+                    help='base YAML config (default: configs/tracking/gap_bridging_v007.yaml; '
+                         'gap_bridging_v001.yaml for the v003 hand cost)')
     sw.add_argument('--holdout', action='store_true', help='run the frame-deletion hold-out')
     sw.add_argument('--holdout-gaps', type=int_list, default=list(DEFAULT_HOLDOUT_GAPS),
                     help='planted gap lengths, all planted and scored at every horizon')
@@ -509,6 +520,21 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def config_path(path: Path | None) -> Path:
+    """The YAML config a ``run`` or ``sweep`` uses: ``path``, else :data:`DEFAULT_CONFIG`.
+
+    Raises FileNotFoundError when the default config or its scorer is missing (a
+    checkout without ``configs/tracking/``); pass ``--config`` with
+    :data:`HAND_CONFIG` for the v003 hand cost.
+    """
+    if path is not None:
+        return Path(path)
+    if not DEFAULT_CONFIG.is_file():
+        raise FileNotFoundError(f"default config {DEFAULT_CONFIG} is missing; pass --config "
+                                f"(e.g. {HAND_CONFIG} for the v003 hand cost)")
+    return DEFAULT_CONFIG
+
+
 def with_margin(cfg: BridgeConfig, margin: float | None) -> BridgeConfig:
     """Set the active cost scale's runner-up margin (``--margin``); None leaves cfg unchanged.
 
@@ -546,7 +572,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         if args.command == 'run':
-            cfg = with_margin(load_config(args.config, max_gap=args.max_gap,
+            cfg = with_margin(load_config(config_path(args.config), max_gap=args.max_gap,
                                           recovery_radius_px=args.recovery_radius), args.margin)
             marker = pipeline.run(args.observations, args.out, cfg, force=args.force)
             print(json.dumps(marker, indent=2, sort_keys=True), flush=True)
@@ -576,7 +602,8 @@ def main(argv: list[str] | None = None) -> int:
                       f"{'PASS' if verdict['ok'] else 'FAIL ' + ','.join(verdict['failing'])}",
                       flush=True)
         else:
-            rows = sweep(args.observations, args.out, args.max_gaps, load_config(args.config),
+            rows = sweep(args.observations, args.out, args.max_gaps,
+                         load_config(config_path(args.config)),
                          holdout_run=args.holdout, holdout_gaps=args.holdout_gaps,
                          per_gap=args.per_gap, seed=args.seed, force=args.force,
                          video=args.video, bridges_from=args.bridges_from,

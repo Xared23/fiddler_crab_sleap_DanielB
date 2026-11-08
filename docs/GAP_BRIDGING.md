@@ -3,10 +3,21 @@
 [Documentation index](README.md) · [Body-first tracker](BODY_FIRST_TRACKLETS.md) ·
 [v007 dataframe](datasets/v007_best_body_first_dataframe_v001/README.md)
 
-**Status:** experimental post-processing, validated on the 300-frame demo clip
-only. The full dataset is not in this checkout and has not been processed. Like
-the tracklets it starts from, the bridged identities have **not** been checked
-against ground truth.
+**Status:** experimental post-processing, validated on the 300- and 2,000-frame
+demo clips only. The full dataset is not in this checkout and has not been
+processed. Like the tracklets it starts from, the bridged identities have **not**
+been checked against ground truth.
+
+**Default since v007 (2026-11-08):** the learned link scorer S1 at p ≥ 0.5,
+retrained on the 2,000-frame demo (`configs/tracking/gap_bridging_v007.yaml`,
+model `link_scorer_v007`), used by `bridge_gaps.py run` and `sweep` when
+`--config` is omitted. It was promoted by user decision without passing the
+precision-1.0 rule, which no linker meets beyond 300 frames (D-016); see
+[v007 default](#v007-default-learned-s1-at-p--05). The v003 hand cost remains
+`--config configs/tracking/gap_bridging_v001.yaml` (also the built-in
+`BridgeConfig` defaults, so library callers and config overlays are unchanged).
+Sections below describe each version as it was written; their "default" means
+the hand cost unless they say otherwise.
 
 ## Purpose
 
@@ -366,13 +377,20 @@ violation:
 Demo clip (about 3 s on a login node):
 
 ```bash
+# v007 default: learned S1 at p >= 0.5 (configs/tracking/gap_bridging_v007.yaml)
+.venv/bin/python scripts/bridge_gaps.py \
+    --observations demo/crab_cam2_2_middle_300/observations.parquet \
+    --out outputs/gap_bridging/demo_v007
+# v003 hand cost
 .venv/bin/python scripts/bridge_gaps.py \
     --observations demo/crab_cam2_2_middle_300/observations.parquet \
     --out outputs/gap_bridging/demo_v001 \
     --config configs/tracking/gap_bridging_v001.yaml
 ```
 
-Add `--force` to overwrite. The CLI prints one progress line per stage and then
+The learned default needs the model next to its config
+(`configs/tracking/link_scorer_v007.joblib` and `.json`) and scikit-learn 1.9.1
+(the version it was trained with; a mismatch is refused). Add `--force` to overwrite. The CLI prints one progress line per stage and then
 the marker as JSON. It exits non-zero on a missing input, an invalid config or
 refused outputs.
 
@@ -2131,8 +2149,10 @@ pages in `logs/gap_scaling_v007/audit/`).
 
 ### Verdict (v007)
 
-- **Defaults unchanged.** No linker meets the promotion rule beyond 300
-  frames, so by the agreed rule nothing is promoted.
+- **Defaults unchanged** (as of 2026-11-05). No linker meets the promotion
+  rule beyond 300 frames, so by the agreed rule nothing is promoted.
+  *Superseded on 2026-11-08: the recommended candidate below was made the
+  default by user decision; see [v007 default](#v007-default-learned-s1-at-p--05).*
 - **What the scaling shows.** The rule's precision-1.0 requirement is a
   zero-error requirement on a sample that grows with the data, and on larger
   windows it also meets labelling artefacts (decoys with 1-frame halves,
@@ -2178,3 +2198,46 @@ bash jobs/gap_scaling_v007_submit.sh          # sweeps, retraining, timing, comp
 .venv/bin/python scripts/gap_scaling.py report --root logs/gap_scaling_v007 --sizes 300,600,1000,2000 \
     --docs docs/gap_bridging_v007_scaling.md --figures docs/figures
 ```
+
+## v007 default: learned S1 at p ≥ 0.5
+
+On 2026-11-08 the user chose the linker with the highest hold-out recall in the
+v007 scaling study as the pipeline default: S1 (all 28 features, sigmoid
+calibration, short-profile training) **retrained on the 2,000-frame demo's
+hand-cost sweeps** (5 seeds, 34 plants per gap; 6,558 training pairs, 1,903
+positive) and used at **p ≥ 0.5** with the unmatched dummy tied to 0.5.
+
+- **Files.** `configs/tracking/gap_bridging_v007.yaml` (the v003 keys of
+  `gap_bridging_v001.yaml` unchanged plus `cost_model: learned`,
+  `scorer_path: link_scorer_v007.joblib`, `learned_min_probability: 0.5`,
+  `learned_unmatched_probability: 0.5`); `configs/tracking/link_scorer_v007.{joblib,json}`
+  (byte-identical to `logs/gap_scaling_v007/models/w2000/link_scorer_s1.*`),
+  `link_scorer_v007_metrics.csv` and `_threshold_curve.csv`. The manifest's
+  `threshold` (0.9896, the pipeline-rule value) is recorded but not used; the
+  YAML's 0.5 is the operating threshold.
+- **Where the default applies.** `bridge_gaps.py run` and `sweep` load the YAML
+  when `--config` is omitted (`DEFAULT_CONFIG`); `bench_gap_bridging.py`
+  benchmarks it as `default`. `BridgeConfig()` and `load_config(None)` stay the
+  hand cost, so library callers, the learned overlays (which inherit the hand
+  keys) and every golden test of the hand and linear models are unchanged.
+  `jobs/gap_scaling_v007.slurm` now passes `gap_bridging_v001.yaml` explicitly
+  for its hand-cost variant.
+- **Check.** `bridge_gaps.py run` without `--config` on the 2,000-frame demo
+  writes 5,114 links and 1,604 trajectories, byte-identical (links and
+  trajectories) to the study's retrained p ≥ 0.5 run
+  (`logs/gap_scaling_v007/sweeps/w2000/s1p50_rt/seed_0/max_gap_30`). On the
+  300-frame demo it writes 822 links and 359 trajectories (hand cost 827 and
+  354; the frozen v005 S1 p ≥ 0.5 816 and 365).
+- **What was accepted.** On the 2,000-frame window (test fold, horizon 30) it
+  recovers 781 of 1002 plants (77.9%; hand cost 734, 73.3%) with 8 false links
+  (hand cost 9); over all plants at horizon 60, 95.8% against 80.9%. It fails
+  the precision-1.0 rule (gaps 10, 15, 20) and per-gap recall against the hand
+  cost at gaps 1, 5 and 10 by one plant each; on plants only (decoy targets
+  excluded) it makes 5 false links in 1,360 over all folds through gap 30,
+  the hand cost 4. The horizon stays `max_gap` 30.
+- **Not re-validated.** The horizon was not re-derived for the learned cost
+  (its own horizon rule chooses none on the 2,000-frame window), the weak-label
+  export and re-inference scaffold were not re-run with it, and the scorer has
+  seen only Cam 2_2 frames 13410–15409; a new camera or session should be
+  re-checked with the v007 study (`jobs/gap_scaling_v007_submit.sh`) before
+  trusting it there.

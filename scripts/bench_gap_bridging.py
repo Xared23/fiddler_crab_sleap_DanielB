@@ -65,7 +65,8 @@ from gap_bridging.config import BridgeConfig, load_config  # noqa: E402
 # ============================================================
 
 DEFAULT_OBSERVATIONS = ROOT / 'demo/crab_cam2_2_middle_300/observations.parquet'
-DEFAULT_CONFIG = ('current', ROOT / 'configs/tracking/gap_bridging_v001.yaml')
+# v007: the pipeline default (learned S1 at p >= 0.5); pass --configs current=...v001.yaml for the hand cost
+DEFAULT_CONFIG = ('default', ROOT / 'configs/tracking/gap_bridging_v007.yaml')
 DEFAULT_OUT = ROOT / 'logs/bench/gap_bridging_v004.csv'
 DEFAULT_MARKDOWN = ROOT / 'logs/bench/gap_bridging_v004.md'
 TILE_MARGIN_PX = 400.0           # > R_max at max_gap 60 (< 300 px), so tiles never interact

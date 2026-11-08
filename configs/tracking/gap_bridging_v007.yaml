@@ -1,0 +1,88 @@
+# Gap bridging default (v007, promoted 2026-11-08 by user decision; see docs/GAP_BRIDGING.md,
+# 'v007 default: learned S1 at p >= 0.5'). The v003 hand-cost keys below are unchanged; the
+# link cost is the learned scorer link_scorer_v007 (HistGradientBoosting, all 28 features,
+# sigmoid calibration) retrained on the 2,000-frame demo's short-profile hold-out sweeps
+# (5 seeds, 34 plants per gap), used at p >= 0.5 with the unmatched dummy tied to 0.5.
+# The manifest's `threshold` (0.9896) is the pipeline-rule value recorded by `train` and is
+# NOT used: learned_min_probability below is the operating threshold. This default did not
+# pass the precision-1.0 promotion rule (no linker does beyond 300 frames, D-016); it has the
+# highest hold-out recall of the linkers compared in v007.
+# The v003 hand cost is configs/tracking/gap_bridging_v001.yaml (`--config` to use it).
+# Distances are native-image pixels; velocities px/frame. See docs/GAP_BRIDGING.md.
+# max_gap 30 (v003): highest horizon whose pooled hold-out precision (demo, seeds 0-4,
+# 8 plants + 4 decoys + 2 flicker singletons per gap, every gap 1-60 planted and scored
+# at every horizon) is 1.0 at every planted gap; `bridge_gaps.py pool`, see
+# docs/GAP_BRIDGING.md, 'Default horizon (v003)'. Bridges of 16-30 frames are
+# fill_confidence 'low': filter on fill_confidence / gap_frames when that matters.
+max_gap: 30
+velocity_window: 3
+max_velocity_px_per_frame: 6.0
+max_body_displacement_px: 12.0
+max_prediction_error_px: 18.0
+motion_weight: 0.3
+shoulder_vector_weight: 0.15
+shoulder_vector_cost_cap_px: 12.0
+max_assignment_cost: 12.0
+unmatched_cost: 7.0
+minimum_cost_margin: 4.0
+recovery_radius_px: 8.0
+recoverable_reasons: [low_body_score, missing_position, outside_image, invisible, duplicate_candidate]
+fps: 29.97002997002997
+# Gate model (v002). sqrt: r(dt) = max(radius_min_px, radius_safety * (r0 + k * sqrt(dt))),
+# dt = frames between linked endpoints; costs divide by the extended radius
+# R = r(dt) + max(|v_a|, |v_b|) * min(dt, prediction_horizon_frames), with a gap penalty.
+# r0, k: non-negative least squares to the 99th-percentile net displacement of unbroken
+# demo tracklets over dt = 1..60 (fit 2026-10-30; rerun `bridge_gaps.py fit` per dataset).
+# linear: the v001 gate (12 px per frame) for reproducing earlier results.
+gate_model: sqrt
+radius_r0_px: 0.00
+radius_k_px: 3.73
+radius_safety: 1.25
+radius_min_px: 6.0
+prediction_error_ratio: 1.5
+prediction_horizon_frames: 3
+gap_penalty: 0.06
+max_assignment_cost_sqrt: 1.0
+unmatched_cost_sqrt: 0.6
+minimum_cost_margin_sqrt: 0.25
+fill_confidence_gaps: [5, 15]
+# Staged linking (sqrt): link gaps in (0, 5], then (5, 15], ... up to max_gap, removing
+# matched endpoints after each stage. Stages above max_gap are dropped.
+link_stages: [5, 15, 30, 45]
+# v003: tail recovery (continuation-only relaxation of the Shell-score gate at trajectory ends)
+tail_recovery: true
+tail_radius_px: 8.0
+tail_max_frames: 15
+tail_reasons: [low_body_score]
+tail_exclusion_px: 5.0
+# v003: spurious-identity filter (flag only): real frames < min_identity_frames AND median
+# instance_score < min_identity_score -> trajectory_status 'spurious'
+min_identity_frames: 2
+min_identity_score: 0.6
+# v003: appearance cues (sqrt model): carapace size and claw side as soft cost terms;
+# a confident claw-side mismatch refuses the pair (refused_gate 'claw_side')
+appearance_cues: true
+size_scale_px: 3.0
+size_noise_px: 1.0
+size_cost_cap: 3.0
+size_weight: 0.1
+claw_side_weight: 0.15
+claw_side_confidence: 0.9
+claw_side_min_frames: 5
+# v004: cost model and assignment. cost_model 'learned' scores each candidate pair with the
+# scikit-learn model at scorer_path (cost = -log p; motion gates and claw veto unchanged);
+# 'hand' is the sqrt cost above. assignment 'global' solves one assignment over gaps
+# 1..max_gap instead of link_stages; unmatched_cost_mode 'adaptive' prices leaving an
+# endpoint unmatched at adaptive_factor * (largest finite cost in its component), after
+# Jaqaman et al. 2008. Overlays: gap_bridging_v004_{global,learned,learned_global}.yaml.
+# v007 default: the learned cost (scorer_path is relative to this file); the v003 hand
+# cost in gap_bridging_v001.yaml has cost_model: hand, scorer_path: null.
+cost_model: learned
+scorer_path: link_scorer_v007.joblib
+learned_min_probability: 0.5
+learned_unmatched_probability: 0.5
+learned_margin: 0.0
+assignment: staged
+unmatched_cost_mode: fixed
+adaptive_factor: 1.05
+export_pair_features: false

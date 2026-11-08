@@ -51,8 +51,12 @@ agent/tool configuration are deliberately excluded from this reorganization.
   — numerical continuity checks passed; scientific identity accuracy remains
   unvalidated. The user explicitly authorized experimental identities.
 - [Gap bridging between tracklets: method, outputs and demo results](GAP_BRIDGING.md)
-  — experimental post-processing that links tracklets across 1–5 missing frames
-  (recovered or interpolated fills, full link audit); validated on the demo clip only.
+  — experimental post-processing that links tracklets across up to 30 missing frames
+  (recovered or interpolated fills, full link audit); validated on the 300- and
+  2,000-frame demo clips only. Default since v007: the learned link scorer S1 at
+  p ≥ 0.5 (`configs/tracking/gap_bridging_v007.yaml`); the v003 hand cost is
+  `--config configs/tracking/gap_bridging_v001.yaml`. See the
+  [scaling study](gap_bridging_v007_scaling.md).
 
 ## Preliminary male-only analyses
 
