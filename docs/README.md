@@ -7,6 +7,12 @@ agent/tool configuration are deliberately excluded from this reorganization.
 
 ## Active data, archive, and collaborator demo
 
+- **[Uploaded burrow locations: counts and pixel spacing](BURROW_LOCATIONS.md)**
+  — 282 annotations in each of two frames; right-bank counts and within-frame
+  nearest-neighbor distances; no cross-frame physical-burrow deduplication.
+- **[Female + male + fixed-burrow demo extension](demo/FEMALE_BURROWS.md)**
+  — same 2,000 frames; combined GUI SLPs, female rows/experimental tracklets,
+  and a copied burrow source with an explicit static-reference map.
 - **[2,000-frame collaborator demo replacement](demo/REPLACEMENT_2000.md)**
 - [Data inventory, v004 archive and historical 300-frame demo/Git diagnosis](demo/PREPARATION.md)
   — v004 payloads archived with unchanged hashes; v007 remains active.
@@ -18,6 +24,10 @@ agent/tool configuration are deliberately excluded from this reorganization.
 
 ## Current training and available models
 
+- **[Female FBody training, held-out validation, and both-video predictions](FEMALE_V002.md)**
+  — isolated `female_v002` pipeline using the latest male training worker;
+  14 train / 2 validation frames, one `FBody` node; job receipts distinguish
+  submission from completed results. Burrow labels are inventoried only.
 - **[Paused training: model locations and exact resume procedure](RESUME_V007_TRAINING.md)**
   — centroid paused after 104 completed epochs plus a partial 105th, step 21,212;
   75/100-epoch snapshots verified; frozen latest/best model pairs available.

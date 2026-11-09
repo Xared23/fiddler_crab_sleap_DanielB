@@ -1,0 +1,88 @@
+{
+  "selected_models": {
+    "centered": {
+      "best_progress": {
+        "epoch": 27,
+        "global_step": 5600
+      },
+      "directory": "models/female_v002/selected/centered",
+      "files": {
+        "best.ckpt": "025085c582c1260cf337bb641bf40847dd92b7e3c1eb2b0f4d2b08baebe84774",
+        "training_config.yaml": "1c93bca8585caf64b6b4fbf8f4eb36645cf1da310841c116b214c241717daad4"
+      },
+      "selection_kind": "validation_best_weights",
+      "source_model_directory": "models/female_v002/centered",
+      "training_completion_sha256": "c4e2aa214d5568a058998919484f84ec1641a05c076d2e29e10322191c3af1a6"
+    },
+    "centroid": {
+      "best_progress": {
+        "epoch": 75,
+        "global_step": 15000
+      },
+      "directory": "models/female_v002/selected/centroid",
+      "files": {
+        "best.ckpt": "6a634f5d4551b3d8cccb6580cd2b562e0b15626d825627d78fb7a2d6369c17a3",
+        "training_config.yaml": "54d9e787d5f7252eaba17de81cae63278c9a083b4eaf35380f74dc56002b2b1f"
+      },
+      "selection_kind": "exact_epoch75_weights",
+      "source_model_directory": "models/female_v002/centroid/stages/epoch_0075",
+      "training_completion_sha256": "f297cbed568a5ce54b1df7e86ffe5a7b9b7fb0272970443bbf69ad81c9015b89"
+    }
+  },
+  "signature": {
+    "dataset_sha256": "defc9f9fcc1e9201af5e3cdbabff1f38d58fcbea33c8fbc63bdaebaf8d07e139",
+    "female_implementation": {
+      "jobs/finalize_female.sh": "b7ead724f1e0768eacc5a54bd6d2f6f35d67be95e16f380e7b7aa98af2e33f7b",
+      "jobs/predict_female.sh": "050a0ad77dc388ec64760d8930007d07cf77fcd576785dbb6d0a5cd8acf48fa5",
+      "jobs/preflight_female.sh": "12d21c03790a7564c8aed4d4ef0bbf2fda04746c6b8969c206c91c64accfa425",
+      "jobs/train_female_centered.sh": "e8399362dde757e50934194fda9aeecc91d163971273c921820669554256c98d",
+      "jobs/train_female_centroid.sh": "dc73a85728b0b169602beea01760aa9ab3e3da441f2ef4023f9b5969d5ec0094",
+      "jobs/validate_female.sh": "b420d3bbf66e6d757ad70422abcbe71d8d8844e57239dd978ae4b45c1ec1a763",
+      "scripts/female_prediction_io.py": "89a4d9ca39255c28f763661168153c54d190f2d413416df5a318124dc08f296d",
+      "scripts/female_train_chain.sh": "1f9219ee3731a218d13d426add6824630d01596140e8efeb6871fe3d145a256e",
+      "scripts/female_workflow.py": "7ca250ada1674b3173a3e3177d1c2f2da43aa7b3ded39921ccefe10353452093",
+      "scripts/prepare_female.py": "3dd8b9e9105547c1f6ffe43b5266026ac0888056ae39971d02ca8aefba6f3d95",
+      "tests/test_female_workflow.py": "fd715ab07e08a2f9122ebd37d72353fe8953fb7100342703d7c4c358fbbe61ec"
+    },
+    "implementation": {
+      "scripts/gputest_train.py": "9c6ff986179475b2292f99bebfcf3d8f7fdcd4976ca1cf8a4f82e9f8d0133d56",
+      "scripts/milestone_checkpoints.py": "735ffae91de2ae502238d88c833b2c0a42cb1c49853628c81353b7f926113170",
+      "scripts/pipeline_common.py": "a427da68a340550cc475c6cac9c37338a1713eb07258f056f701491daf7a3baf",
+      "scripts/train_versioned.py": "0f447b1d0be3a296969dbff0eaae55bb89dd6fd5760406bf713ce78337e8fd60",
+      "scripts/train_versioned_chain.sh": "60c8dc0292dbdcd97b01bb68ecc02b324d088afb169daa7f09b1e96b1f7a9ffb"
+    },
+    "run_config_sha256": "68475879491cddf27c79b8acf77ca2559b99e1f034dfa7574f8371f45fa24b5f",
+    "versions": {
+      "lightning": "2.6.5",
+      "numpy": "2.5.2",
+      "sleap-io": "0.9.2",
+      "sleap-nn": "0.3.3",
+      "torch": "2.13.0"
+    }
+  },
+  "validation_sha256": "a808ee08dfa045699b67b4d40c668f9188e884574576c715f6527b751ff1c117",
+  "videos": {
+    "Crab_Cam_2_2": {
+      "bytes": 11451768931,
+      "mtime_ns": 1785036716000000000,
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/crab_vids/Crab_Cam_2_2.mp4",
+      "shape": [
+        28800,
+        4320,
+        7680,
+        3
+      ]
+    },
+    "Crab_Cam_2_3": {
+      "bytes": 11420404147,
+      "mtime_ns": 1785036732000000000,
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/crab_vids/Crab_Cam_2_3.mp4",
+      "shape": [
+        28800,
+        4320,
+        7680,
+        3
+      ]
+    }
+  }
+}

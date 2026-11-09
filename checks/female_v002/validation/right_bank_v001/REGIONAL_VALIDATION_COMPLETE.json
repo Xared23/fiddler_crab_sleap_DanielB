@@ -1,0 +1,739 @@
+{
+  "artifacts": {
+    "ROI.json": "e8715d157c2a63ba4b71ac8a043b49ae68f51f09293f0ddfd4db745e95dc5b98",
+    "point_membership.csv": "ac014c72930d8239e82c855789da7f4e05d764d86a502de1f4413a2c4d8bd640",
+    "report.md": "e183811e0ac6d480c38aabb3ad8773b486d83a89f007e6ba3137191b168edb08",
+    "roi_vertices_px.csv": "f129d66f9d4815bcc1beafcd1101bfa34448e3699437d12f59d85eb4bfe2db50"
+  },
+  "excluded_by_region": {
+    "human_instances": 50,
+    "predicted_instances": 35
+  },
+  "frames": [
+    481,
+    1252
+  ],
+  "full_frame_reproduced": {
+    "human_instances": 184,
+    "metrics_by_matching_radius_px": {
+      "10": {
+        "f1": 0.7177914110429447,
+        "false_negatives": 67,
+        "false_positives_relative_to_labels": 25,
+        "matched_error_px": {
+          "max": 7.026174624496528,
+          "mean": 2.598362179648229,
+          "median": 2.4914400553784075,
+          "p90": 4.302161346590209
+        },
+        "precision": 0.823943661971831,
+        "recall": 0.6358695652173914,
+        "true_positives": 117
+      },
+      "20": {
+        "f1": 0.7177914110429447,
+        "false_negatives": 67,
+        "false_positives_relative_to_labels": 25,
+        "matched_error_px": {
+          "max": 7.026174624496528,
+          "mean": 2.598362179648229,
+          "median": 2.4914400553784075,
+          "p90": 4.302161346590209
+        },
+        "precision": 0.823943661971831,
+        "recall": 0.6358695652173914,
+        "true_positives": 117
+      },
+      "5": {
+        "f1": 0.6748466257668712,
+        "false_negatives": 74,
+        "false_positives_relative_to_labels": 32,
+        "matched_error_px": {
+          "max": 4.933160876553922,
+          "mean": 2.3956310542522323,
+          "median": 2.338573215898971,
+          "p90": 4.072053849863617
+        },
+        "precision": 0.7746478873239436,
+        "recall": 0.5978260869565217,
+        "true_positives": 110
+      },
+      "50": {
+        "f1": 0.7239263803680982,
+        "false_negatives": 66,
+        "false_positives_relative_to_labels": 24,
+        "matched_error_px": {
+          "max": 21.955553650511014,
+          "mean": 2.7624061751640157,
+          "median": 2.491690837442552,
+          "p90": 4.404142183179393
+        },
+        "precision": 0.8309859154929577,
+        "recall": 0.6413043478260869,
+        "true_positives": 118
+      }
+    },
+    "per_frame": [
+      {
+        "frame": 481,
+        "human_instances": 93,
+        "metrics": {
+          "10": {
+            "f1": 0.6748466257668712,
+            "false_negatives": 38,
+            "false_positives_relative_to_labels": 15,
+            "matched_error_px": {
+              "max": 5.417061830053347,
+              "mean": 2.443766190433826,
+              "median": 2.421273336316353,
+              "p90": 4.057497549576586
+            },
+            "precision": 0.7857142857142857,
+            "recall": 0.5913978494623656,
+            "true_positives": 55
+          },
+          "20": {
+            "f1": 0.6748466257668712,
+            "false_negatives": 38,
+            "false_positives_relative_to_labels": 15,
+            "matched_error_px": {
+              "max": 5.417061830053347,
+              "mean": 2.443766190433826,
+              "median": 2.421273336316353,
+              "p90": 4.057497549576586
+            },
+            "precision": 0.7857142857142857,
+            "recall": 0.5913978494623656,
+            "true_positives": 55
+          },
+          "5": {
+            "f1": 0.6625766871165644,
+            "false_negatives": 39,
+            "false_positives_relative_to_labels": 16,
+            "matched_error_px": {
+              "max": 4.8160538342943715,
+              "mean": 2.3887051600705016,
+              "median": 2.3702915064986376,
+              "p90": 3.9800052174326166
+            },
+            "precision": 0.7714285714285715,
+            "recall": 0.5806451612903226,
+            "true_positives": 54
+          },
+          "50": {
+            "f1": 0.6748466257668712,
+            "false_negatives": 38,
+            "false_positives_relative_to_labels": 15,
+            "matched_error_px": {
+              "max": 5.417061830053347,
+              "mean": 2.443766190433826,
+              "median": 2.421273336316353,
+              "p90": 4.057497549576586
+            },
+            "precision": 0.7857142857142857,
+            "recall": 0.5913978494623656,
+            "true_positives": 55
+          }
+        },
+        "predicted_instances": 70
+      },
+      {
+        "frame": 1252,
+        "human_instances": 91,
+        "metrics": {
+          "10": {
+            "f1": 0.7607361963190185,
+            "false_negatives": 29,
+            "false_positives_relative_to_labels": 10,
+            "matched_error_px": {
+              "max": 7.026174624496528,
+              "mean": 2.735503782983587,
+              "median": 2.5562296760898544,
+              "p90": 4.880565491737497
+            },
+            "precision": 0.8611111111111112,
+            "recall": 0.6813186813186813,
+            "true_positives": 62
+          },
+          "20": {
+            "f1": 0.7607361963190185,
+            "false_negatives": 29,
+            "false_positives_relative_to_labels": 10,
+            "matched_error_px": {
+              "max": 7.026174624496528,
+              "mean": 2.735503782983587,
+              "median": 2.5562296760898544,
+              "p90": 4.880565491737497
+            },
+            "precision": 0.8611111111111112,
+            "recall": 0.6813186813186813,
+            "true_positives": 62
+          },
+          "5": {
+            "f1": 0.6871165644171779,
+            "false_negatives": 35,
+            "false_positives_relative_to_labels": 16,
+            "matched_error_px": {
+              "max": 4.933160876553922,
+              "mean": 2.402309595070329,
+              "median": 2.2669628023316486,
+              "p90": 4.097127683949572
+            },
+            "precision": 0.7777777777777778,
+            "recall": 0.6153846153846154,
+            "true_positives": 56
+          },
+          "50": {
+            "f1": 0.7730061349693251,
+            "false_negatives": 28,
+            "false_positives_relative_to_labels": 9,
+            "matched_error_px": {
+              "max": 21.955553650511014,
+              "mean": 3.0405839396110057,
+              "median": 2.567284913376239,
+              "p90": 5.068923603167315
+            },
+            "precision": 0.875,
+            "recall": 0.6923076923076923,
+            "true_positives": 63
+          }
+        },
+        "predicted_instances": 72
+      }
+    ],
+    "predicted_instances": 142
+  },
+  "job_id": "17169644",
+  "limitations": [
+    "Only two held-out frames; same clip as training, possible temporal correlation.",
+    "Validation frames also select best checkpoints/early stopping; not an independent final test set.",
+    "Precision is relative to provided labels; unlabeled animals can be counted as false positives.",
+    "FBody localization/detection only; no limb pose or identity accuracy measured.",
+    "This is a post-hoc spatial subset requested after reviewing the overall validation; not a new independent test.",
+    "ROI is a fixed coarse hand-drawn outline from the same camera; no new image-based registration or shoreline refinement.",
+    "Point errors across the ROI boundary can change inclusion. No uncertainty band or special boundary tolerance is added.",
+    "Regional filtering does not alter training, active video predictions, or canonical all-detection outputs."
+  ],
+  "primary_matching_radius_px": 20,
+  "regional": {
+    "human_instances": 134,
+    "metrics_by_matching_radius_px": {
+      "10": {
+        "f1": 0.7385892116182573,
+        "false_negatives": 45,
+        "false_positives_relative_to_labels": 18,
+        "matched_error_px": {
+          "max": 7.026174624496528,
+          "mean": 2.668118613414252,
+          "median": 2.4919416195066963,
+          "p90": 4.432722107797648
+        },
+        "precision": 0.8317757009345794,
+        "recall": 0.664179104477612,
+        "true_positives": 89
+      },
+      "20": {
+        "f1": 0.7385892116182573,
+        "false_negatives": 45,
+        "false_positives_relative_to_labels": 18,
+        "matched_error_px": {
+          "max": 7.026174624496528,
+          "mean": 2.668118613414252,
+          "median": 2.4919416195066963,
+          "p90": 4.432722107797648
+        },
+        "precision": 0.8317757009345794,
+        "recall": 0.664179104477612,
+        "true_positives": 89
+      },
+      "5": {
+        "f1": 0.6804979253112033,
+        "false_negatives": 52,
+        "false_positives_relative_to_labels": 25,
+        "matched_error_px": {
+          "max": 4.933160876553922,
+          "mean": 2.4021170432045253,
+          "median": 2.338573215898971,
+          "p90": 4.087521140025405
+        },
+        "precision": 0.7663551401869159,
+        "recall": 0.6119402985074627,
+        "true_positives": 82
+      },
+      "50": {
+        "f1": 0.7385892116182573,
+        "false_negatives": 45,
+        "false_positives_relative_to_labels": 18,
+        "matched_error_px": {
+          "max": 7.026174624496528,
+          "mean": 2.668118613414252,
+          "median": 2.4919416195066963,
+          "p90": 4.432722107797648
+        },
+        "precision": 0.8317757009345794,
+        "recall": 0.664179104477612,
+        "true_positives": 89
+      }
+    },
+    "per_frame": [
+      {
+        "frame": 481,
+        "human_instances": 65,
+        "metrics": {
+          "10": {
+            "f1": 0.7058823529411765,
+            "false_negatives": 23,
+            "false_positives_relative_to_labels": 12,
+            "matched_error_px": {
+              "max": 5.417061830053347,
+              "mean": 2.445969429975013,
+              "median": 2.45635669584738,
+              "p90": 4.0194263949668425
+            },
+            "precision": 0.7777777777777778,
+            "recall": 0.6461538461538462,
+            "true_positives": 42
+          },
+          "20": {
+            "f1": 0.7058823529411765,
+            "false_negatives": 23,
+            "false_positives_relative_to_labels": 12,
+            "matched_error_px": {
+              "max": 5.417061830053347,
+              "mean": 2.445969429975013,
+              "median": 2.45635669584738,
+              "p90": 4.0194263949668425
+            },
+            "precision": 0.7777777777777778,
+            "recall": 0.6461538461538462,
+            "true_positives": 42
+          },
+          "5": {
+            "f1": 0.6890756302521008,
+            "false_negatives": 24,
+            "false_positives_relative_to_labels": 13,
+            "matched_error_px": {
+              "max": 4.534782425429517,
+              "mean": 2.37350376168042,
+              "median": 2.421273336316353,
+              "p90": 3.842031096062822
+            },
+            "precision": 0.7592592592592593,
+            "recall": 0.6307692307692307,
+            "true_positives": 41
+          },
+          "50": {
+            "f1": 0.7058823529411765,
+            "false_negatives": 23,
+            "false_positives_relative_to_labels": 12,
+            "matched_error_px": {
+              "max": 5.417061830053347,
+              "mean": 2.445969429975013,
+              "median": 2.45635669584738,
+              "p90": 4.0194263949668425
+            },
+            "precision": 0.7777777777777778,
+            "recall": 0.6461538461538462,
+            "true_positives": 42
+          }
+        },
+        "predicted_instances": 54
+      },
+      {
+        "frame": 1252,
+        "human_instances": 69,
+        "metrics": {
+          "10": {
+            "f1": 0.7704918032786885,
+            "false_negatives": 22,
+            "false_positives_relative_to_labels": 6,
+            "matched_error_px": {
+              "max": 7.026174624496528,
+              "mean": 2.8666349049982522,
+              "median": 2.7766060578625513,
+              "p90": 5.20312884909983
+            },
+            "precision": 0.8867924528301887,
+            "recall": 0.6811594202898551,
+            "true_positives": 47
+          },
+          "20": {
+            "f1": 0.7704918032786885,
+            "false_negatives": 22,
+            "false_positives_relative_to_labels": 6,
+            "matched_error_px": {
+              "max": 7.026174624496528,
+              "mean": 2.8666349049982522,
+              "median": 2.7766060578625513,
+              "p90": 5.20312884909983
+            },
+            "precision": 0.8867924528301887,
+            "recall": 0.6811594202898551,
+            "true_positives": 47
+          },
+          "5": {
+            "f1": 0.6721311475409836,
+            "false_negatives": 28,
+            "false_positives_relative_to_labels": 12,
+            "matched_error_px": {
+              "max": 4.933160876553922,
+              "mean": 2.430730324728631,
+              "median": 2.174058095867516,
+              "p90": 4.134167469306142
+            },
+            "precision": 0.7735849056603774,
+            "recall": 0.5942028985507246,
+            "true_positives": 41
+          },
+          "50": {
+            "f1": 0.7704918032786885,
+            "false_negatives": 22,
+            "false_positives_relative_to_labels": 6,
+            "matched_error_px": {
+              "max": 7.026174624496528,
+              "mean": 2.8666349049982522,
+              "median": 2.7766060578625513,
+              "p90": 5.20312884909983
+            },
+            "precision": 0.8867924528301887,
+            "recall": 0.6811594202898551,
+            "true_positives": 47
+          }
+        },
+        "predicted_instances": 53
+      }
+    ],
+    "predicted_instances": 107
+  },
+  "roi": {
+    "applied_validation_video": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/clip_cam2_8k.mp4",
+    "authorization": "User selected curved right shoreline with vertical tip boundaries; same fixed outline as accepted project ROI.",
+    "bottom_tip_xy": [
+      2590.0,
+      3170.0
+    ],
+    "boundary_policy": "Strictly right of shoreline/vertical extensions; water and boundary excluded. In-image top edge included away from shoreline.",
+    "coordinate_convention": "Native image pixels, x right, y down; no coordinate transform.",
+    "definition": "Actual right shoreline, closed to the right image edge; vertical extensions from top/bottom tips to image top/bottom.",
+    "dimensions_wh": [
+      7680,
+      4320
+    ],
+    "mask_version": "legacy_water_accepted_v002",
+    "matching_policy": "Filter human labels and predictions independently to this same ROI BEFORE one-to-one maximum-cardinality/minimum-distance matching.",
+    "point_reference": "FBody for BOTH human labels and predictions",
+    "region_polygon_xy": [
+      [
+        3290.0,
+        0.0
+      ],
+      [
+        3270.0,
+        180.0
+      ],
+      [
+        3450.0,
+        310.0
+      ],
+      [
+        3230.0,
+        510.0
+      ],
+      [
+        3190.0,
+        610.0
+      ],
+      [
+        2980.0,
+        580.0
+      ],
+      [
+        2950.0,
+        700.0
+      ],
+      [
+        3010.0,
+        770.0
+      ],
+      [
+        2920.0,
+        930.0
+      ],
+      [
+        2750.0,
+        1110.0
+      ],
+      [
+        2830.0,
+        1320.0
+      ],
+      [
+        2660.0,
+        1350.0
+      ],
+      [
+        2610.0,
+        1460.0
+      ],
+      [
+        2650.0,
+        1600.0
+      ],
+      [
+        2620.0,
+        1780.0
+      ],
+      [
+        2700.0,
+        1890.0
+      ],
+      [
+        2800.0,
+        1980.0
+      ],
+      [
+        2890.0,
+        1910.0
+      ],
+      [
+        2990.0,
+        2050.0
+      ],
+      [
+        2940.0,
+        2250.0
+      ],
+      [
+        2920.0,
+        2490.0
+      ],
+      [
+        2730.0,
+        2580.0
+      ],
+      [
+        2700.0,
+        2800.0
+      ],
+      [
+        2690.0,
+        3000.0
+      ],
+      [
+        2590.0,
+        3170.0
+      ],
+      [
+        2590.0,
+        4320.0
+      ],
+      [
+        7680.0,
+        4320.0
+      ],
+      [
+        7680.0,
+        0.0
+      ]
+    ],
+    "shoreline_with_vertical_extensions_xy": [
+      [
+        3290.0,
+        0.0
+      ],
+      [
+        3270.0,
+        180.0
+      ],
+      [
+        3450.0,
+        310.0
+      ],
+      [
+        3230.0,
+        510.0
+      ],
+      [
+        3190.0,
+        610.0
+      ],
+      [
+        2980.0,
+        580.0
+      ],
+      [
+        2950.0,
+        700.0
+      ],
+      [
+        3010.0,
+        770.0
+      ],
+      [
+        2920.0,
+        930.0
+      ],
+      [
+        2750.0,
+        1110.0
+      ],
+      [
+        2830.0,
+        1320.0
+      ],
+      [
+        2660.0,
+        1350.0
+      ],
+      [
+        2610.0,
+        1460.0
+      ],
+      [
+        2650.0,
+        1600.0
+      ],
+      [
+        2620.0,
+        1780.0
+      ],
+      [
+        2700.0,
+        1890.0
+      ],
+      [
+        2800.0,
+        1980.0
+      ],
+      [
+        2890.0,
+        1910.0
+      ],
+      [
+        2990.0,
+        2050.0
+      ],
+      [
+        2940.0,
+        2250.0
+      ],
+      [
+        2920.0,
+        2490.0
+      ],
+      [
+        2730.0,
+        2580.0
+      ],
+      [
+        2700.0,
+        2800.0
+      ],
+      [
+        2690.0,
+        3000.0
+      ],
+      [
+        2590.0,
+        3170.0
+      ],
+      [
+        2590.0,
+        4320.0
+      ]
+    ],
+    "source_mask": "datasets/v007_best_body_first_dataframe_v001/config/water_regions.json",
+    "source_mask_sha256": "0bd75bb46fc4abdcbb066743e9e37c857fd28b7d763be8083d30cf1b5b2e3f87",
+    "source_video_key": "Crab_Cam_2_2",
+    "source_water_vertex_indices": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25
+    ],
+    "top_tip_xy": [
+      3290.0,
+      0.0
+    ],
+    "uncertainty_band_px": 0
+  },
+  "run_id": "female_v002_right_bank_v001",
+  "source_hashes": {
+    "checks/female_v002/validation/VALIDATION_COMPLETE.json": "a808ee08dfa045699b67b4d40c668f9188e884574576c715f6527b751ff1c117",
+    "checks/female_v002/validation/heldout.predictions.slp": "cc991d42927736e4be0d2f9e7c3354e4667cf39baf5225f81b9df740d2fdeb7a",
+    "configs/female_v002/run.yaml": "68475879491cddf27c79b8acf77ca2559b99e1f034dfa7574f8371f45fa24b5f",
+    "data/labels/female_v002/manifest.json": "a412e0feceb9af63890546abdbf7d7552d00ac4990d7428a975725f559a389af",
+    "data/labels/female_v002/val.slp": "fc4fd12bf6350499824119ef1091f720b0c7207cd0ed0c11ff5af83aec0b2e72",
+    "datasets/v007_best_body_first_dataframe_v001/config/water_regions.json": "0bd75bb46fc4abdcbb066743e9e37c857fd28b7d763be8083d30cf1b5b2e3f87",
+    "scripts/female_regional_validation.py": "e60363a798bd36f67b453985d27dd41c1a9e07867134b5a955e7dbec3d885685",
+    "scripts/female_workflow.py": "7ca250ada1674b3173a3e3177d1c2f2da43aa7b3ded39921ccefe10353452093",
+    "scripts/pipeline_common.py": "a427da68a340550cc475c6cac9c37338a1713eb07258f056f701491daf7a3baf",
+    "tests/test_female_regional_validation.py": "8579d72c675c75a3b7141599664edb25496746702e0d3c499f1c202d0ba5c54a"
+  },
+  "source_models": {
+    "centered": {
+      "best_progress": {
+        "epoch": 27,
+        "global_step": 5600
+      },
+      "directory": "models/female_v002/selected/centered",
+      "files": {
+        "best.ckpt": "025085c582c1260cf337bb641bf40847dd92b7e3c1eb2b0f4d2b08baebe84774",
+        "training_config.yaml": "1c93bca8585caf64b6b4fbf8f4eb36645cf1da310841c116b214c241717daad4"
+      },
+      "selection_kind": "validation_best_weights",
+      "source_model_directory": "models/female_v002/centered",
+      "training_completion_sha256": "c4e2aa214d5568a058998919484f84ec1641a05c076d2e29e10322191c3af1a6"
+    },
+    "centroid": {
+      "best_progress": {
+        "epoch": 75,
+        "global_step": 15000
+      },
+      "directory": "models/female_v002/selected/centroid",
+      "files": {
+        "best.ckpt": "6a634f5d4551b3d8cccb6580cd2b562e0b15626d825627d78fb7a2d6369c17a3",
+        "training_config.yaml": "54d9e787d5f7252eaba17de81cae63278c9a083b4eaf35380f74dc56002b2b1f"
+      },
+      "selection_kind": "exact_epoch75_weights",
+      "source_model_directory": "models/female_v002/centroid/stages/epoch_0075",
+      "training_completion_sha256": "f297cbed568a5ce54b1df7e86ffe5a7b9b7fb0272970443bbf69ad81c9015b89"
+    }
+  },
+  "source_validation_job_id": "16998986",
+  "status": "validated_complete",
+  "tests": {
+    "analysis_source_sha256": "e60363a798bd36f67b453985d27dd41c1a9e07867134b5a955e7dbec3d885685",
+    "exit_code": 0,
+    "job_id": "17169644",
+    "passed": true,
+    "test_source_sha256": "8579d72c675c75a3b7141599664edb25496746702e0d3c499f1c202d0ba5c54a"
+  },
+  "versions": {
+    "numpy": "2.5.2",
+    "scipy": "1.17.1",
+    "shapely": "2.1.2",
+    "sleap-io": "0.9.2"
+  }
+}

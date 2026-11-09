@@ -1,0 +1,26 @@
+{
+  "scripts/female_workflow.py": [
+    {
+      "old": "    assert all(receipt[k] == v for k, v in actual.items()), 'Code/data/config/environment changed'\n    return actual\n",
+      "new": "    if not all(receipt[k] == v for k, v in actual.items()):\n        from female_stage75 import verify_extension\n        verify_extension(receipt, actual)\n    return actual\n"
+    },
+    {
+      "old": "        source = model_dir(run, role)\n        marker = read_json(source / 'TRAINING_COMPLETE.json')\n",
+      "new": "        source = model_dir(run, role)\n        completion_path = source / 'TRAINING_COMPLETE.json'\n        marker = read_json(completion_path)\n"
+    },
+    {
+      "old": "        assert sha256(source / 'best.ckpt') == marker['best_sha256']\n        checkpoint_summary(source / 'best.ckpt')\n        dest = directory / role\n",
+      "new": "        assert sha256(source / 'best.ckpt') == marker['best_sha256']\n        checkpoint_summary(source / 'best.ckpt')\n        if role == 'centroid':\n            from female_stage75 import read_stage\n            source, stage = read_stage(source)\n            assert marker['reason'] == 'user_requested_75_completed_epoch_stage'\n            assert marker['stage_checkpoint'] == str(source.relative_to(ROOT))\n            assert marker['stage_marker_sha256'] == sha256(source / 'STAGE_COMPLETE.json')\n        dest = directory / role\n"
+    },
+    {
+      "old": "                        'training_completion_sha256': sha256(source / 'TRAINING_COMPLETE.json'),\n",
+      "new": "                        'training_completion_sha256': sha256(completion_path),\n                        'source_model_directory': str(source.relative_to(ROOT)),\n                        'selection_kind': 'exact_epoch75_weights' if role == 'centroid' else 'validation_best_weights',\n"
+    }
+  ],
+  "scripts/female_train_chain.sh": [
+    {
+      "old": "\"$ROOT/.venv/bin/python\" scripts/train_versioned.py \\\n    --config configs/female_v002/run.yaml --role \"$ROLE\" &\n",
+      "new": "if [[ \"$ROLE\" == centroid ]]; then\n    \"$ROOT/.venv/bin/python\" scripts/female_stage75.py &\nelse\n    \"$ROOT/.venv/bin/python\" scripts/train_versioned.py \\\n        --config configs/female_v002/run.yaml --role \"$ROLE\" &\nfi\n"
+    }
+  ]
+}

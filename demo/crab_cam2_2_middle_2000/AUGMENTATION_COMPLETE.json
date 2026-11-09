@@ -1,0 +1,102 @@
+{
+  "burrow_reference_frame": 563,
+  "chunk_count": 10,
+  "code_sha256": {
+    "docs/demo/README_combined.template.md": "a88198317c5f5a22fead7c70a4c0bb778ec0c61517b6eb0337b49411dcff02a4",
+    "jobs/augment_crab_demo.sh": "9895493fa6e5041148ecaffa140a182fafcabb36df4eefbbfc8b6e58f5926cd9",
+    "scripts/augment_crab_demo.py": "71124d6ea89f89619bc543fef10720fe071baf36b055e5376e45e040f9146966",
+    "tests/test_augment_crab_demo.py": "8a2a57b327869c6946d1be6dc1a154717e4b0ac06992dc3483c1fd95f3ac26ef"
+  },
+  "female_assigned_observations": 107311,
+  "female_links_across_chunk_boundaries": 434,
+  "female_observations": 107311,
+  "female_tracking_parameters": {
+    "algorithm_version": "body_first_v001",
+    "body_node": "FBody",
+    "body_score_min": 0.5,
+    "body_shoulder_length_max_px": 65.0,
+    "body_shoulder_length_min_px": 10.0,
+    "competitors_include_rejected_bodies": true,
+    "dataset_id": "female_demo_body_first_v001",
+    "duplicate_shell_radius_px": 5.0,
+    "limb_nodes_used_for_association": false,
+    "max_assignment_cost": 12.0,
+    "max_body_displacement_px": 12.0,
+    "max_prediction_error_px": 18.0,
+    "max_velocity_px_per_frame": 6.0,
+    "minimum_alternative_margin": 2.0,
+    "motion_weight": 0.3,
+    "no_gap_bridging": true,
+    "no_reidentification": true,
+    "require_shoulder_for_links": false,
+    "shoulder_node": null,
+    "shoulder_score_min": 0.2,
+    "shoulder_vector_cost_cap_px": 12.0,
+    "shoulder_vector_weight": 0.0,
+    "unmatched_cost": 7.0,
+    "velocity_update_weight": 0.5,
+    "water_used_for_association": false
+  },
+  "female_tracklets": 7834,
+  "fps_denominator": 1001,
+  "fps_numerator": 30000,
+  "frames": 2000,
+  "height": 4320,
+  "job_id": "17190860",
+  "limitations": [
+    "Model class is not independently verified biological sex; no cross-model deduplication or identity matching.",
+    "Female IDs are demo-only experimental body-first tracklets, not validated animals or original full-video IDs.",
+    "Burrow map uses frame 563, not a union/average with frame 948. Constant positions and transfer from clip_cam2_8k are assumed, not independently registered.",
+    "Combined seven-node skeleton is display-only, never training data. Non-applicable landmarks remain missing.",
+    "Desktop SLEAP GUI not exercised; SLP data readback and relocated video loading tested.",
+    "Local demo update only; no Git commit or GitHub push requested or performed."
+  ],
+  "male_observations": 243588,
+  "male_original_receipt": "provenance/MALE_DEMO_COMPLETE.json",
+  "observations": 350899,
+  "previous_demo_archive": "archive/demo/crab_cam2_2_middle_2000_male_only_17190860",
+  "repeated_static_burrow_gui_instances": 564000,
+  "source_frame_start": 13410,
+  "source_frame_stop_exclusive": 15410,
+  "source_inputs": {
+    "configs/tracking/body_first_v001.yaml": "ceac2f7f59d387cca49178b466f7200d8def8cd3827863460c180127cbb342d0",
+    "data/labels/burrows/BurrowLabels3.slp": "1c8aa0bbda851459f470e49c2d1cc73cda93b4eb06e5bae083f5a848ef7f7903",
+    "datasets/v007_best_body_first_dataframe_v001/config/water_regions.json": "0bd75bb46fc4abdcbb066743e9e37c857fd28b7d763be8083d30cf1b5b2e3f87",
+    "predictions/female_v002/Crab_Cam_2_2/PREDICT_COMPLETE.json": "0b2c436d836b8b0204b50d302f056ff3283dd83c8378736bf0395f0fd839e06d",
+    "predictions/female_v002/Crab_Cam_2_2/raw/Crab_Cam_2_2.female.predictions.slp": "72b7184ea6a836efb005963e94c397eadd9e5a87a05415c1da5e0af32cdb3981",
+    "predictions/female_v002/Crab_Cam_2_2/raw/RAW_COMPLETE.json": "4935612999f4d739918f722a6d51426c13dcb0851160782031c9c619f841913b"
+  },
+  "static_burrows": 282,
+  "status": "validated_complete",
+  "tests": {
+    "analysis_source_sha256": "71124d6ea89f89619bc543fef10720fe071baf36b055e5376e45e040f9146966",
+    "job_id": "17190860",
+    "passed": true,
+    "results": [
+      {
+        "exit_code": 0,
+        "pattern": "test_augment_crab_demo.py"
+      },
+      {
+        "exit_code": 0,
+        "pattern": "test_body_first_tracklets.py"
+      }
+    ],
+    "test_source_sha256": "8a2a57b327869c6946d1be6dc1a154717e4b0ac06992dc3483c1fd95f3ac26ef"
+  },
+  "validation": {
+    "all_combined_instance_values_read_back": true,
+    "all_original_male_pose_score_flag_and_id_values_preserved": true,
+    "desktop_gui_tested": false,
+    "female_ids_unique_per_frame": true,
+    "female_no_gaps_or_interpolation": true,
+    "female_raw_and_tracked_point_bytes_identical": true,
+    "frame_map_unchanged": true,
+    "no_inference_or_video_reencoding": true,
+    "non_applicable_landmarks_nan_invisible": true,
+    "original_male_slp_and_video_files_byte_identical": true,
+    "portable_basename_video_links": true,
+    "source_burrows_copied_not_moved": true
+  },
+  "width": 7680
+}

@@ -1,0 +1,20 @@
+{
+  "checkpoint_sha256": "6a634f5d4551b3d8cccb6580cd2b562e0b15626d825627d78fb7a2d6369c17a3",
+  "completed_epochs": 75,
+  "job_id": "16998958",
+  "kind": "exact_completed_epoch_weights_NOT_validation_best",
+  "manifest_sha256": "a89d0b13c0718905930e3ed3bf1c51f5e8383b1b60d87f833f48af73329f0f75",
+  "note": "Saved at on_train_end after loop completed, so checkpoint epoch counter is 75, not the male on_train_epoch_end index 74. Both represent 75 completed epochs; complete loop/optimizer/scheduler/callback state is retained.",
+  "progress": {
+    "completed_epochs": 75,
+    "epoch_counter": 75,
+    "global_step": 15000,
+    "optimizer_step_range": [
+      15000.0,
+      15000.0
+    ]
+  },
+  "schema_version": 1,
+  "training_config_sha256": "54d9e787d5f7252eaba17de81cae63278c9a083b4eaf35380f74dc56002b2b1f",
+  "validation_loss": 7.910377462394536e-05
+}

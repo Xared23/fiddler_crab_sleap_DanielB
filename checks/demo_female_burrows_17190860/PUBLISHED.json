@@ -1,0 +1,15 @@
+{
+  "archive": "archive/demo/crab_cam2_2_middle_2000_male_only_17190860",
+  "burrow_reference_frame": 563,
+  "demo": "demo/crab_cam2_2_middle_2000",
+  "female_assigned_observations": 107311,
+  "female_links_across_chunk_boundaries": 434,
+  "female_observations": 107311,
+  "female_tracklets": 7834,
+  "male_observations": 243588,
+  "observations": 350899,
+  "receipt_sha256": "4c7be3f3ab4d29b1ed0b2a126397f12ab4ec5502ac51bc80e63f927729a48462",
+  "repeated_static_burrow_gui_instances": 564000,
+  "static_burrows": 282,
+  "status": "validated_complete"
+}

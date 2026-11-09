@@ -1,0 +1,21 @@
+{
+  "manifest_sha256": "ff60277c40a5ba8725706938ec6e1423bd55ce6110fdfa199fdd47a1c16a9d1d",
+  "outputs": [
+    {
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/data/labels/female_v002/train.slp",
+      "sha256": "4a94408827c6b679157275e15e4435483814115e4bd43f4a0c6e28be9fd1e3ab"
+    },
+    {
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/data/labels/female_v002/val.slp",
+      "sha256": "fc4fd12bf6350499824119ef1091f720b0c7207cd0ed0c11ff5af83aec0b2e72"
+    },
+    {
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/configs/female_v002/centroid.yaml",
+      "sha256": "799799da8e80f5ec0fdee988fefda744cbd1573638f118fcfcf79ccfe2d3a021"
+    },
+    {
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/configs/female_v002/centered.yaml",
+      "sha256": "5ac10d9fb6af623ab6f22a47fce7e9553ed4020f29315cb3cb57b846f697ca8b"
+    }
+  ]
+}

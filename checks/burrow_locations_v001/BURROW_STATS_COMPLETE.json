@@ -1,0 +1,332 @@
+{
+  "annotated_frame_records": 2,
+  "artifacts": {
+    "annotations.csv": "f0606f420955764e417a61dc4551e854a7f1badc7d8b106385d2860a14994ddd",
+    "report.md": "f3dbd1d408c81e3802010ef9708e000b1009f40a215f9f75d16c8c4cb788cadf"
+  },
+  "cross_frame_diagnostics": [
+    {
+      "exact_coordinate_overlap": 0,
+      "first_to_second_nearest_px": {
+        "max_px": 277.11517815539736,
+        "mean_px": 16.483182032003267,
+        "median_px": 4.595371294395692,
+        "min_px": 0.3040544850876878,
+        "n": 282,
+        "p10_px": 1.4428867744336438,
+        "p90_px": 19.972967637945676
+      },
+      "frames": [
+        563,
+        948
+      ],
+      "note": "Cross-frame proximity is a diagnostic only. No distance threshold, cross-frame merging or physical identity inference applied.",
+      "same_exact_coordinate_set": false,
+      "second_to_first_nearest_px": {
+        "max_px": 298.56978017731905,
+        "mean_px": 16.333231219604972,
+        "median_px": 4.595371294395692,
+        "min_px": 0.3040544850876878,
+        "n": 282,
+        "p10_px": 1.4428867744336438,
+        "p90_px": 19.972967637945676
+      }
+    }
+  ],
+  "exact_distinct_coordinates_across_frames": 564,
+  "exact_distinct_coordinates_in_right_region_across_frames": 434,
+  "job_id": "17171189",
+  "limitations": [
+    "Annotations across different frames may repeat the same physical burrows; totals across frames are not certified unique-burrow counts.",
+    "No cross-frame point merging or association threshold has been invented.",
+    "Exact within-frame duplicate coordinates are removed ONLY for distance calculations and remain in annotation counts/audit CSV.",
+    "Nearest neighbors are among annotated burrows, not necessarily all physical burrows; incomplete labeling can increase apparent spacing.",
+    "No image-edge or ROI-edge statistical correction; right-anchor/full-frame-neighbor distances are also supplied for boundary context.",
+    "Pixel spacing depends on perspective and is not a physical distance."
+  ],
+  "per_frame": [
+    {
+      "annotated_instances": 282,
+      "frame": 563,
+      "full_frame_spacing": {
+        "all_unordered_pairs": {
+          "max_px": 5142.442483606879,
+          "mean_px": 1807.9331517655773,
+          "median_px": 1728.903073465013,
+          "min_px": 45.674524365878824,
+          "n": 39621,
+          "p10_px": 623.8998027826593,
+          "p90_px": 3089.1072249574886
+        },
+        "annotation_points": 282,
+        "distinct_coordinate_points": 282,
+        "exact_duplicate_points_excluded_from_spacing": 0,
+        "nearest_neighbor": {
+          "max_px": 351.38151423768323,
+          "mean_px": 113.56040186482815,
+          "median_px": 99.0703742224405,
+          "min_px": 45.674524365878824,
+          "n": 282,
+          "p10_px": 62.107121581483696,
+          "p90_px": 178.52276321520455
+        }
+      },
+      "invalid_or_outside_instances": 0,
+      "outside_right_region_instances": 62,
+      "right_of_puddle_instances": 220,
+      "right_region_anchors_nearest_neighbor_anywhere_in_frame": {
+        "max_px": 327.9182769526488,
+        "mean_px": 108.4692446193634,
+        "median_px": 94.73593679173322,
+        "min_px": 45.674524365878824,
+        "n": 220,
+        "p10_px": 61.90100858858119,
+        "p90_px": 167.67211935563955
+      },
+      "right_region_spacing": {
+        "all_unordered_pairs": {
+          "max_px": 4386.301497946913,
+          "mean_px": 1531.6796998759253,
+          "median_px": 1391.1895805549434,
+          "min_px": 45.674524365878824,
+          "n": 24090,
+          "p10_px": 514.7324995132082,
+          "p90_px": 2780.779745014868
+        },
+        "annotation_points": 220,
+        "distinct_coordinate_points": 220,
+        "exact_duplicate_points_excluded_from_spacing": 0,
+        "nearest_neighbor": {
+          "max_px": 327.9182769526488,
+          "mean_px": 108.4692446193634,
+          "median_px": 94.73593679173322,
+          "min_px": 45.674524365878824,
+          "n": 220,
+          "p10_px": 61.90100858858119,
+          "p90_px": 167.67211935563955
+        }
+      },
+      "valid_in_image_instances": 282
+    },
+    {
+      "annotated_instances": 282,
+      "frame": 948,
+      "full_frame_spacing": {
+        "all_unordered_pairs": {
+          "max_px": 5060.515678153847,
+          "mean_px": 1762.4487620249129,
+          "median_px": 1685.1176140805708,
+          "min_px": 43.923796156719,
+          "n": 39621,
+          "p10_px": 614.4013944129235,
+          "p90_px": 3011.2048081251905
+        },
+        "annotation_points": 282,
+        "distinct_coordinate_points": 282,
+        "exact_duplicate_points_excluded_from_spacing": 0,
+        "nearest_neighbor": {
+          "max_px": 346.3996380285257,
+          "mean_px": 119.77221234007396,
+          "median_px": 107.5528005151194,
+          "min_px": 43.923796156719,
+          "n": 282,
+          "p10_px": 66.96792724833628,
+          "p90_px": 183.5953749027048
+        }
+      },
+      "invalid_or_outside_instances": 0,
+      "outside_right_region_instances": 68,
+      "right_of_puddle_instances": 214,
+      "right_region_anchors_nearest_neighbor_anywhere_in_frame": {
+        "max_px": 337.63975988075896,
+        "mean_px": 117.59810335150097,
+        "median_px": 103.23573604230266,
+        "min_px": 47.30260075804885,
+        "n": 214,
+        "p10_px": 65.97067276775029,
+        "p90_px": 180.61066340411918
+      },
+      "right_region_spacing": {
+        "all_unordered_pairs": {
+          "max_px": 4353.582188090664,
+          "mean_px": 1463.2583410774043,
+          "median_px": 1334.9732983799868,
+          "min_px": 47.30260075804885,
+          "n": 22791,
+          "p10_px": 498.74529203716145,
+          "p90_px": 2642.4940402657967
+        },
+        "annotation_points": 214,
+        "distinct_coordinate_points": 214,
+        "exact_duplicate_points_excluded_from_spacing": 0,
+        "nearest_neighbor": {
+          "max_px": 337.63975988075896,
+          "mean_px": 117.59810335150097,
+          "median_px": 103.23573604230266,
+          "min_px": 47.30260075804885,
+          "n": 214,
+          "p10_px": 65.97067276775029,
+          "p90_px": 180.61066340411918
+        }
+      },
+      "valid_in_image_instances": 282
+    }
+  ],
+  "roi": {
+    "boundary_policy": "Strictly right of shoreline/vertical extensions; water and boundary excluded. In-image top edge included away from shoreline.",
+    "definition": "Actual right shoreline, closed to the right image edge; vertical extensions from top/bottom tips to image top/bottom.",
+    "point_reference_for_this_analysis": "Burrow",
+    "reference": "checks/female_v002/validation/right_bank_v001/ROI.json",
+    "reference_sha256": "e8715d157c2a63ba4b71ac8a043b49ae68f51f09293f0ddfd4db745e95dc5b98",
+    "region_polygon_xy": [
+      [
+        3290.0,
+        0.0
+      ],
+      [
+        3270.0,
+        180.0
+      ],
+      [
+        3450.0,
+        310.0
+      ],
+      [
+        3230.0,
+        510.0
+      ],
+      [
+        3190.0,
+        610.0
+      ],
+      [
+        2980.0,
+        580.0
+      ],
+      [
+        2950.0,
+        700.0
+      ],
+      [
+        3010.0,
+        770.0
+      ],
+      [
+        2920.0,
+        930.0
+      ],
+      [
+        2750.0,
+        1110.0
+      ],
+      [
+        2830.0,
+        1320.0
+      ],
+      [
+        2660.0,
+        1350.0
+      ],
+      [
+        2610.0,
+        1460.0
+      ],
+      [
+        2650.0,
+        1600.0
+      ],
+      [
+        2620.0,
+        1780.0
+      ],
+      [
+        2700.0,
+        1890.0
+      ],
+      [
+        2800.0,
+        1980.0
+      ],
+      [
+        2890.0,
+        1910.0
+      ],
+      [
+        2990.0,
+        2050.0
+      ],
+      [
+        2940.0,
+        2250.0
+      ],
+      [
+        2920.0,
+        2490.0
+      ],
+      [
+        2730.0,
+        2580.0
+      ],
+      [
+        2700.0,
+        2800.0
+      ],
+      [
+        2690.0,
+        3000.0
+      ],
+      [
+        2590.0,
+        3170.0
+      ],
+      [
+        2590.0,
+        4320.0
+      ],
+      [
+        7680.0,
+        4320.0
+      ],
+      [
+        7680.0,
+        0.0
+      ]
+    ]
+  },
+  "source": "data/labels/burrows/BurrowLabels3.slp",
+  "source_hashes": {
+    "checks/female_v002/validation/right_bank_v001/ROI.json": "e8715d157c2a63ba4b71ac8a043b49ae68f51f09293f0ddfd4db745e95dc5b98",
+    "data/labels/burrows/BurrowLabels3.slp": "1c8aa0bbda851459f470e49c2d1cc73cda93b4eb06e5bae083f5a848ef7f7903",
+    "datasets/v007_best_body_first_dataframe_v001/config/water_regions.json": "0bd75bb46fc4abdcbb066743e9e37c857fd28b7d763be8083d30cf1b5b2e3f87",
+    "scripts/burrow_location_stats.py": "53361c1437cf5b250058afeb248688a66d6e3cd817e326600bd565c5b3ec7ddf",
+    "scripts/female_regional_validation.py": "e60363a798bd36f67b453985d27dd41c1a9e07867134b5a955e7dbec3d885685",
+    "tests/test_burrow_location_stats.py": "61696d5046d793d37d996c136d759b9f5d823ebef4c554521b81f16a955f59a8"
+  },
+  "spacing_definition": "For each labeled frame separately: mean distance from each distinct valid annotated Burrow coordinate to its nearest other annotated coordinate. Right-region spacing uses BOTH points in the right ROI. All-pairs means count each unordered pair once.",
+  "status": "validated_complete",
+  "stored_frame_records": 3,
+  "stored_frames_without_human_instances": [
+    949
+  ],
+  "tests": {
+    "analysis_source_sha256": "53361c1437cf5b250058afeb248688a66d6e3cd817e326600bd565c5b3ec7ddf",
+    "exit_code": 0,
+    "job_id": "17171189",
+    "passed": true,
+    "test_source_sha256": "61696d5046d793d37d996c136d759b9f5d823ebef4c554521b81f16a955f59a8"
+  },
+  "total_annotation_instances_across_frames": 564,
+  "total_right_region_annotation_instances_across_frames": 434,
+  "tracks": {
+    "catalog_count": 0,
+    "instances_with_track": 0,
+    "track_names_observed_in_multiple_frames": []
+  },
+  "units": "Original 7680x4320 image pixels; Euclidean distances, no perspective/physical-length calibration.",
+  "versions": {
+    "numpy": "2.5.2",
+    "scipy": "1.17.1",
+    "shapely": "2.1.2",
+    "sleap-io": "0.9.2"
+  }
+}

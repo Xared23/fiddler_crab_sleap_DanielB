@@ -1,0 +1,12 @@
+test_filter_both_sources_before_one_to_one_matching (test_female_regional_validation.RegionTests.test_filter_both_sources_before_one_to_one_matching) ... ok
+test_follows_actual_indented_bank_not_rowwise_max_x (test_female_regional_validation.RegionTests.test_follows_actual_indented_bank_not_rowwise_max_x) ... ok
+test_invalid_geometry_refused (test_female_regional_validation.RegionTests.test_invalid_geometry_refused) ... ok
+test_polygon_orientation_and_closed_vertex_independent (test_female_regional_validation.RegionTests.test_polygon_orientation_and_closed_vertex_independent) ... ok
+test_real_accepted_puddle_tips_and_no_water_overlap (test_female_regional_validation.RegionTests.test_real_accepted_puddle_tips_and_no_water_overlap) ... ok
+test_vertical_top_and_bottom_extensions_and_strict_boundary (test_female_regional_validation.RegionTests.test_vertical_top_and_bottom_extensions_and_strict_boundary) ... ok
+test_water_left_bank_and_invalid_points_excluded (test_female_regional_validation.RegionTests.test_water_left_bank_and_invalid_points_excluded) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 2.527s
+
+OK

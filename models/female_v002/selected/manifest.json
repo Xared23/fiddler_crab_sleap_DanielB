@@ -1,0 +1,30 @@
+{
+  "centered": {
+    "best_progress": {
+      "epoch": 27,
+      "global_step": 5600
+    },
+    "directory": "models/female_v002/selected/centered",
+    "files": {
+      "best.ckpt": "025085c582c1260cf337bb641bf40847dd92b7e3c1eb2b0f4d2b08baebe84774",
+      "training_config.yaml": "1c93bca8585caf64b6b4fbf8f4eb36645cf1da310841c116b214c241717daad4"
+    },
+    "selection_kind": "validation_best_weights",
+    "source_model_directory": "models/female_v002/centered",
+    "training_completion_sha256": "c4e2aa214d5568a058998919484f84ec1641a05c076d2e29e10322191c3af1a6"
+  },
+  "centroid": {
+    "best_progress": {
+      "epoch": 75,
+      "global_step": 15000
+    },
+    "directory": "models/female_v002/selected/centroid",
+    "files": {
+      "best.ckpt": "6a634f5d4551b3d8cccb6580cd2b562e0b15626d825627d78fb7a2d6369c17a3",
+      "training_config.yaml": "54d9e787d5f7252eaba17de81cae63278c9a083b4eaf35380f74dc56002b2b1f"
+    },
+    "selection_kind": "exact_epoch75_weights",
+    "source_model_directory": "models/female_v002/centroid/stages/epoch_0075",
+    "training_completion_sha256": "f297cbed568a5ce54b1df7e86ffe5a7b9b7fb0272970443bbf69ad81c9015b89"
+  }
+}

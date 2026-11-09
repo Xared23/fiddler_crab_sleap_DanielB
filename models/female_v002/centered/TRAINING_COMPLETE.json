@@ -1,0 +1,11 @@
+{
+  "best_progress": {
+    "epoch": 27,
+    "global_step": 5600
+  },
+  "best_sha256": "025085c582c1260cf337bb641bf40847dd92b7e3c1eb2b0f4d2b08baebe84774",
+  "epoch": 70,
+  "global_step": 14000,
+  "manifest_sha256": "d4ebb33c0fa03692e44c18fb27799426e304985d2e486c99a69f363f533db573",
+  "reason": "early_stopping"
+}

@@ -1,0 +1,42 @@
+{
+  "checks": [
+    "female unit tests",
+    "existing training regression tests",
+    "GPU forward/backward both FBody models",
+    "signal/save/resume both roles",
+    "held-out validation in smoke training",
+    "best checkpoint readback",
+    "one-frame two-stage inference/SLP API smoke"
+  ],
+  "dataset_sha256": "defc9f9fcc1e9201af5e3cdbabff1f38d58fcbea33c8fbc63bdaebaf8d07e139",
+  "female_implementation": {
+    "jobs/finalize_female.sh": "b7ead724f1e0768eacc5a54bd6d2f6f35d67be95e16f380e7b7aa98af2e33f7b",
+    "jobs/predict_female.sh": "050a0ad77dc388ec64760d8930007d07cf77fcd576785dbb6d0a5cd8acf48fa5",
+    "jobs/preflight_female.sh": "12d21c03790a7564c8aed4d4ef0bbf2fda04746c6b8969c206c91c64accfa425",
+    "jobs/train_female_centered.sh": "e8399362dde757e50934194fda9aeecc91d163971273c921820669554256c98d",
+    "jobs/train_female_centroid.sh": "dc73a85728b0b169602beea01760aa9ab3e3da441f2ef4023f9b5969d5ec0094",
+    "jobs/validate_female.sh": "b420d3bbf66e6d757ad70422abcbe71d8d8844e57239dd978ae4b45c1ec1a763",
+    "scripts/female_prediction_io.py": "89a4d9ca39255c28f763661168153c54d190f2d413416df5a318124dc08f296d",
+    "scripts/female_train_chain.sh": "0ebc25e6ca3badff012bb899f8bc5a5e77aed8e7373c78e68126c3efab0467b4",
+    "scripts/female_workflow.py": "1379f57342e532d5e832969ea79f51d4ca6d28eeceacb2f94dd9199325e78a72",
+    "scripts/prepare_female.py": "3dd8b9e9105547c1f6ffe43b5266026ac0888056ae39971d02ca8aefba6f3d95",
+    "tests/test_female_workflow.py": "fd715ab07e08a2f9122ebd37d72353fe8953fb7100342703d7c4c358fbbe61ec"
+  },
+  "implementation": {
+    "scripts/gputest_train.py": "9c6ff986179475b2292f99bebfcf3d8f7fdcd4976ca1cf8a4f82e9f8d0133d56",
+    "scripts/milestone_checkpoints.py": "735ffae91de2ae502238d88c833b2c0a42cb1c49853628c81353b7f926113170",
+    "scripts/pipeline_common.py": "a427da68a340550cc475c6cac9c37338a1713eb07258f056f701491daf7a3baf",
+    "scripts/train_versioned.py": "0f447b1d0be3a296969dbff0eaae55bb89dd6fd5760406bf713ce78337e8fd60",
+    "scripts/train_versioned_chain.sh": "60c8dc0292dbdcd97b01bb68ecc02b324d088afb169daa7f09b1e96b1f7a9ffb"
+  },
+  "job_id": "16998321",
+  "passed": true,
+  "run_config_sha256": "68475879491cddf27c79b8acf77ca2559b99e1f034dfa7574f8371f45fa24b5f",
+  "versions": {
+    "lightning": "2.6.5",
+    "numpy": "2.5.2",
+    "sleap-io": "0.9.2",
+    "sleap-nn": "0.3.3",
+    "torch": "2.13.0"
+  }
+}

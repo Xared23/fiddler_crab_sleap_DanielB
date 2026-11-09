@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "run_id": "female_v002",
+  "role": "centroid",
+  "completed_epochs": 75,
+  "minimum_epochs": 75,
+  "original_epoch_ceiling": 200,
+  "downstream_centroid_selection": "exact_completed_epoch_75_NOT_validation_best",
+  "preserve_full_training_state": true,
+  "continue_automatically": false,
+  "centered_training_changed": false,
+  "authorization": "User requested save and terminate after 75 centroid epochs, retain progress for possible future continuation, and validate/predict using that checkpoint."
+}

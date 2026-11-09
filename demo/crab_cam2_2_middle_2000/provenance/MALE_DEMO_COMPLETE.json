@@ -1,0 +1,290 @@
+{
+  "artifacts": {
+    "README.md": {
+      "bytes": 5202,
+      "sha256": "7703fd8f8d9397a1aea50f9db9c83cbfd2e1427bb34ccbecf1902cff7f016f09"
+    },
+    "chunk_001/Crab_Cam_2_2.frames_013410_013619.mp4": {
+      "bytes": 85404898,
+      "sha256": "6461e3a08990ab997b85f2f866f09047dae105699a2837f0cec44a7692318af9"
+    },
+    "chunk_001/Crab_Cam_2_2.frames_013410_013619.predictions.slp": {
+      "bytes": 1301348,
+      "sha256": "e84dfc1c92022b174cbf6ce23a32b83fc7809b41e6bf3beaf0138bb520d064a7"
+    },
+    "chunk_001/Crab_Cam_2_2.frames_013410_013619.tracked.slp": {
+      "bytes": 1392744,
+      "sha256": "367fa32a09b5cc34eb0bde85e525851656dd9292683c8958df30fc9f07281319"
+    },
+    "chunk_001/frames.parquet": {
+      "bytes": 8375,
+      "sha256": "9c85b5819a897cfa9ad1a68f1b88f480a796bf23be9c930c8d07abda6d81ca85"
+    },
+    "chunk_001/observations.parquet": {
+      "bytes": 3052415,
+      "sha256": "7f852d49e76e2083da318a8e790fb28488b0745d5d99ec6dfb5d19a2f7db6975"
+    },
+    "chunk_002/Crab_Cam_2_2.frames_013620_013829.mp4": {
+      "bytes": 84278355,
+      "sha256": "ca9baff9e4badaf2d0683133f0c72d32a2799ea391899191374b499db52cdd25"
+    },
+    "chunk_002/Crab_Cam_2_2.frames_013620_013829.predictions.slp": {
+      "bytes": 1332749,
+      "sha256": "2272673b5d0f3a2636e33c90008acf02f92b13eb265d4fcb1d013b133b0d71b6"
+    },
+    "chunk_002/Crab_Cam_2_2.frames_013620_013829.tracked.slp": {
+      "bytes": 1421856,
+      "sha256": "ce8106dff8dddcce7d71243501fa69cf351547ca2b6a19afacc388a9fda2b441"
+    },
+    "chunk_002/frames.parquet": {
+      "bytes": 8877,
+      "sha256": "f77b009d11ac0324f29583240c426101a2a2f29f87f4ea320c5a06cdb9ee7754"
+    },
+    "chunk_002/observations.parquet": {
+      "bytes": 3124946,
+      "sha256": "bcc19ef9b065a64798c8638a5d8a7b999aa1f2e8a59fe4f01ce5a94accb8e731"
+    },
+    "chunk_003/Crab_Cam_2_2.frames_013830_014039.mp4": {
+      "bytes": 83782036,
+      "sha256": "a14f2d6e7fc04da33a365519155d4acb6cf94fd215b1d24f09fb00535e918a4c"
+    },
+    "chunk_003/Crab_Cam_2_2.frames_013830_014039.predictions.slp": {
+      "bytes": 1370412,
+      "sha256": "8a978342653fa2925595e04d89ab9f008bee96a2770d9b16739f477f907f7799"
+    },
+    "chunk_003/Crab_Cam_2_2.frames_013830_014039.tracked.slp": {
+      "bytes": 1463042,
+      "sha256": "cfeea58b255c95530f19acbe757ad9919b1b98f4b87f3c00a1b9484150253da1"
+    },
+    "chunk_003/frames.parquet": {
+      "bytes": 8736,
+      "sha256": "a147c81ebceccc0d67ba96480f0d514084aae4587fd96b8cee2102c7f99f521c"
+    },
+    "chunk_003/observations.parquet": {
+      "bytes": 3219779,
+      "sha256": "ae04915bdfe7274a2b8b5a755e6780674a5b5732a32b349045cec8368ac16d9f"
+    },
+    "chunk_004/Crab_Cam_2_2.frames_014040_014249.mp4": {
+      "bytes": 82297725,
+      "sha256": "bc0cc772150754276763d008578565654bfa18b4a735795ebceb276ee6f62ef5"
+    },
+    "chunk_004/Crab_Cam_2_2.frames_014040_014249.predictions.slp": {
+      "bytes": 1379052,
+      "sha256": "bfa62124d62875caaf8d3da9410ed4a2a4142385c2ec8e0590d50ea26c8c2200"
+    },
+    "chunk_004/Crab_Cam_2_2.frames_014040_014249.tracked.slp": {
+      "bytes": 1472787,
+      "sha256": "2a7d7d2e6ce7c22cd213762255bbc96d2db2bf524d947e788a6adb3b8c18b4ac"
+    },
+    "chunk_004/frames.parquet": {
+      "bytes": 8743,
+      "sha256": "0be6c43313ecfefde3bc87b31465cd705ad96ee147d28bc2c3e0773d6a47ea30"
+    },
+    "chunk_004/observations.parquet": {
+      "bytes": 3245109,
+      "sha256": "6b9e1241a00f35e445f32b5d8d4423a7eaf1cb5af118a79b41bde42bf9240300"
+    },
+    "chunk_005/Crab_Cam_2_2.frames_014250_014459.mp4": {
+      "bytes": 83558196,
+      "sha256": "67753d8a5b48e5a02ff942fa0e2b5bfeb30663cfc4886bc4cd0fd192a1ae9f74"
+    },
+    "chunk_005/Crab_Cam_2_2.frames_014250_014459.predictions.slp": {
+      "bytes": 1401684,
+      "sha256": "e35ee1a503b0e0dc53e476d220a5479bde5117bd3094eea7c7ddeed6d26679c9"
+    },
+    "chunk_005/Crab_Cam_2_2.frames_014250_014459.tracked.slp": {
+      "bytes": 1496747,
+      "sha256": "897001a4485ca88036f794b74f918e7eea0728d89f83b5e31cb8fb5aa9e99d0d"
+    },
+    "chunk_005/frames.parquet": {
+      "bytes": 8736,
+      "sha256": "0b99f68bb9992ed1f6f823c4215e316fb88645600977bf2b9c5f3ad1b09890c3"
+    },
+    "chunk_005/observations.parquet": {
+      "bytes": 3294715,
+      "sha256": "44bcfa384be7e2ed16c5da0c9cace65e99359f812820144a488edea74c00a6b7"
+    },
+    "chunk_006/Crab_Cam_2_2.frames_014460_014669.mp4": {
+      "bytes": 82781329,
+      "sha256": "403cd407a8ab42b4f92a6bb501c686915b74aa024af046a5551c78b16f09bd2f"
+    },
+    "chunk_006/Crab_Cam_2_2.frames_014460_014669.predictions.slp": {
+      "bytes": 1402570,
+      "sha256": "46922a2aac450de6321904c2ec23b577ddce780f454f232e951ce5706c61ed67"
+    },
+    "chunk_006/Crab_Cam_2_2.frames_014460_014669.tracked.slp": {
+      "bytes": 1507763,
+      "sha256": "9ab93c31e687e1f73fe97c8803ce5686346878857e22782eb9f3feee646cb715"
+    },
+    "chunk_006/frames.parquet": {
+      "bytes": 8729,
+      "sha256": "f3b408cf628465d3e1a27f44388bdedb2b94f7f13056101b14a43a71fba2592b"
+    },
+    "chunk_006/observations.parquet": {
+      "bytes": 3325538,
+      "sha256": "ab326200c79f3eb1cf93cba822b41a1d10ee442b80ae2799902415ccdc4a1f7a"
+    },
+    "chunk_007/Crab_Cam_2_2.frames_014670_014879.mp4": {
+      "bytes": 83101065,
+      "sha256": "7e224efd1a79eadad65ffdab498efe4c86140b5924cb422e259fb35df0cfb633"
+    },
+    "chunk_007/Crab_Cam_2_2.frames_014670_014879.predictions.slp": {
+      "bytes": 1384703,
+      "sha256": "e47df6e5749a2f6b720068a00787abee3adad329c5ab877798720e7ee99f7480"
+    },
+    "chunk_007/Crab_Cam_2_2.frames_014670_014879.tracked.slp": {
+      "bytes": 1499401,
+      "sha256": "b5eaded51190c81c18411219d5a20d5aad89b21e09aeded6c0459cf529913696"
+    },
+    "chunk_007/frames.parquet": {
+      "bytes": 8746,
+      "sha256": "795bd361d1f532c447958c0a48cba47fa22ab377829515fcc5273bd0fc8cfd6d"
+    },
+    "chunk_007/observations.parquet": {
+      "bytes": 3291130,
+      "sha256": "7b0413c6789013061287fc5c4358114f4bb5086611a1c7c57abf7eb09fcdef6e"
+    },
+    "chunk_008/Crab_Cam_2_2.frames_014880_015089.mp4": {
+      "bytes": 83024381,
+      "sha256": "7a40efcfa97f4eef23b0b3e5110002a8a037caabea49a230e15a41ccffd64a91"
+    },
+    "chunk_008/Crab_Cam_2_2.frames_014880_015089.predictions.slp": {
+      "bytes": 1419807,
+      "sha256": "535ee34a2cea44cacf6f6a174f5e38ccd4c4ba89ec00f9708f8da652bbadb3c6"
+    },
+    "chunk_008/Crab_Cam_2_2.frames_014880_015089.tracked.slp": {
+      "bytes": 1516066,
+      "sha256": "745353c30bcb938a79149f0c39d5ba190239fd08b043658948c29e7f80defbfd"
+    },
+    "chunk_008/frames.parquet": {
+      "bytes": 8721,
+      "sha256": "a53cc475b6de79bf1c5c24f6d9f86e6150cc2c4eee5491ff183f43360a18b9a0"
+    },
+    "chunk_008/observations.parquet": {
+      "bytes": 3346638,
+      "sha256": "b565b6d9dfeed8a288f2fb326be10ac8f6ea82e8cf77c6efd14b1919b4b83df9"
+    },
+    "chunk_009/Crab_Cam_2_2.frames_015090_015299.mp4": {
+      "bytes": 82714407,
+      "sha256": "29379c05d179ef134c15120adf38167f842b831b82b817e360976c3a2e447390"
+    },
+    "chunk_009/Crab_Cam_2_2.frames_015090_015299.predictions.slp": {
+      "bytes": 1516566,
+      "sha256": "bad7f4d3a13ede5a4ba2b6ac0108905cc1ea952c4e08cb5425ebb324f5aede5d"
+    },
+    "chunk_009/Crab_Cam_2_2.frames_015090_015299.tracked.slp": {
+      "bytes": 1618260,
+      "sha256": "84ed1cfe1ad94623e37c70c3de60373d8a61c3121d888bd75a912db99a40bc83"
+    },
+    "chunk_009/frames.parquet": {
+      "bytes": 8754,
+      "sha256": "4fd34276977bf954f0b2f782125b8b1f82896bcd3dcc02f14a64bf92cfb53fea"
+    },
+    "chunk_009/observations.parquet": {
+      "bytes": 3565871,
+      "sha256": "02fc332bd62b4c8638395e5e9d443c58c70decf21bfdb9e9b8afe1d4d4d43cd9"
+    },
+    "chunk_010/Crab_Cam_2_2.frames_015300_015409.mp4": {
+      "bytes": 44009518,
+      "sha256": "e70faf8769d05d1678d896a9d4d162915d5e9e778637657b4dc5247c126b5f05"
+    },
+    "chunk_010/Crab_Cam_2_2.frames_015300_015409.predictions.slp": {
+      "bytes": 930288,
+      "sha256": "a13348176543cccc52323ddb3646c1e3eb60adee5d02ce6716e8a13f1fba82f7"
+    },
+    "chunk_010/Crab_Cam_2_2.frames_015300_015409.tracked.slp": {
+      "bytes": 1016010,
+      "sha256": "e0e0ef0006da7aa64abe64f7184d9a37583a3c2044a7fcf6bf07f73b73771313"
+    },
+    "chunk_010/frames.parquet": {
+      "bytes": 6297,
+      "sha256": "99a9e2992fb996f83173c1c3a805b169219211e74a824ecd35676eb8a5b3d58e"
+    },
+    "chunk_010/observations.parquet": {
+      "bytes": 1949562,
+      "sha256": "fa16748f1c69ae1b696849c7db069e16548d1bd101d895c75730c0c11869806a"
+    },
+    "chunks.json": {
+      "bytes": 12913,
+      "sha256": "0df47214642b4dcbdbee4850afe94f2847e011653a94bf6b7be93ad227772611"
+    },
+    "frame_map.csv": {
+      "bytes": 419899,
+      "sha256": "00466b8248ff4299fcbe82c3599666317e7b6fcccf60e6100a6247b21a1c031e"
+    },
+    "frames.parquet": {
+      "bytes": 32075,
+      "sha256": "5a0d4442c4bfa31a9cb00e42549301bea9fa93a0805a1b7b1faedbb00514d6b8"
+    },
+    "observations.parquet": {
+      "bytes": 26938624,
+      "sha256": "9931ac02a84095d0b45c9440f38fa7296eda0cb9890c5155b6ef93d86b1d7c63"
+    }
+  },
+  "chunk_count": 10,
+  "code_sha256": {
+    "docs/demo/README_2000.template.md": "a49fcead9376dae8dfc0de78bf68f3b94bf5de11d90be4ae628ee16f5fbc1cc7",
+    "jobs/replace_crab_demo_2000.sh": "8b6e4a8e88b97781b37fcd473ed5c93489b9b931ed3d0232405edcd574f32167",
+    "scripts/chunk_crab_demo.py": "ef9c5849965d27b3cf274fbfc0a927af90226ba1420f4a3bf328059bbd6af5a1",
+    "scripts/prepare_crab_demo.py": "7e5e660353f919b923568eee2538c0208638e4ca45a8ac650272e567b4387228",
+    "scripts/replace_crab_demo_2000.py": "8ada103a5aa92b698dcb0c15de2dfef624141c8769de5f4cad33d4f631c62241",
+    "tests/test_crab_demo.py": "ca46b87a7ae50295fdc1ef5f6de2a125040ea5fe16fba99a7552a69ec74b25c0",
+    "tests/test_crab_demo_chunks.py": "7897f2d8af1e9d76be1f4838dab491a85067a524a727dbe09e58be890cb40790"
+  },
+  "fps_denominator": 1001,
+  "fps_numerator": 30000,
+  "frames": 2000,
+  "height": 4320,
+  "job_id": "16796736",
+  "limitations": [
+    "Original video full hash inherited; current size/mtime checked. Selected encoded packets and decoded pixels verified.",
+    "Experimental track IDs are not validated unique-animal identities.",
+    "Local bundle completion is not proof of a GitHub push."
+  ],
+  "observations": 243588,
+  "source_dataset_manifest_sha256": "9dcec268c1de2d366cb57dc101a245c4ec009baa8588f4897bcc1fe121359756",
+  "source_frame_start": 13410,
+  "source_frame_stop_exclusive": 15410,
+  "source_inputs": {
+    "crab_vids/Crab_Cam_2_2.mp4": {
+      "bytes": 11451768931,
+      "mtime_ns": 1785036716000000000,
+      "path": "crab_vids/Crab_Cam_2_2.mp4",
+      "rehashed_now": false,
+      "sha256": "e8a3388f8957c0f22cd97ade47472137d19f81df5f4b2b141d18938b9bb6fd31"
+    },
+    "predictions/v007_best_body_first_v001/Crab_Cam_2_2/raw/Crab_Cam_2_2.predictions.slp": {
+      "bytes": 691906984,
+      "mtime_ns": 1791974244943200081,
+      "path": "predictions/v007_best_body_first_v001/Crab_Cam_2_2/raw/Crab_Cam_2_2.predictions.slp",
+      "rehashed_now": true,
+      "sha256": "8a71b7feee1a4f7fa7470e8bde15ae0db1137096530c0425dc1620e57a3e3e1f"
+    },
+    "predictions/v007_best_body_first_v001/Crab_Cam_2_2/tracklets/Crab_Cam_2_2.tracked.slp": {
+      "bytes": 702139208,
+      "mtime_ns": 1791974660270158802,
+      "path": "predictions/v007_best_body_first_v001/Crab_Cam_2_2/tracklets/Crab_Cam_2_2.tracked.slp",
+      "rehashed_now": true,
+      "sha256": "e58c6f1e884fd4e5cbc8af9f53684888398efe5fad586b4a2fcfd1f23c882d92"
+    }
+  },
+  "source_table_sha256": {
+    "datasets/v007_best_body_first_dataframe_v001/tables/frames.parquet": "f699c9e1ecd5e7640b01fa3efeeb86e1e44dbc1a2f1c79ff8ea4ec39b2ff503c",
+    "datasets/v007_best_body_first_dataframe_v001/tables/observations/Crab_Cam_2_2/part-00017.parquet": "a46cb4e5feb9635cb2410cc24ded0621a0ddc59328481ab72eb32ad245f946aa",
+    "datasets/v007_best_body_first_dataframe_v001/tables/observations/Crab_Cam_2_2/part-00018.parquet": "77164091acdaecbd18f269cb019dc3d80cd506b91dbe5ff7ee45525ab362737d",
+    "datasets/v007_best_body_first_dataframe_v001/tables/observations/Crab_Cam_2_2/part-00019.parquet": "1c587f8553e5cd0b43a94930c1204567c9a021fc65c5e130e4932970c45cec29"
+  },
+  "status": "validated_complete",
+  "validation": {
+    "all_2000_decoded_frames_pixel_identical": true,
+    "all_chunks_below_100_MiB": true,
+    "all_encoded_packets_identical": true,
+    "all_pose_score_bytes_unchanged": true,
+    "dataframe_source_columns_identical": true,
+    "inference_or_tracking_rerun": false,
+    "no_missing_or_duplicate_frames": true,
+    "no_video_reencoding": true,
+    "portable_slp_video_loading": true
+  },
+  "width": 7680
+}

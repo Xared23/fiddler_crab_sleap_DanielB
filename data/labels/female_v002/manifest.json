@@ -1,0 +1,98 @@
+{
+  "baseline_configs": {
+    "centered": {
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/configs/v007_19f/centered.yaml",
+      "sha256": "d946bc5d9f99d959eb9719c3be60c0ff5a4c9ce79bfb54a3088c049d894974a3"
+    },
+    "centroid": {
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/configs/v007_19f/centroid.yaml",
+      "sha256": "425162140b28a9c0f741d248d488cdc1d74b04c991d662463780f8d68fd62713"
+    }
+  },
+  "dataset_config": {
+    "anchor_part": "FBody",
+    "collaborator_sha256": "be918ab7afc8760e380744bc02dc2c35327730a0676ca8c6995118d7418d062c",
+    "expected_user_frames": 16,
+    "expected_user_instances": 1369,
+    "nodes": [
+      "FBody"
+    ],
+    "regional_handling": "none",
+    "requested_validation_fraction": 0.1,
+    "source": "data/labels/Female_data/female_labels.v002.slp",
+    "source_policy": "female_v002_only_original_unchanged",
+    "split_seed": 42,
+    "validation_fraction": 0.125,
+    "validation_frames": 2,
+    "video": "clip_cam2_8k.mp4"
+  },
+  "mapping_evidence": "same clip basename and full shape; every labeled frame decoded; original external path never opened",
+  "original_backup": {
+    "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/data/labels/female_v002/source/female_labels.v002.slp",
+    "sha256": "be918ab7afc8760e380744bc02dc2c35327730a0676ca8c6995118d7418d062c"
+  },
+  "preparation_code": {
+    "scripts/prepare_female.py": "3dd8b9e9105547c1f6ffe43b5266026ac0888056ae39971d02ca8aefba6f3d95",
+    "scripts/prepare_v007.py": "e546977f07802ff46e2e41b34eae1de06527c322aab6be38927bd22c56741476"
+  },
+  "regional_handling": "none",
+  "resolved_configs": {
+    "centered": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/configs/female_v002/centered.yaml",
+    "centroid": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/configs/female_v002/centroid.yaml"
+  },
+  "run_id": "female_v002",
+  "sources": [
+    {
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/data/labels/Female_data/female_labels.v002.slp",
+      "sha256": "be918ab7afc8760e380744bc02dc2c35327730a0676ca8c6995118d7418d062c"
+    }
+  ],
+  "splits": {
+    "train": {
+      "frames": [
+        350,
+        698,
+        713,
+        797,
+        847,
+        875,
+        892,
+        899,
+        967,
+        1001,
+        1046,
+        1470,
+        1600,
+        1760
+      ],
+      "n_frames": 14,
+      "n_instances": 1185
+    },
+    "val": {
+      "frames": [
+        481,
+        1252
+      ],
+      "n_frames": 2,
+      "n_instances": 184
+    }
+  },
+  "versions": {
+    "lightning": "2.6.5",
+    "numpy": "2.5.2",
+    "sleap-io": "0.9.2",
+    "sleap-nn": "0.3.3",
+    "torch": "2.13.0"
+  },
+  "video": {
+    "bytes": 726825865,
+    "mtime_ns": 1787926604281473318,
+    "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/clip_cam2_8k.mp4",
+    "shape": [
+      1820,
+      4320,
+      7680,
+      3
+    ]
+  }
+}

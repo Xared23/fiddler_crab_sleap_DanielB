@@ -1,0 +1,12 @@
+test_distance_summary_quantiles (test_burrow_location_stats.BurrowTests.test_distance_summary_quantiles) ... ok
+test_empty_singleton_and_invalid_points (test_burrow_location_stats.BurrowTests.test_empty_singleton_and_invalid_points) ... ok
+test_exact_duplicates_audited_not_zero_spacing (test_burrow_location_stats.BurrowTests.test_exact_duplicates_audited_not_zero_spacing) ... ok
+test_repeated_frames_are_independent_not_pooled (test_burrow_location_stats.BurrowTests.test_repeated_frames_are_independent_not_pooled) ... ok
+test_same_right_roi_for_counts_and_neighbor_candidates (test_burrow_location_stats.BurrowTests.test_same_right_roi_for_counts_and_neighbor_candidates) ... ok
+test_square_and_rotation_invariance (test_burrow_location_stats.BurrowTests.test_square_and_rotation_invariance) ... ok
+test_three_four_five_triangle_nearest_vs_all_pairs (test_burrow_location_stats.BurrowTests.test_three_four_five_triangle_nearest_vs_all_pairs) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.028s
+
+OK

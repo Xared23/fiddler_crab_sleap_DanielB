@@ -34,3 +34,8 @@ models/**/*.ckpt
 !/demo/crab_cam2_2_middle_2000/chunk_*/frames.parquet
 !/demo/crab_cam2_2_middle_2000/observations.parquet
 !/demo/crab_cam2_2_middle_2000/frames.parquet
+# Female/static-reference additions to the same bounded demo (no source runs).
+!/demo/crab_cam2_2_middle_2000/chunk_*/Crab_Cam_2_2.frames_*.burrows.slp
+!/demo/crab_cam2_2_middle_2000/burrows/BurrowLabels3.slp
+!/demo/crab_cam2_2_middle_2000/burrows.parquet
+!/demo/crab_cam2_2_middle_2000/female_tracklets.parquet

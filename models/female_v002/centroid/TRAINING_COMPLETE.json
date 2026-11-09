@@ -1,0 +1,16 @@
+{
+  "best_progress": {
+    "epoch": 69,
+    "global_step": 14000
+  },
+  "best_sha256": "03f6b94731d6221b212355337a8fa776110fdc4bcfc7c927bf87e63b09905943",
+  "continuation": "Only on a new explicit user request; all full-state checkpoint data preserved.",
+  "downstream_uses": "exact_epoch75_snapshot_NOT_canonical_validation_best",
+  "epoch": 75,
+  "global_step": 15000,
+  "manifest_sha256": "7a7eab924f71170f484068387e8ea6b5470949c5c43646ce1e003119770e7fe0",
+  "not_original_200_epoch_ceiling": true,
+  "reason": "user_requested_75_completed_epoch_stage",
+  "stage_checkpoint": "models/female_v002/centroid/stages/epoch_0075",
+  "stage_marker_sha256": "5514ac6a7fe241af7ecb8e58af4f0952fe57e836ea678e51e1904ce2f407c3d6"
+}

@@ -1,0 +1,140 @@
+{
+  "job_id": "16997084",
+  "sources": [
+    {
+      "bytes": 116135,
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/data/labels/Female_data/female_labels.v002.slp",
+      "predicted_instances": 0,
+      "sha256": "be918ab7afc8760e380744bc02dc2c35327730a0676ca8c6995118d7418d062c",
+      "skeletons": [
+        {
+          "edges": [],
+          "nodes": [
+            "FBody"
+          ]
+        }
+      ],
+      "stored_frames": 16,
+      "user_instances": 1369,
+      "user_labeled_frames": 16,
+      "videos": [
+        {
+          "backend_metadata": {
+            "bgr": true,
+            "dataset": "",
+            "filename": "/Users/krystianrzeczycki/LLP Proj/Daniel_videos/clip_cam2_8k.mp4",
+            "fps": 29.97002997002997,
+            "grayscale": false,
+            "input_format": "",
+            "shape": [
+              1820,
+              4320,
+              7680,
+              3
+            ],
+            "type": "MediaVideo"
+          },
+          "filename": "/Users/krystianrzeczycki/LLP Proj/Daniel_videos/clip_cam2_8k.mp4",
+          "index": 0,
+          "pose_height_quantiles_px": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_width_quantiles_px": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "source_video": null,
+          "user_frame_indices": [
+            1252,
+            1760,
+            350,
+            1600,
+            1046,
+            481,
+            1470,
+            967,
+            847,
+            797,
+            1001,
+            698,
+            713,
+            875,
+            892,
+            899
+          ],
+          "user_frames": 16,
+          "user_instances": 1369
+        }
+      ]
+    },
+    {
+      "bytes": 54570,
+      "path": "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/data/labels/burrows/BurrowLabels3.slp",
+      "predicted_instances": 0,
+      "sha256": "1c8aa0bbda851459f470e49c2d1cc73cda93b4eb06e5bae083f5a848ef7f7903",
+      "skeletons": [
+        {
+          "edges": [],
+          "nodes": [
+            "Burrow"
+          ]
+        }
+      ],
+      "stored_frames": 3,
+      "user_instances": 564,
+      "user_labeled_frames": 2,
+      "videos": [
+        {
+          "backend_metadata": {
+            "bgr": true,
+            "dataset": "",
+            "filename": "/Users/krystianrzeczycki/LLP Proj/Daniel_videos/clip_cam2_8k.mp4",
+            "fps": 29.97002997002997,
+            "grayscale": false,
+            "input_format": "",
+            "shape": [
+              1820,
+              4320,
+              7680,
+              3
+            ],
+            "type": "MediaVideo"
+          },
+          "filename": "/Users/krystianrzeczycki/LLP Proj/Daniel_videos/clip_cam2_8k.mp4",
+          "index": 0,
+          "pose_height_quantiles_px": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "pose_width_quantiles_px": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "source_video": null,
+          "user_frame_indices": [
+            563,
+            948
+          ],
+          "user_frames": 2,
+          "user_instances": 564
+        }
+      ]
+    }
+  ],
+  "versions": {
+    "lightning": "2.6.5",
+    "numpy": "2.5.2",
+    "sleap-io": "0.9.2",
+    "sleap-nn": "0.3.3",
+    "torch": "2.13.0"
+  }
+}

@@ -1,0 +1,46 @@
+schema_version: 1
+run_id: female_v002
+dataset:
+  source: data/labels/Female_data/female_labels.v002.slp
+  collaborator_sha256: be918ab7afc8760e380744bc02dc2c35327730a0676ca8c6995118d7418d062c
+  video: clip_cam2_8k.mp4
+  expected_user_frames: 16
+  expected_user_instances: 1369
+  nodes: [FBody]
+  anchor_part: FBody
+  validation_frames: 2
+  requested_validation_fraction: 0.1
+  validation_fraction: 0.125
+  split_seed: 42
+  source_policy: female_v002_only_original_unchanged
+  regional_handling: none
+training:
+  base_configs:
+    centroid: configs/v007_19f/centroid.yaml
+    centered: configs/v007_19f/centered.yaml
+  max_epochs: 200
+  early_stopping_patience: 40
+  seed: 42
+  max_hops: 400
+  max_no_progress_hops: 3
+  checkpoint_every_steps: 10
+  regional_handling: none
+prediction:
+  chunk_frames: 40
+  allocation_minutes: 20
+  hop_work_seconds: 840
+  max_hops: 1000
+  max_no_progress_hops: 3
+  peak_threshold: 0.2
+  batch_size: 1
+  max_instances: null
+  tracking: none_raw_FBody_detections
+  regional_handling: none
+validation:
+  matching_radii_px: [5, 10, 20, 50]
+  primary_matching_radius_px: 20
+  policy: one_to_one_maximum_cardinality_then_minimum_distance
+  independent_test_set: false
+videos:
+  Crab_Cam_2_2: crab_vids/Crab_Cam_2_2.mp4
+  Crab_Cam_2_3: crab_vids/Crab_Cam_2_3.mp4

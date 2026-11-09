@@ -1,0 +1,4 @@
+FEMALE_STAGE_SAVED completed_epochs=75 step=15025 path=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/checks/female_v002/stage75/tmp_17016724/tmpbrd1kb0a/models/female_v002/centroid/stages/epoch_0075
+FEMALE_STAGE_SAVED completed_epochs=75 step=15025 path=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/checks/female_v002/stage75/tmp_17016724/tmpnh2sjnoc/stages/epoch_0075
+FEMALE_STAGE_SAVED completed_epochs=75 step=150 path=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/checks/female_v002/stage75/tmp_17016724/tmpot1okskc/stages/epoch_0075
+FEMALE_STAGE_SAVED completed_epochs=75 step=15025 path=/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/checks/female_v002/stage75/tmp_17016724/tmphu9x74bs/stages/epoch_0075

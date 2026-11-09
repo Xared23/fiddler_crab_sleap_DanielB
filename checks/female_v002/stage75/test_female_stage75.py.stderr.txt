@@ -1,0 +1,42 @@
+test_downstream_selects_exact_epoch75_not_earlier_best (test_female_stage75.Stage75Tests.test_downstream_selects_exact_epoch75_not_earlier_best) ... ok
+test_exact75_full_state_and_baseline_best_is_untouched (test_female_stage75.Stage75Tests.test_exact75_full_state_and_baseline_best_is_untouched) ... ok
+test_extension_receipt_rejects_unrelated_drift (test_female_stage75.Stage75Tests.test_extension_receipt_rejects_unrelated_drift) ... ok
+test_failed_checkpoint_is_fatal_and_never_published (test_female_stage75.Stage75Tests.test_failed_checkpoint_is_fatal_and_never_published) ... ok
+test_real_lightning_exact_stop_full_resume_and_unchanged_optimization (test_female_stage75.Stage75Tests.test_real_lightning_exact_stop_full_resume_and_unchanged_optimization) ... /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/cuda/__init__.py:1112: UserWarning: Can't initialize NVML
+  raw_cnt = _raw_device_count_nvml()
+GPU available: False, used: False
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+SLURM auto-requeueing enabled. Setting signal handlers.
+/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/torch/cuda/__init__.py:1112: UserWarning: Can't initialize NVML
+  raw_cnt = _raw_device_count_nvml()
+/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/.venv/lib/python3.13/site-packages/lightning/pytorch/utilities/_pytree.py:21: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+Trainer was signaled to stop but the required `min_epochs=75` or `min_steps=None` has not been met. Training will continue...
+`Trainer.fit` stopped: `max_epochs=75` reached.
+GPU available: False, used: False
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+SLURM auto-requeueing enabled. Setting signal handlers.
+Trainer was signaled to stop but the required `min_epochs=75` or `min_steps=None` has not been met. Training will continue...
+`Trainer.fit` stopped: `max_epochs=75` reached.
+`weights_only` was not set, defaulting to `False`.
+GPU available: False, used: False
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+SLURM auto-requeueing enabled. Setting signal handlers.
+Trainer was signaled to stop but the required `min_epochs=76` or `min_steps=None` has not been met. Training will continue...
+`Trainer.fit` stopped: `max_epochs=76` reached.
+GPU available: False, used: False
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+Restoring states from the checkpoint path at /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/checks/female_v002/stage75/tmp_17016724/tmpot1okskc/stages/epoch_0075/best.ckpt
+Restored all states from the checkpoint at /scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/checks/female_v002/stage75/tmp_17016724/tmpot1okskc/stages/epoch_0075/best.ckpt
+SLURM auto-requeueing enabled. Setting signal handlers.
+`Trainer.fit` stopped: `max_epochs=76` reached.
+ok
+test_wrong_epoch_or_incomplete_checkpoint_refused (test_female_stage75.Stage75Tests.test_wrong_epoch_or_incomplete_checkpoint_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 43.749s
+
+OK

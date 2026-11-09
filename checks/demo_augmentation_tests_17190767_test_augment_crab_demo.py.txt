@@ -1,0 +1,28 @@
+test_absent_burrow_reference_fails (test_augment_crab_demo.AugmentationTests.test_absent_burrow_reference_fails) ... ok
+test_burrow_maps_are_not_merged_or_averaged (test_augment_crab_demo.AugmentationTests.test_burrow_maps_are_not_merged_or_averaged) ... ok
+test_display_union_has_no_invented_anatomy (test_augment_crab_demo.AugmentationTests.test_display_union_has_no_invented_anatomy) ... ok
+test_full_synthetic_augmentation_preserves_males_and_copies_burrows (test_augment_crab_demo.AugmentationTests.test_full_synthetic_augmentation_preserves_males_and_copies_burrows) ... FAIL
+test_invisible_coordinates_and_flags_preserved (test_augment_crab_demo.AugmentationTests.test_invisible_coordinates_and_flags_preserved) ... ok
+test_no_bridging_empty_frames (test_augment_crab_demo.AugmentationTests.test_no_bridging_empty_frames) ... ok
+test_parameters_are_not_tuned_on_demo (test_augment_crab_demo.AugmentationTests.test_parameters_are_not_tuned_on_demo) ... ok
+test_slice_empty_span (test_augment_crab_demo.AugmentationTests.test_slice_empty_span) ... ok
+test_slice_preserves_all_point_bytes_and_indices (test_augment_crab_demo.AugmentationTests.test_slice_preserves_all_point_bytes_and_indices) ... ok
+test_slice_refuses_overwrite (test_augment_crab_demo.AugmentationTests.test_slice_refuses_overwrite) ... ok
+test_stage_overwrite_refused (test_augment_crab_demo.AugmentationTests.test_stage_overwrite_refused) ... ok
+test_tracking_crosses_chunks_and_keeps_rejected_detections (test_augment_crab_demo.AugmentationTests.test_tracking_crosses_chunks_and_keeps_rejected_detections) ... ok
+
+======================================================================
+FAIL: test_full_synthetic_augmentation_preserves_males_and_copies_burrows (test_augment_crab_demo.AugmentationTests.test_full_synthetic_augmentation_preserves_males_and_copies_burrows)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/tests/test_augment_crab_demo.py", line 200, in test_full_synthetic_augmentation_preserves_males_and_copies_burrows
+    result = a.augment(stage, old, chunks, source, burrows, config(), [[0, 0], [10, 0], [10, 10], [0, 10]])
+  File "/scratch/gpfs/WBIALEK/db8682/fiddler_crab_sleap/scripts/augment_crab_demo.py", line 399, in augment
+    assert not Path(videos[0]['backend']['filename']).is_absolute()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+----------------------------------------------------------------------
+Ran 12 tests in 5.610s
+
+FAILED (failures=1)

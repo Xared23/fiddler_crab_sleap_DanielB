@@ -1,0 +1,19 @@
+{
+  "activation_job_id": "16998958",
+  "approval_sha256": "2dae2269cb476901991e35d905cf4d094747351d03c410f5ede741d9d1af74d1",
+  "baseline_manifest_sha256": "7a7eab924f71170f484068387e8ea6b5470949c5c43646ce1e003119770e7fe0",
+  "policy": {
+    "authorization": "User requested save and terminate after 75 centroid epochs, retain progress for possible future continuation, and validate/predict using that checkpoint.",
+    "centered_training_changed": false,
+    "completed_epochs": 75,
+    "continue_automatically": false,
+    "downstream_centroid_selection": "exact_completed_epoch_75_NOT_validation_best",
+    "minimum_epochs": 75,
+    "original_epoch_ceiling": 200,
+    "preserve_full_training_state": true,
+    "role": "centroid",
+    "run_id": "female_v002",
+    "schema_version": 1
+  },
+  "worker_sha256": "44e2902962b6dfa567c18509c6f2bc577023f70817dfe3b1b13b989e910955e1"
+}

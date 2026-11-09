@@ -1,8 +1,36 @@
 {
   "artifacts": {
+    "AUGMENTATION_COMPLETE.json": {
+      "bytes": 4712,
+      "sha256": "3abd2ff3b6938d033780a9f97890c8c014e4aa47ace920ee04f1c3ce026058b5"
+    },
     "README.md": {
-      "bytes": 5202,
-      "sha256": "7703fd8f8d9397a1aea50f9db9c83cbfd2e1427bb34ccbecf1902cff7f016f09"
+      "bytes": 9002,
+      "sha256": "a88198317c5f5a22fead7c70a4c0bb778ec0c61517b6eb0337b49411dcff02a4"
+    },
+    "burrows.parquet": {
+      "bytes": 11754,
+      "sha256": "b00e1b53b39568e092fe19466acc1fbea21b77fce4fecf68a58db6017777e4be"
+    },
+    "burrows/BurrowLabels3.slp": {
+      "bytes": 54570,
+      "sha256": "1c8aa0bbda851459f470e49c2d1cc73cda93b4eb06e5bae083f5a848ef7f7903"
+    },
+    "chunk_001/Crab_Cam_2_2.frames_013410_013619.burrows.slp": {
+      "bytes": 4475685,
+      "sha256": "861eab9184df2403f70e7cd20a7c4d05cd0b2beeb77119e2371904f134f5701f"
+    },
+    "chunk_001/Crab_Cam_2_2.frames_013410_013619.combined.tracked.slp": {
+      "bytes": 19145523,
+      "sha256": "bbd44b65b94cd06d0d4b58d18afd4cba83a70445d476d167d5d42e8d18dc9a33"
+    },
+    "chunk_001/Crab_Cam_2_2.frames_013410_013619.female.predictions.slp": {
+      "bytes": 164656,
+      "sha256": "8e65c55f54f17f2494ba3931bf4fdc2e363220d02e8c758bd971f8d89107e758"
+    },
+    "chunk_001/Crab_Cam_2_2.frames_013410_013619.female.tracked.slp": {
+      "bytes": 289194,
+      "sha256": "eb7a03fb8ac419c3ee5432e8c2048817bbbc5b1a8c4014d481baf0f76b000faa"
     },
     "chunk_001/Crab_Cam_2_2.frames_013410_013619.mp4": {
       "bytes": 85404898,
@@ -17,12 +45,28 @@
       "sha256": "367fa32a09b5cc34eb0bde85e525851656dd9292683c8958df30fc9f07281319"
     },
     "chunk_001/frames.parquet": {
-      "bytes": 8375,
-      "sha256": "9c85b5819a897cfa9ad1a68f1b88f480a796bf23be9c930c8d07abda6d81ca85"
+      "bytes": 11482,
+      "sha256": "4649db9ebbae05ef46f6544d345f43895e94aab4abcf2bce5f7ed07f008b82d3"
     },
     "chunk_001/observations.parquet": {
-      "bytes": 3052415,
-      "sha256": "7f852d49e76e2083da318a8e790fb28488b0745d5d99ec6dfb5d19a2f7db6975"
+      "bytes": 3984535,
+      "sha256": "fa1f5b1590bd5447420d58cf8573fc61b1999b0bdb1cc69f7029dff95dfe3000"
+    },
+    "chunk_002/Crab_Cam_2_2.frames_013620_013829.burrows.slp": {
+      "bytes": 4475685,
+      "sha256": "0e6b8a1ee41402369eb48e905446cda5570e4ac3f9487c246d60c58c094fb2c7"
+    },
+    "chunk_002/Crab_Cam_2_2.frames_013620_013829.combined.tracked.slp": {
+      "bytes": 19411234,
+      "sha256": "38959638f78076b4146247a9620b646b796d08d5d6989006e0ce6967e8fd3741"
+    },
+    "chunk_002/Crab_Cam_2_2.frames_013620_013829.female.predictions.slp": {
+      "bytes": 168555,
+      "sha256": "b2e1e266e28da875adc3b19a75afa05115e9a26f31799fd622235b6dda00678f"
+    },
+    "chunk_002/Crab_Cam_2_2.frames_013620_013829.female.tracked.slp": {
+      "bytes": 274321,
+      "sha256": "23de45c412026cf6450f755e5c08e3b2c4d65cbb24c3641686fb7bd66c48e036"
     },
     "chunk_002/Crab_Cam_2_2.frames_013620_013829.mp4": {
       "bytes": 84278355,
@@ -37,12 +81,28 @@
       "sha256": "ce8106dff8dddcce7d71243501fa69cf351547ca2b6a19afacc388a9fda2b441"
     },
     "chunk_002/frames.parquet": {
-      "bytes": 8877,
-      "sha256": "f77b009d11ac0324f29583240c426101a2a2f29f87f4ea320c5a06cdb9ee7754"
+      "bytes": 12029,
+      "sha256": "37f85faa1b8c3ad4d48fa98231c43a3ef762b0ace071501d420951af85953644"
     },
     "chunk_002/observations.parquet": {
-      "bytes": 3124946,
-      "sha256": "bcc19ef9b065a64798c8638a5d8a7b999aa1f2e8a59fe4f01ce5a94accb8e731"
+      "bytes": 4080932,
+      "sha256": "d95c2186cce4a1c5c929b8db37e0e1e1a820bafb6f0173108d9c852a6367b487"
+    },
+    "chunk_003/Crab_Cam_2_2.frames_013830_014039.burrows.slp": {
+      "bytes": 4475685,
+      "sha256": "c0c63b7b74d31476b0b2f386d86f13d4b945a54fb1592888a5c18b0bd13df17e"
+    },
+    "chunk_003/Crab_Cam_2_2.frames_013830_014039.combined.tracked.slp": {
+      "bytes": 19717764,
+      "sha256": "260ae9fc6bcad0a01bc1996b2a5c72705bf72eb1bc91945cfa8a2efa6226a414"
+    },
+    "chunk_003/Crab_Cam_2_2.frames_013830_014039.female.predictions.slp": {
+      "bytes": 174829,
+      "sha256": "8d278589875232cdfdea3293a8ccb48902f5d677756ba46436a14f9335760a91"
+    },
+    "chunk_003/Crab_Cam_2_2.frames_013830_014039.female.tracked.slp": {
+      "bytes": 266343,
+      "sha256": "390e8f620b865d3eaac59a003295e10ac625e1eaa8c742b27d68bd012ae77528"
     },
     "chunk_003/Crab_Cam_2_2.frames_013830_014039.mp4": {
       "bytes": 83782036,
@@ -57,12 +117,28 @@
       "sha256": "cfeea58b255c95530f19acbe757ad9919b1b98f4b87f3c00a1b9484150253da1"
     },
     "chunk_003/frames.parquet": {
-      "bytes": 8736,
-      "sha256": "a147c81ebceccc0d67ba96480f0d514084aae4587fd96b8cee2102c7f99f521c"
+      "bytes": 11777,
+      "sha256": "2116a5bcc807b852bb0319c29503db453ff59f014f937c921c859dd3cd43baa4"
     },
     "chunk_003/observations.parquet": {
-      "bytes": 3219779,
-      "sha256": "ae04915bdfe7274a2b8b5a755e6780674a5b5732a32b349045cec8368ac16d9f"
+      "bytes": 4252487,
+      "sha256": "77a0810dc641f55c042f0c0e98aee6ec1378b6cd79457be9b00cb9843d15f8f5"
+    },
+    "chunk_004/Crab_Cam_2_2.frames_014040_014249.burrows.slp": {
+      "bytes": 4475685,
+      "sha256": "da30d6953c407a6c4473ccb758adec70c450956eba40dc99a94c8888e0b72aae"
+    },
+    "chunk_004/Crab_Cam_2_2.frames_014040_014249.combined.tracked.slp": {
+      "bytes": 19611906,
+      "sha256": "4ae3529f2298143aadeb573b0a49f8d0142558b129979519f2263e410da472ea"
+    },
+    "chunk_004/Crab_Cam_2_2.frames_014040_014249.female.predictions.slp": {
+      "bytes": 167569,
+      "sha256": "d2bd8cd3132961dee8b573368b6d8cb72e58934597409a7708293de243d414e3"
+    },
+    "chunk_004/Crab_Cam_2_2.frames_014040_014249.female.tracked.slp": {
+      "bytes": 254234,
+      "sha256": "aa4c9e797ec399a0ed96975f852c1c6d5d6d4760db83286c58dc6ad35e606e4f"
     },
     "chunk_004/Crab_Cam_2_2.frames_014040_014249.mp4": {
       "bytes": 82297725,
@@ -77,12 +153,28 @@
       "sha256": "2a7d7d2e6ce7c22cd213762255bbc96d2db2bf524d947e788a6adb3b8c18b4ac"
     },
     "chunk_004/frames.parquet": {
-      "bytes": 8743,
-      "sha256": "0be6c43313ecfefde3bc87b31465cd705ad96ee147d28bc2c3e0773d6a47ea30"
+      "bytes": 11818,
+      "sha256": "a644f578239ea095eff8c4e394e9a764c8f0c8e7576d0f51d8f52a804749076e"
     },
     "chunk_004/observations.parquet": {
-      "bytes": 3245109,
-      "sha256": "6b9e1241a00f35e445f32b5d8d4423a7eaf1cb5af118a79b41bde42bf9240300"
+      "bytes": 4202165,
+      "sha256": "3fb3a0448c0ca882425cee6c998b8cd3e9ad27cfcf61f4007db5fa6ee22c9cbf"
+    },
+    "chunk_005/Crab_Cam_2_2.frames_014250_014459.burrows.slp": {
+      "bytes": 4475685,
+      "sha256": "491c1dab1d7bdbaa9716f98e292c40c6b0d9e2f1dae0e4ec2808d1a1c257ca9e"
+    },
+    "chunk_005/Crab_Cam_2_2.frames_014250_014459.combined.tracked.slp": {
+      "bytes": 20082233,
+      "sha256": "945f90495ce82fc169dde25fa1d7d90ebdd429e71a3d4d66850a6f731b5aad22"
+    },
+    "chunk_005/Crab_Cam_2_2.frames_014250_014459.female.predictions.slp": {
+      "bytes": 189322,
+      "sha256": "c7e36dce775b999f64bbb26dc47e08cfd1e9a3d495e27e0c67617d0408b20ad4"
+    },
+    "chunk_005/Crab_Cam_2_2.frames_014250_014459.female.tracked.slp": {
+      "bytes": 284882,
+      "sha256": "6ee5a63f9b2ae9d0b266b86209e51db37272b45fcb8d1232d4ad07a4f787f66c"
     },
     "chunk_005/Crab_Cam_2_2.frames_014250_014459.mp4": {
       "bytes": 83558196,
@@ -97,12 +189,28 @@
       "sha256": "897001a4485ca88036f794b74f918e7eea0728d89f83b5e31cb8fb5aa9e99d0d"
     },
     "chunk_005/frames.parquet": {
-      "bytes": 8736,
-      "sha256": "0b99f68bb9992ed1f6f823c4215e316fb88645600977bf2b9c5f3ad1b09890c3"
+      "bytes": 11760,
+      "sha256": "c307948deb803399f0cddf95c075a912ec77507afc09fbb9985db494e9fba802"
     },
     "chunk_005/observations.parquet": {
-      "bytes": 3294715,
-      "sha256": "44bcfa384be7e2ed16c5da0c9cace65e99359f812820144a488edea74c00a6b7"
+      "bytes": 4363573,
+      "sha256": "4cf013bfe3c198127b346b0dad2241f1c6e633b50db0d23f2efb3ea26d7358da"
+    },
+    "chunk_006/Crab_Cam_2_2.frames_014460_014669.burrows.slp": {
+      "bytes": 4475685,
+      "sha256": "ae405ffd864c87fe4a05b0c1ab93ba0c187c3e9790519ef9401446008e623cc4"
+    },
+    "chunk_006/Crab_Cam_2_2.frames_014460_014669.combined.tracked.slp": {
+      "bytes": 19761841,
+      "sha256": "830ff13c047e8185fb63848126baddb301019614fd2f19635a844722f6b60b51"
+    },
+    "chunk_006/Crab_Cam_2_2.frames_014460_014669.female.predictions.slp": {
+      "bytes": 167327,
+      "sha256": "23283917a69dbf26a3e3109e3717ed70f8b90338c38d291bf0556f17db60dfe1"
+    },
+    "chunk_006/Crab_Cam_2_2.frames_014460_014669.female.tracked.slp": {
+      "bytes": 253885,
+      "sha256": "3ce2edcceaad3e048354b1950c659c9eff11e55096b2be7b231d6691ebaead49"
     },
     "chunk_006/Crab_Cam_2_2.frames_014460_014669.mp4": {
       "bytes": 82781329,
@@ -117,12 +225,28 @@
       "sha256": "9ab93c31e687e1f73fe97c8803ce5686346878857e22782eb9f3feee646cb715"
     },
     "chunk_006/frames.parquet": {
-      "bytes": 8729,
-      "sha256": "f3b408cf628465d3e1a27f44388bdedb2b94f7f13056101b14a43a71fba2592b"
+      "bytes": 11827,
+      "sha256": "add43e629870f3b4745906dfac7506f4fd51a30229c22bd1fca389ccb4c9396e"
     },
     "chunk_006/observations.parquet": {
-      "bytes": 3325538,
-      "sha256": "ab326200c79f3eb1cf93cba822b41a1d10ee442b80ae2799902415ccdc4a1f7a"
+      "bytes": 4282741,
+      "sha256": "7c6b2d1898a6d1bac1c24a60dfc0b9eb21966182dec9592f275110e75aa4403f"
+    },
+    "chunk_007/Crab_Cam_2_2.frames_014670_014879.burrows.slp": {
+      "bytes": 4475685,
+      "sha256": "7658b7d12c88068da145e70dbd172e2f42c0d39da89a115cdc604c593528fe9f"
+    },
+    "chunk_007/Crab_Cam_2_2.frames_014670_014879.combined.tracked.slp": {
+      "bytes": 19339006,
+      "sha256": "632535ba2f1b8a945522b57c4bc53143276c9f888c4fc7cd26137808890c0855"
+    },
+    "chunk_007/Crab_Cam_2_2.frames_014670_014879.female.predictions.slp": {
+      "bytes": 145874,
+      "sha256": "07ed0d378a5f86c32657a86a6ec470dcbdfc3f5c1598e7a905c4a9d102e31f04"
+    },
+    "chunk_007/Crab_Cam_2_2.frames_014670_014879.female.tracked.slp": {
+      "bytes": 231653,
+      "sha256": "ea4993aa25309cade4b44068e18354d66b8d2a557d6fcdba87d065d9b16a4f5b"
     },
     "chunk_007/Crab_Cam_2_2.frames_014670_014879.mp4": {
       "bytes": 83101065,
@@ -137,12 +261,28 @@
       "sha256": "b5eaded51190c81c18411219d5a20d5aad89b21e09aeded6c0459cf529913696"
     },
     "chunk_007/frames.parquet": {
-      "bytes": 8746,
-      "sha256": "795bd361d1f532c447958c0a48cba47fa22ab377829515fcc5273bd0fc8cfd6d"
+      "bytes": 11846,
+      "sha256": "e3b41a4f1e10b4399c155597fa7000da9617775d6eaec6e206aff912bb5fa564"
     },
     "chunk_007/observations.parquet": {
-      "bytes": 3291130,
-      "sha256": "7b0413c6789013061287fc5c4358114f4bb5086611a1c7c57abf7eb09fcdef6e"
+      "bytes": 4164487,
+      "sha256": "790daef98b07a90cf8f3caa931437e949de153fc4a8238966d206bb2b8cd2af6"
+    },
+    "chunk_008/Crab_Cam_2_2.frames_014880_015089.burrows.slp": {
+      "bytes": 4475685,
+      "sha256": "1b12f399f9acbbf5476ffea7a0cfcf6c63564dca963f5459319d758d4161a062"
+    },
+    "chunk_008/Crab_Cam_2_2.frames_014880_015089.combined.tracked.slp": {
+      "bytes": 19742702,
+      "sha256": "028600bf25373781c16d840ed2f8d40d7da06c5141c37e7bb5afc64df86c5847"
+    },
+    "chunk_008/Crab_Cam_2_2.frames_014880_015089.female.predictions.slp": {
+      "bytes": 166111,
+      "sha256": "d9f848875e2b685ddd0bac6ea36d4dfc5636f9c398622627c89e001042cd7de0"
+    },
+    "chunk_008/Crab_Cam_2_2.frames_014880_015089.female.tracked.slp": {
+      "bytes": 252539,
+      "sha256": "f0ed046ffa8db95daec6983daacea0bbbfb7e1e00a6e9144f114e157400c873d"
     },
     "chunk_008/Crab_Cam_2_2.frames_014880_015089.mp4": {
       "bytes": 83024381,
@@ -157,12 +297,28 @@
       "sha256": "745353c30bcb938a79149f0c39d5ba190239fd08b043658948c29e7f80defbfd"
     },
     "chunk_008/frames.parquet": {
-      "bytes": 8721,
-      "sha256": "a53cc475b6de79bf1c5c24f6d9f86e6150cc2c4eee5491ff183f43360a18b9a0"
+      "bytes": 11764,
+      "sha256": "23bfe82bd8a0903fe1af1a76d277b08aa9f9e8a54b8faf6a0a285574fb564e0d"
     },
     "chunk_008/observations.parquet": {
-      "bytes": 3346638,
-      "sha256": "b565b6d9dfeed8a288f2fb326be10ac8f6ea82e8cf77c6efd14b1919b4b83df9"
+      "bytes": 4297351,
+      "sha256": "04764cc570c22a7781cbd75352c6d0f31cb781d77d991b889580b7d4d575f50d"
+    },
+    "chunk_009/Crab_Cam_2_2.frames_015090_015299.burrows.slp": {
+      "bytes": 4475685,
+      "sha256": "2b4f102dac33864c70d36a336befed98a736bf8d152d4a6b4da49fc14e8983b4"
+    },
+    "chunk_009/Crab_Cam_2_2.frames_015090_015299.combined.tracked.slp": {
+      "bytes": 20487074,
+      "sha256": "6bc178ef394d3c5464ad22edc9522fe4a343be1370a08682424ddb182663f115"
+    },
+    "chunk_009/Crab_Cam_2_2.frames_015090_015299.female.predictions.slp": {
+      "bytes": 180757,
+      "sha256": "0e17f6a45d703b83b2087c754a01ec00ebac3719e24c799e93e8f1c2a864ef23"
+    },
+    "chunk_009/Crab_Cam_2_2.frames_015090_015299.female.tracked.slp": {
+      "bytes": 277582,
+      "sha256": "661761ce31e8f341166e24e3511a02566baa9b8d73c02daa5a9632d785ce1fd6"
     },
     "chunk_009/Crab_Cam_2_2.frames_015090_015299.mp4": {
       "bytes": 82714407,
@@ -177,12 +333,28 @@
       "sha256": "84ed1cfe1ad94623e37c70c3de60373d8a61c3121d888bd75a912db99a40bc83"
     },
     "chunk_009/frames.parquet": {
-      "bytes": 8754,
-      "sha256": "4fd34276977bf954f0b2f782125b8b1f82896bcd3dcc02f14a64bf92cfb53fea"
+      "bytes": 11878,
+      "sha256": "f1f57bea1a57f6decad4955664ada2653bb3a89c65587ba880b36369735921c7"
     },
     "chunk_009/observations.parquet": {
-      "bytes": 3565871,
-      "sha256": "02fc332bd62b4c8638395e5e9d443c58c70decf21bfdb9e9b8afe1d4d4d43cd9"
+      "bytes": 4619707,
+      "sha256": "d5b00c87fdd8749f93e0b8e2eb7c25a70f0c1aea459e97ea1846fde3fc2c5fb6"
+    },
+    "chunk_010/Crab_Cam_2_2.frames_015300_015409.burrows.slp": {
+      "bytes": 2357085,
+      "sha256": "af1f530778cf50a971693b7f0d514352937941c7eb26f5dc41e25573f0678725"
+    },
+    "chunk_010/Crab_Cam_2_2.frames_015300_015409.combined.tracked.slp": {
+      "bytes": 11130948,
+      "sha256": "6133682f62c31af207ccfec4883ed4ca6abe8bd109176a2146e59aceb359e8cf"
+    },
+    "chunk_010/Crab_Cam_2_2.frames_015300_015409.female.predictions.slp": {
+      "bytes": 113618,
+      "sha256": "127913355688369e044055953c4d87e64b6c71b4044022686cf95fa586d848c2"
+    },
+    "chunk_010/Crab_Cam_2_2.frames_015300_015409.female.tracked.slp": {
+      "bytes": 194147,
+      "sha256": "9f3e85e6e7e4f781ae12ebd82389ebae5c307c3b7dbc6d6b3fd98af6ebb271a4"
     },
     "chunk_010/Crab_Cam_2_2.frames_015300_015409.mp4": {
       "bytes": 44009518,
@@ -197,94 +369,144 @@
       "sha256": "e0e0ef0006da7aa64abe64f7184d9a37583a3c2044a7fcf6bf07f73b73771313"
     },
     "chunk_010/frames.parquet": {
-      "bytes": 6297,
-      "sha256": "99a9e2992fb996f83173c1c3a805b169219211e74a824ecd35676eb8a5b3d58e"
+      "bytes": 9088,
+      "sha256": "1e9b1a1c5586aeaef9ddc5307cc841355e20aa39f8217287cd8f663119f1dcc7"
     },
     "chunk_010/observations.parquet": {
-      "bytes": 1949562,
-      "sha256": "fa16748f1c69ae1b696849c7db069e16548d1bd101d895c75730c0c11869806a"
+      "bytes": 2539350,
+      "sha256": "835f0f4462bdc49d2673a80ffac2e5372412d3edd6d57e8fa6976dbb3b98b2cd"
     },
     "chunks.json": {
-      "bytes": 12913,
-      "sha256": "0df47214642b4dcbdbee4850afe94f2847e011653a94bf6b7be93ad227772611"
+      "bytes": 18089,
+      "sha256": "d295d5afecc8f8249dced36092e293e6d773d7dc37cc71a362b6fd45f679baa2"
+    },
+    "female_tracklets.parquet": {
+      "bytes": 87186,
+      "sha256": "eb2975c3f4c438a3d4ae128ce87c4fbf35efdc98e68d577271a228edf127fdea"
     },
     "frame_map.csv": {
       "bytes": 419899,
       "sha256": "00466b8248ff4299fcbe82c3599666317e7b6fcccf60e6100a6247b21a1c031e"
     },
     "frames.parquet": {
-      "bytes": 32075,
-      "sha256": "5a0d4442c4bfa31a9cb00e42549301bea9fa93a0805a1b7b1faedbb00514d6b8"
+      "bytes": 40639,
+      "sha256": "61d790585960a1e738cba31cc0664bf4260d8b8a1fe66ea86cce837ba49474ee"
     },
     "observations.parquet": {
-      "bytes": 26938624,
-      "sha256": "9931ac02a84095d0b45c9440f38fa7296eda0cb9890c5155b6ef93d86b1d7c63"
+      "bytes": 33648215,
+      "sha256": "123ef55519a03a80614cc68f5120d0ba304be679fb1a7d3e4c01457b2cf09d72"
+    },
+    "provenance/MALE_DEMO_COMPLETE.json": {
+      "bytes": 12606,
+      "sha256": "54bdb9f59c7d76a470bb14de3a3d963ed507475881eeef396be81bcf5199869f"
+    },
+    "provenance/MALE_README.md": {
+      "bytes": 5202,
+      "sha256": "7703fd8f8d9397a1aea50f9db9c83cbfd2e1427bb34ccbecf1902cff7f016f09"
+    },
+    "provenance/MALE_chunks.json": {
+      "bytes": 12913,
+      "sha256": "0df47214642b4dcbdbee4850afe94f2847e011653a94bf6b7be93ad227772611"
     }
   },
+  "burrow_reference_frame": 563,
   "chunk_count": 10,
   "code_sha256": {
-    "docs/demo/README_2000.template.md": "a49fcead9376dae8dfc0de78bf68f3b94bf5de11d90be4ae628ee16f5fbc1cc7",
-    "jobs/replace_crab_demo_2000.sh": "8b6e4a8e88b97781b37fcd473ed5c93489b9b931ed3d0232405edcd574f32167",
-    "scripts/chunk_crab_demo.py": "ef9c5849965d27b3cf274fbfc0a927af90226ba1420f4a3bf328059bbd6af5a1",
-    "scripts/prepare_crab_demo.py": "7e5e660353f919b923568eee2538c0208638e4ca45a8ac650272e567b4387228",
-    "scripts/replace_crab_demo_2000.py": "8ada103a5aa92b698dcb0c15de2dfef624141c8769de5f4cad33d4f631c62241",
-    "tests/test_crab_demo.py": "ca46b87a7ae50295fdc1ef5f6de2a125040ea5fe16fba99a7552a69ec74b25c0",
-    "tests/test_crab_demo_chunks.py": "7897f2d8af1e9d76be1f4838dab491a85067a524a727dbe09e58be890cb40790"
+    "docs/demo/README_combined.template.md": "a88198317c5f5a22fead7c70a4c0bb778ec0c61517b6eb0337b49411dcff02a4",
+    "jobs/augment_crab_demo.sh": "9895493fa6e5041148ecaffa140a182fafcabb36df4eefbbfc8b6e58f5926cd9",
+    "scripts/augment_crab_demo.py": "71124d6ea89f89619bc543fef10720fe071baf36b055e5376e45e040f9146966",
+    "tests/test_augment_crab_demo.py": "8a2a57b327869c6946d1be6dc1a154717e4b0ac06992dc3483c1fd95f3ac26ef"
   },
+  "female_assigned_observations": 107311,
+  "female_links_across_chunk_boundaries": 434,
+  "female_observations": 107311,
+  "female_tracking_parameters": {
+    "algorithm_version": "body_first_v001",
+    "body_node": "FBody",
+    "body_score_min": 0.5,
+    "body_shoulder_length_max_px": 65.0,
+    "body_shoulder_length_min_px": 10.0,
+    "competitors_include_rejected_bodies": true,
+    "dataset_id": "female_demo_body_first_v001",
+    "duplicate_shell_radius_px": 5.0,
+    "limb_nodes_used_for_association": false,
+    "max_assignment_cost": 12.0,
+    "max_body_displacement_px": 12.0,
+    "max_prediction_error_px": 18.0,
+    "max_velocity_px_per_frame": 6.0,
+    "minimum_alternative_margin": 2.0,
+    "motion_weight": 0.3,
+    "no_gap_bridging": true,
+    "no_reidentification": true,
+    "require_shoulder_for_links": false,
+    "shoulder_node": null,
+    "shoulder_score_min": 0.2,
+    "shoulder_vector_cost_cap_px": 12.0,
+    "shoulder_vector_weight": 0.0,
+    "unmatched_cost": 7.0,
+    "velocity_update_weight": 0.5,
+    "water_used_for_association": false
+  },
+  "female_tracklets": 7834,
   "fps_denominator": 1001,
   "fps_numerator": 30000,
   "frames": 2000,
   "height": 4320,
-  "job_id": "16796736",
+  "job_id": "17190860",
   "limitations": [
-    "Original video full hash inherited; current size/mtime checked. Selected encoded packets and decoded pixels verified.",
-    "Experimental track IDs are not validated unique-animal identities.",
-    "Local bundle completion is not proof of a GitHub push."
+    "Model class is not independently verified biological sex; no cross-model deduplication or identity matching.",
+    "Female IDs are demo-only experimental body-first tracklets, not validated animals or original full-video IDs.",
+    "Burrow map uses frame 563, not a union/average with frame 948. Constant positions and transfer from clip_cam2_8k are assumed, not independently registered.",
+    "Combined seven-node skeleton is display-only, never training data. Non-applicable landmarks remain missing.",
+    "Desktop SLEAP GUI not exercised; SLP data readback and relocated video loading tested.",
+    "Local demo update only; no Git commit or GitHub push requested or performed."
   ],
-  "observations": 243588,
-  "source_dataset_manifest_sha256": "9dcec268c1de2d366cb57dc101a245c4ec009baa8588f4897bcc1fe121359756",
+  "male_observations": 243588,
+  "male_original_receipt": "provenance/MALE_DEMO_COMPLETE.json",
+  "observations": 350899,
+  "previous_demo_archive": "archive/demo/crab_cam2_2_middle_2000_male_only_17190860",
+  "repeated_static_burrow_gui_instances": 564000,
   "source_frame_start": 13410,
   "source_frame_stop_exclusive": 15410,
   "source_inputs": {
-    "crab_vids/Crab_Cam_2_2.mp4": {
-      "bytes": 11451768931,
-      "mtime_ns": 1785036716000000000,
-      "path": "crab_vids/Crab_Cam_2_2.mp4",
-      "rehashed_now": false,
-      "sha256": "e8a3388f8957c0f22cd97ade47472137d19f81df5f4b2b141d18938b9bb6fd31"
-    },
-    "predictions/v007_best_body_first_v001/Crab_Cam_2_2/raw/Crab_Cam_2_2.predictions.slp": {
-      "bytes": 691906984,
-      "mtime_ns": 1791974244943200081,
-      "path": "predictions/v007_best_body_first_v001/Crab_Cam_2_2/raw/Crab_Cam_2_2.predictions.slp",
-      "rehashed_now": true,
-      "sha256": "8a71b7feee1a4f7fa7470e8bde15ae0db1137096530c0425dc1620e57a3e3e1f"
-    },
-    "predictions/v007_best_body_first_v001/Crab_Cam_2_2/tracklets/Crab_Cam_2_2.tracked.slp": {
-      "bytes": 702139208,
-      "mtime_ns": 1791974660270158802,
-      "path": "predictions/v007_best_body_first_v001/Crab_Cam_2_2/tracklets/Crab_Cam_2_2.tracked.slp",
-      "rehashed_now": true,
-      "sha256": "e58c6f1e884fd4e5cbc8af9f53684888398efe5fad586b4a2fcfd1f23c882d92"
-    }
+    "configs/tracking/body_first_v001.yaml": "ceac2f7f59d387cca49178b466f7200d8def8cd3827863460c180127cbb342d0",
+    "data/labels/burrows/BurrowLabels3.slp": "1c8aa0bbda851459f470e49c2d1cc73cda93b4eb06e5bae083f5a848ef7f7903",
+    "datasets/v007_best_body_first_dataframe_v001/config/water_regions.json": "0bd75bb46fc4abdcbb066743e9e37c857fd28b7d763be8083d30cf1b5b2e3f87",
+    "predictions/female_v002/Crab_Cam_2_2/PREDICT_COMPLETE.json": "0b2c436d836b8b0204b50d302f056ff3283dd83c8378736bf0395f0fd839e06d",
+    "predictions/female_v002/Crab_Cam_2_2/raw/Crab_Cam_2_2.female.predictions.slp": "72b7184ea6a836efb005963e94c397eadd9e5a87a05415c1da5e0af32cdb3981",
+    "predictions/female_v002/Crab_Cam_2_2/raw/RAW_COMPLETE.json": "4935612999f4d739918f722a6d51426c13dcb0851160782031c9c619f841913b"
   },
-  "source_table_sha256": {
-    "datasets/v007_best_body_first_dataframe_v001/tables/frames.parquet": "f699c9e1ecd5e7640b01fa3efeeb86e1e44dbc1a2f1c79ff8ea4ec39b2ff503c",
-    "datasets/v007_best_body_first_dataframe_v001/tables/observations/Crab_Cam_2_2/part-00017.parquet": "a46cb4e5feb9635cb2410cc24ded0621a0ddc59328481ab72eb32ad245f946aa",
-    "datasets/v007_best_body_first_dataframe_v001/tables/observations/Crab_Cam_2_2/part-00018.parquet": "77164091acdaecbd18f269cb019dc3d80cd506b91dbe5ff7ee45525ab362737d",
-    "datasets/v007_best_body_first_dataframe_v001/tables/observations/Crab_Cam_2_2/part-00019.parquet": "1c587f8553e5cd0b43a94930c1204567c9a021fc65c5e130e4932970c45cec29"
-  },
+  "static_burrows": 282,
   "status": "validated_complete",
+  "tests": {
+    "analysis_source_sha256": "71124d6ea89f89619bc543fef10720fe071baf36b055e5376e45e040f9146966",
+    "job_id": "17190860",
+    "passed": true,
+    "results": [
+      {
+        "exit_code": 0,
+        "pattern": "test_augment_crab_demo.py"
+      },
+      {
+        "exit_code": 0,
+        "pattern": "test_body_first_tracklets.py"
+      }
+    ],
+    "test_source_sha256": "8a2a57b327869c6946d1be6dc1a154717e4b0ac06992dc3483c1fd95f3ac26ef"
+  },
   "validation": {
-    "all_2000_decoded_frames_pixel_identical": true,
-    "all_chunks_below_100_MiB": true,
-    "all_encoded_packets_identical": true,
-    "all_pose_score_bytes_unchanged": true,
-    "dataframe_source_columns_identical": true,
-    "inference_or_tracking_rerun": false,
-    "no_missing_or_duplicate_frames": true,
-    "no_video_reencoding": true,
-    "portable_slp_video_loading": true
+    "all_combined_instance_values_read_back": true,
+    "all_original_male_pose_score_flag_and_id_values_preserved": true,
+    "desktop_gui_tested": false,
+    "female_ids_unique_per_frame": true,
+    "female_no_gaps_or_interpolation": true,
+    "female_raw_and_tracked_point_bytes_identical": true,
+    "frame_map_unchanged": true,
+    "no_inference_or_video_reencoding": true,
+    "non_applicable_landmarks_nan_invisible": true,
+    "original_male_slp_and_video_files_byte_identical": true,
+    "portable_basename_video_links": true,
+    "source_burrows_copied_not_moved": true
   },
   "width": 7680
 }

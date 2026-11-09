@@ -1,0 +1,12 @@
+{
+  "analysis_source_sha256": "b4d90e5960e6825e6fe54b5c73845fe9022f8f3cd5d05a385dd77251b12ef56e",
+  "job_id": "17190767",
+  "passed": false,
+  "results": [
+    {
+      "exit_code": 1,
+      "pattern": "test_augment_crab_demo.py"
+    }
+  ],
+  "test_source_sha256": "8a2a57b327869c6946d1be6dc1a154717e4b0ac06992dc3483c1fd95f3ac26ef"
+}

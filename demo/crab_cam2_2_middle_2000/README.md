@@ -1,70 +1,78 @@
-# Male fiddler-crab demo: 2,000 consecutive frames, lossless video chunks
+# Fiddler-crab demo: males, females, and fixed burrows in 2,000 frames
 
-This bundle contains **Crab_Cam_2_2 original frames 13410–15409 inclusive**
-(zero-based), about **66.733 seconds at 30000/1001 fps**, in **10 numbered
-chunks**. It replaces the former 300-frame demo. The first frame is a source
-keyframe nearest the middle-excerpt start, so every chunk is independently
-playable without re-encoding.
+This bundle covers **Crab_Cam_2_2 original frames 13410–15409 inclusive**
+(zero-based), in the **same 10 lossless video chunks** as the original male demo.
+Exactly 2,000 consecutive frames, native 7680×4320, 30000/1001 fps. Existing
+videos and male-only SLPs are byte-identical: no video re-encoding, resizing,
+smoothing, new neural inference, or male retracking.
 
-**The video is copied, not re-encoded.** Original HEVC/H.265 compressed packets,
-native 7680×4320 resolution, color metadata and decoded pixel values are retained.
-There is no added compression, resize, crop, interpolation, smoothing, inference
-or tracking. Each payload is below GitHub's ordinary 100-MiB limit; no Git LFS or
-full-video/model download is needed. Playback needs HEVC support.
+## See all three layers together in SLEAP
 
-## Layout
+Open this file for the first chunk:
 
-Each `chunk_001/`, `chunk_002/`, … contains:
+**`chunk_001/Crab_Cam_2_2.frames_013410_013619.combined.tracked.slp`**
 
-- `Crab_Cam_2_2.frames_<first>_<last>.mp4`: the original encoded video packets for
-  that interval, in a new MP4 container.
-- Same basename with `.predictions.slp`: every original v007 pose, without IDs.
-- Same basename with `.tracked.slp`: identical poses and existing experimental IDs.
-- `observations.parquet` and `frames.parquet`: matching dataframe rows.
+Each subsequent chunk has its own matching **`.combined.tracked.slp`**. These
+contain every existing male prediction/ID, every female prediction (including
+unassigned detections), and all **282 fixed burrow markers on every frame**.
+Keep the MP4 and SLP together. If asked to relink, choose the same chunk's MP4,
+not the full movie or another chunk. Playback requires HEVC/H.265 support.
+Enable both predictions and user instances in the GUI; burrows are stored as
+static-reference user-type instances, while crabs retain predicted-instance type.
+Turn on node labels or node-based coloring to distinguish `FBody` and `Burrow`
+from male `Shell`/limb nodes. Track coloring alone is not sex coloring.
 
-Bundle-level files:
+For compatibility with single-skeleton GUI workflows, the combined file has a
+**display-only seven-node union skeleton**: `Shell`, `Shoulder`, `Elbow`, `Claw`,
+`Arm`, `FBody`, `Burrow`. It retains only the original male edges. Each instance
+has coordinates only for its own original landmarks; every non-applicable node
+is **NaN and invisible**. No female claws/shoulders or cross-entity edges are
+invented. **Do not use these combined display files for model training or treat
+the propagated burrows as independent manual labels on 2,000 frames.** Native
+male, female, and burrow skeletons are retained in separate files.
 
-- `chunks.json`: chunk order, exact original/global frame ranges, paths and counts.
-- `observations.parquet`: all selected observations, including their chunk IDs.
-- `frames.parquet`: all 2,000 frame-summary rows in order.
-- `frame_map.csv`: exact original/global/chunk-local frame mapping and decoded
-  pixel/source packet hashes for every frame.
-- `DEMO_COMPLETE.json`: source provenance, artifact hashes and validation receipt.
+SLP data readback and portable video loading were validated on Della, including
+all saved instance coordinates/scores/visibility/IDs. **A desktop GUI session has
+not been tested**; exact GUI behavior still depends on your SLEAP/video backend.
 
-There are **exactly 2,000 frames total**, with no gaps or duplicates across chunks.
-Chunk lengths can differ because cuts use keyframes and actual encoded sizes.
+## Files
 
-## Indices and unchanged research data
+Each `chunk_001/` through `chunk_010/` contains the same original MP4 plus:
 
-- Each MP4 and its two SLPs use **chunk-local** frame numbers starting at zero.
-- `chunk_frame` indexes the chunk's movie and SLPs.
-- `demo_frame` runs from 0 to 1999 across the whole selection.
-- Original `frame`, `time_s`, coordinates, scores, detection/tracklet IDs,
-  nullable values, acceptance flags and provenance columns are unchanged.
-- `chunk_instance_row` indexes the instance row in that chunk's SLP.
-  `demo_instance_row` indexes the combined selected observation table.
-  Original `source_instance_row` / `raw_instance_id` still refer to the full source.
-- `original frame = demo_frame + 13410`. See `chunks.json` for each chunk's start.
-- All detections are retained, including water-region and unassigned poses.
-- Full-video track names are unchanged, including across chunk boundaries;
-  only internal per-SLP track-catalog indices are compacted.
-- IDs are experimental, not validated unique animals. Chunk/selection boundaries
-  do not indicate track birth/death. No new tracking is performed here.
-- Coordinates are original image pixels, x right/y down. `centroid_source` is
-  `shell_proxy`; `water` is fixed-ROI analysis metadata, not segmentation.
+| SLP suffix | Contents |
+|---|---|
+| `.predictions.slp` | Original male raw poses, unchanged |
+| `.tracked.slp` | Original male poses/experimental full-video IDs, unchanged |
+| `.female.predictions.slp` | Matching female `FBody` detections, no IDs |
+| `.female.tracked.slp` | Same female detections, demo-only experimental tracklets |
+| `.burrows.slp` | Fixed `Burrow` positions repeated at each chunk-local frame |
+| **`.combined.tracked.slp`** | **Males + females + fixed burrows together** |
 
-Sources: frozen-best `v007_best_body_first_v001` predictions and the published
-`v007_best_body_first_dataframe_v001` dataframe. These are not the later
-threshold/grace experiments or archived v004 outputs. Full-source paths in the
-dataframe are provenance, not files included in this bundle.
+The chunk's `observations.parquet` now contains **male and female predictions**;
+`frames.parquet` contains their frame summaries. Root files:
 
-## Open a chunk locally
+- `observations.parquet`: all male/female observations across the 2,000 frames.
+- `frames.parquet`: exactly 2,000 frame records, with explicit male/female/total
+  crab counts and a static-burrow count.
+- `burrows.parquet`: one row per fixed burrow (282 rows), with its reference
+  frame/coordinates/provenance and applicable original-frame interval. This is
+  intentionally a separate static table, **not 564,000 independent detections**.
+- `female_tracklets.parquet`: demo-only female track starts, ends and lengths.
+- **`burrows/BurrowLabels3.slp`**: byte-identical **copy**, not a move, of the
+  uploaded labels, retaining both annotated frames (563 and 948) and the empty
+  frame record. It retains its original video reference; use chunk `.burrows.slp`
+  or `.combined.tracked.slp` to inspect positions over demo movies.
+- `chunks.json`: original exact chunk/frame mapping, plus the new SLP paths.
+- `frame_map.csv`: unchanged original/global/chunk-local mapping and video hashes.
+- `DEMO_COMPLETE.json`, `AUGMENTATION_COMPLETE.json`: current validation receipts.
+- `provenance/MALE_*`: historical male-only manifest, instructions and receipt.
+  Historical hashes describe the old male-only tables, not the augmented tables.
 
-Keep each chunk's MP4 and SLPs together. Open an SLP in a compatible SLEAP GUI;
-it references the MP4 basename in its own folder. If asked to relink, choose
-that chunk's MP4—not another chunk or the full original movie. Start with the
-untracked `.predictions.slp` for a simpler pose view. The GUI/video backend must
-support HEVC/H.265; the original codec has deliberately not been converted.
+Every payload stays below GitHub's ordinary 100-MiB per-file limit. Full research
+videos, models and prediction runs are not required to use this bundle. This
+update is local; a completion receipt does not imply a Git commit or push.
+
+## Dataframe use and indexing
 
 ```python
 from pathlib import Path
@@ -73,25 +81,68 @@ import pandas as pd
 root = Path('demo/crab_cam2_2_middle_2000')
 df = pd.read_parquet(root / 'observations.parquet', dtype_backend='numpy_nullable')
 frames = pd.read_parquet(root / 'frames.parquet', dtype_backend='numpy_nullable')
+burrows = pd.read_parquet(root / 'burrows.parquet', dtype_backend='numpy_nullable')
+
+males = df.loc[df['entity_type'].eq('male')]
+females = df.loc[df['entity_type'].eq('female')]
 poses = df.loc[df['demo_frame'].eq(1000)]
-print(poses[['frame', 'demo_frame', 'chunk_id', 'chunk_frame', 'tracklet_id']])
-# Open the SLP under poses['chunk_id'].iloc[0], at its chunk_frame value.
+print(poses[['entity_type', 'frame', 'chunk_id', 'chunk_frame', 'tracklet_id']])
+print(burrows[['burrow_id', 'burrow_x', 'burrow_y', 'source_label_frame']])
+# Every burrow applies throughout the interval in valid_source_frame_*.
+# Open poses['combined_slp'].iloc[0] at poses['chunk_frame'].iloc[0].
 ```
 
-On Della, computation/playback still requires Slurm. The build verifies every
-copied packet hash, every decoded frame pixel-for-pixel, every pose/score/ID,
-all source dataframe columns, SLP frame coverage, and relocated video links.
-A desktop GUI is not claimed tested.
+- `entity_type` / `sex` distinguish **model classes** `male` and `female`, not
+  independently confirmed biological sex. No cross-model deduplication, matching
+  or arbitration is performed: an animal could appear in both model outputs.
+- `body_x`, `body_y`, `body_score` are original `Shell` for males, `FBody` for
+  females. `centroid_source` identifies the proxy (`shell_proxy` / `FBody_proxy`),
+  not recovered centroid-detector crop centers. Female raw-node columns are
+  `fbody_x`, `fbody_y`, `fbody_score`, `fbody_visible`. Male-only anatomy is null
+  in female rows, never filled with `FBody` values.
+- Original male columns and all male measurements/IDs/flags/provenance retain
+  their values. Filter `entity_type == 'male'` for the old male table.
+- `frame`, `time_s` refer to the full source video. `demo_frame` is 0–1999;
+  `chunk_frame` is local to the chunk SLP/movie. **Original frame = demo_frame +
+  13410.** Coordinates are unscaled image pixels, x right and y down.
+- `layer_slp` and `chunk_instance_row` locate the native male/female tracked
+  file's flattened instance row. `combined_slp`, `combined_instance_index` and
+  `combined_chunk_instance_row` locate the combined file (within-frame index and
+  flattened row, respectively). `source_instance_row` retains the full raw SLP
+  row. Keys include model/dataset scope; do not join by `instance_index` alone.
+- New `observation_row` indexes the augmented root table. Historical
+  `demo_instance_row` remains the original **male-only** ordinal and is null for
+  females. Original `frames.source_count` / `assigned_count` remain male-only;
+  use `male_source_count`, `female_source_count`, `female_assigned_count`,
+  `all_crab_source_count` and `static_burrow_count` for explicit augmented counts.
+- Female `source_chunk_path`, `source_chunk_instance_row`, and
+  `source_observations_path` are null: these rows are sliced directly from the
+  merged female SLP, not a pre-existing male-style observation export.
 
-## Publication
+## Female identities and static-burrow assumptions
 
-The old 300-frame demo is preserved locally under ignored
-`archive/demo/crab_cam2_2_middle_300/`, rather than as a second active demo.
-Original research files are never changed. Git history is not rewritten.
+The completed `female_v002` full-video output had **no track IDs**. This demo
+adds experimental **body-first adjacent-frame tracklets** using `FBody`, the
+existing male body-first implementation and its predeclared distance/score/
+ambiguity settings. Shoulder cues are disabled because females have no Shoulder
+landmark. No parameter sweep, inference, gap filling, re-identification,
+fixed-animal count, or pose modification. State continues across chunk boundaries
+but starts at the demo's first frame. IDs begin `female_demo_body_first_v001/`;
+they are **not** validated unique animals or full-video female tracks. Rejected
+low-score/duplicate detections remain in the SLP/dataframe with null IDs. Male
+full-video track names are unchanged. These are SLEAP-format tracks generated by
+the project's body-first association, not a new run of SLEAP's built-in tracker.
 
-`DEMO_COMPLETE.json` means validated local data, not a GitHub upload. The build
-job separately verifies that every payload is committed to `my-code`, then
-attempts one normal push. If compute-node networking blocks GitHub, the local
-commit is still ready for a normal `git push origin my-code` from the user's
-network-enabled terminal. Receipts: `logs/demo_preparation/replace_<job-id>/`.
-See `docs/demo/REPLACEMENT_2000.md` for the workflow and prior failure explanation.
+The original burrow upload contains **two slightly different 282-point maps**,
+not a certified 564-burrow catalog. The fixed demo map uses the **first annotated
+frame, 563**, preserving its coordinates and source instance order. Frame 948 is
+retained in the copied source; maps are **not unioned, averaged, or cross-frame
+matched**. Stable names `burrow_static/f000563/b0000`, etc., identify reference
+points, not validated cross-frame identities. Positions are assumed constant,
+as requested. Transfer from the label video `clip_cam2_8k.mp4` to the full demo
+assumes the same fixed camera coordinates; **no independent image registration
+or validation of all burrows at the demo time was performed**.
+
+The original male-only bundle is preserved in the ignored local `archive/demo/`
+location recorded in `DEMO_COMPLETE.json`. Uploaded source labels, full-video
+predictions, models, and source research videos are unchanged.
